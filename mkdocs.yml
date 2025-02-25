@@ -1,0 +1,103 @@
+# mkdocs.yml
+site_name: msgFlow
+site_author: Vilson Rodrigues
+site_description: >-
+  Build Multimodal Agentic Workflows
+copyright: Copyright &copy; 2025 Vilson Rodrigues
+
+theme: 
+  name: material
+  language: en  
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - header.autohide
+    - blog
+    - content.code.copy
+    - navigation.tracking
+  palette:
+    - scheme: default
+      primary: amber
+      toggle:
+        icon: material/weather-night
+        name: Night
+    - scheme: slate
+      primary: amber
+      toggle:
+        icon: material/weather-sunny
+        name: Sunny
+  font:
+    text: Roboto
+    code: Roboto Mono
+
+plugins:
+  - blog
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_if_no_docstring: true
+            separate_signature: true
+            docstring_style: google
+            show_root_heading: true
+            show_root_full_path: false
+            separate_signature: true
+
+markdown_extensions:
+  - attr_list
+  - md_in_html
+  - tables
+  - footnotes
+  - admonition
+  - pymdownx.mark
+  - pymdownx.tilde
+  - pymdownx.details  
+  - pymdownx.tasklist
+  - pymdownx.emoji:
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.critic
+  - pymdownx.caret
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.tilde
+
+nav:
+  - Home: 
+    - index.md
+  - Docs:
+    - Getting Started:
+      - Agent: getting-started/agent.md
+      - MultiModal Agent: getting-started/multimodal-agent.md
+      - RAG: getting-started/rag.md    
+    - Core:
+      - Models: 
+        - core/model.md
+        - Chat Completation: models/chat_completation.md
+        - Image Gen: models/image_gen.md
+      - DataBase: 
+        - core/database.md
+        - Vector: databases/vector.md
+    - Guides:
+      - Using Sequential Process: guides/sequential.md
+    - API Reference: api-reference.md
+  - Blog:
+    - blog/index.md
+
+extra_css:
+  - https://unpkg.com/mermaid@8.5.1/dist/mermaid.css
+  - stylesheets/extra.css  
+
+extra_javascript:
+  - https://unpkg.com/mermaid@8.5.1/dist/mermaid.min.js
