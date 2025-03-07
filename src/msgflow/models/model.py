@@ -1,90 +1,77 @@
 from typing import Any, Type, Dict
-from msgflow.utils import import_module_from_lib
+from msgflow.utils.imports import import_module_from_lib
 from msgflow.models.base import BaseClient
 from msgflow.models.types import (
+    ASRModel,
     ChatCompletionModel,
+    ImageTextToImageModel,
     ImageEmbedderModel,
-    ImageGenModel,
-    TranscriberModel,
     TextEmbedderModel,
     TextRerankerModel,
     TTSModel,    
 )
 
 _SUPPORTED_MODEL_TYPES = [
+    "asr",    
     "chat_completion",
-    "audio_classifier",
-    "audio_embedder",
-    "mask_gen",
-    "image_caption",
-    "image_classifier",
+    #"audio_classifier",
+    #"audio_embedder",
+    #"mask_gen",
+    #"image_caption",
+    #"image_classifier",
     "image_embedder",    
-    "image_gen",
-    "image_segmenter",
-    "object_detection",
-    "ocr",
+    #"image_gen",
+    #"image_segmenter",
+    "image_text_to_image",
+    #"object_detection",
+    #"ocr",
     "tts",
-    "transcriber",
-    "text_classifier",
+    #"text_classifier",
     "text_embedder",
-    "text_reranker",
-    "video_classifier",
-    "video_gen",    
+    #"text_reranker",
+    #"video_classifier",
+    #"video_gen",    
 ]
 
-# TODO: _PROVIDER_CONFIG is not so good yet
-
-_PROVIDER_CONFIG = {
-    "chat_completion": {
-        "providers": ["openai", "google", "amazon"],
-        "return_type": ChatCompletionModel
-    },
-    "image_gen": {
-        "providers": ["openai", "google", "amazon"],
-        "return_type": ImageGenModel
-    },
-    "tts": {
-        "providers": ["openai", "google", "amazon"],
-        "return_type": TTSModel
-    },
-    "transcriber": {
-        "providers": ["openai", "google", "amazon"],
-        "return_type": TranscriberModel
-    },
-    "text_embedder": {
-        "providers": ["openai", "google", "amazon", "fast_embedding", "sbert"],
-        "return_type": TextEmbedderModel,
-        "local_providers": ["sbert"]
-    },
-    "image_embedder": {
-        "providers": ["timm"],
-        "return_type": ImageEmbedderModel,
-        "local_providers": ["timm"]
-    },
-    "text_reranker": {
-        "providers": ["openai", "sbert"],
-        "return_type": TextRerankerModel,
-        "local_providers": ["sbert"]
-    }
-}
-
 _MODEL_NAMESPACE_TRANSLATOR = {
-    "openai": "OpenAI",
-    "google": "Google",
-    "amazon": "Amazon",
-    "fast_embedding": "FastEmbedding",
-    "diffusers": "Diffusers",
-    "timm": "Timm",
-    "sbert": "SBERT",
-    "ctranslate2": "CTranslate2",
-    "tango_flux": "TangoFlux"
-}
+    "openai": "OpenAI", 
+    #"google": "Google", 
+    #"amazon": "Amazon", 
+    #"fast_embedding": "FastEmbedding",
+    "timm": "TIMM",
+    #"sbert": "SBERT"
+    "local-vllm": "LocalVLLM",
+    "vllm": "VLLM",
+    "together": "Together"
+} 
 
+_CHAT_COMPLETATION_PROVIDERS = ["openai", "local-vllm", "vllm", "together"] 
+_IMAGE_EMBEDDER_PROVIDERS = ["timm"]
+_IMAGE_TEXT_TO_IMAGE_PROVIDERS = ["openai"]
+_TTS_PROVIDERS = ["openai"]
+_ASR_PROVIDERS = ["openai"]
+_TEXT_EMBEDDER_PROVIDERS = ["openai"]
+#_TEXT_RERANKER_PROVIDERS = ["openai", "sbert"]
+
+providers_by_model_type = {
+    "chat_completation": _CHAT_COMPLETATION_PROVIDERS,
+    "asr": _ASR_PROVIDERS,
+    "image_embedder": _IMAGE_EMBEDDER_PROVIDERS,
+    "image_text_to_image": _IMAGE_TEXT_TO_IMAGE_PROVIDERS,
+    "tts": _TTS_PROVIDERS,
+    "text_embedder": _TEXT_EMBEDDER_PROVIDERS,    
+}
 
 class Model:
-
     supported_model_types = _SUPPORTED_MODEL_TYPES
-    provider_config = _PROVIDER_CONFIG
+    chat_completation_providers = _CHAT_COMPLETATION_PROVIDERS
+    image_text_to_text_providers = _IMAGE_TEXT_TO_IMAGE_PROVIDERS
+    tts_providers = _TTS_PROVIDERS
+    asr_providers = _ASR_PROVIDERS
+    text_embedder_providers = _TEXT_EMBEDDER_PROVIDERS
+    image_embedder_providers = _IMAGE_EMBEDDER_PROVIDERS
+    #text_reranker_providers = _TEXT_RERANKER_PROVIDERS
+    providers_by_model_type = providers_by_model_type
 
     @classmethod
     def _model_path_parser(cls, model_id: str) -> tuple[str, str]:
@@ -93,16 +80,16 @@ class Model:
 
     @classmethod
     def _get_model_class(cls, model_type: str, provider: str) -> Type[BaseClient]:
-        if model_type not in cls.provider_config:
+        if model_type not in cls.supported_model_types:
             raise ValueError(f"Model type `{model_type}` is not supported")
             
-        config = cls.provider_config[model_type]
-        if provider not in config["providers"]:
+        providers = cls.providers_by_model_type[model_type]
+        if provider not in providers:
             raise ValueError(f"Provider `{provider}` is not supported for {model_type}")
 
         provider_class_name = f"{_MODEL_NAMESPACE_TRANSLATOR[provider]}{model_type.title().replace('_', '')}"
-        # TODO tem que rever isso
-        module_base = "local" if provider in config.get("local_providers", []) else "clients"
+        local_models = ["local-vllm"]
+        module_base = "local" if provider in local_models else "clients"
         module_name = f"msgflow.models.{module_base}.{provider}"
         
         return import_module_from_lib(provider_class_name, module_name)
@@ -133,13 +120,12 @@ class Model:
         instance.deserialize(params)
         return instance
 
-    # Convenience methods for each model type
     @classmethod
     def chat_completion(cls, model_path: str, **kwargs) -> ChatCompletionModel:
         return cls._create_model("chat_completion", model_path, **kwargs)
 
     @classmethod
-    def image_gen(cls, model_path: str, **kwargs) -> ImageGenModel:
+    def image_text_to_image(cls, model_path: str, **kwargs) -> ImageTextToImageModel:
         return cls._create_model("image_gen", model_path, **kwargs)
 
     @classmethod
@@ -147,8 +133,8 @@ class Model:
         return cls._create_model("tts", model_path, **kwargs)
 
     @classmethod
-    def transcriber(cls, model_path: str, **kwargs) -> TranscriberModel:
-        return cls._create_model("transcriber", model_path, **kwargs)
+    def asr(cls, model_path: str, **kwargs) -> ASRModel:
+        return cls._create_model("asr", model_path, **kwargs)
 
     @classmethod
     def text_embedder(cls, model_path: str, **kwargs) -> TextEmbedderModel:
