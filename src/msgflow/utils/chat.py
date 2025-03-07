@@ -3,78 +3,12 @@ from typing import (
     Any,
     Callable,
     Dict,
-    List,
     Literal,
     Union,
-    Tuple,
     get_origin,
 )
-import msgspec
+from jinja2 import Template
 
-
-def parse_annotations(annotation: str) -> List[Tuple[str, str]]:
-    """
-    Parses a string of annotations in the format "field1: type1, field2: type2".
-    Assumes `str` as the default type if none is provided.
-
-    Used in `msgflow.signatures`.
-    """
-    # Remove unnecessary spaces and surrounding quotes, if any
-    annotation = annotation.strip().strip('"')
-
-    # Split pairs by leading commas (not inside brackets)
-    pairs = re.split(r",\s*(?![^[]*\])", annotation)
-
-    result = []
-    for pair in pairs:
-        # Separate key and type, assuming type is `str` if omitted
-        if ":" in pair:
-            key, value_type = map(str.strip, pair.split(":", 1))
-        else:
-            key, value_type = pair.strip(), "str"
-        result.append((key, value_type))
-
-    return result
-
-def create_struct_from_signature(signature: str, struct_name: str = "DynamicStruct"):
-    """
-    Creates a msgspec struct class from a signature string.
-
-    Args:
-        signature: Signature string in the format "field1: type1, field2: type2".
-        struct_name: Name of the struct class to create.
-
-    Returns:
-        A msgspec struct class
-    """
-    type_map = {
-        "str": str,
-        "int": int,
-        "float": float,
-        "bool": bool,
-        "list": list,
-        "dict": dict,
-    }
-
-    annotations = parse_annotations(signature)
-
-    # Prepare the list of fields for the msgspec
-    struct_fields = []
-    for name, type_str in annotations:
-        # Support for built-in types
-        if type_str in type_map:
-            struct_fields.append((name, type_map[type_str.lower()]))
-        else:
-            # Try to handle more complex types
-            try:
-                struct_fields.append((name, eval(type_str)))
-            except:
-                raise ValueError(f"Unsupported type: `{type_str}`")
-
-    # Create the struct class dynamically using defstruct
-    DynamicStruct = msgspec.defstruct(struct_name, struct_fields)
-
-    return DynamicStruct
 
 def adapt_struct_schema_to_json_schema(
     original_schema: Dict[str, Any],
@@ -299,4 +233,23 @@ def generate_json_schema(cls: type) -> Dict:
     }
 
     return json_schema
+
+# TODO: needs improvement to write encoded json
+def get_react_tools_prompt_format(tool_schemas):
+    template = Template("""
+    You are a function calling AI model. You may call one or more functions to assist with the user query. Don't make assumptions about what values to plug into functions. Here are the available tools:
+
+
+    {%- for tool in tools %}
+        {{- '<tool>' + tool['function']['name'] + '\n' }}
+        {%- for argument in tool['function']['parameters']['properties'] %}
+            {{- argument + ': ' + tool['function']['parameters']['properties'][argument]['description'] + '\n' }}
+        {%- endfor %}
+        {{- '\n</tool>' }}
+    {%- endif %}
+
+    For each function call return a encoded json object with function name and arguments within <tool_call></tool_call> XML tags as follows:
+    """)    
+    react_tools = template.render(tools=tool_schemas)
+    return react_tools
 

@@ -4,7 +4,7 @@ from typing import Dict
 
 
 class EventsTiming:
-    r""" The class is designed to capture and store the start and end times of events,
+    """ The class is designed to capture and store the start and end times of events,
     along with their duration in seconds. Times are stored in both Unix timestamp
     (seconds since 1970) and ISO 8601 format.
 
@@ -43,8 +43,7 @@ class EventsTiming:
         }
     """
 
-    def __init__(self):
-        self.events = {}
+    events = {}
 
     @staticmethod
     def _get_iso_time():

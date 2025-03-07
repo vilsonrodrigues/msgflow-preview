@@ -1,14 +1,14 @@
+import re
 from typing import (
     Any,
     Dict,
     List,
-    Literal,
     Optional,
-    Union,
     Tuple,
     get_type_hints,
     GenericAlias,
 )
+import msgspec
 
 
 class InputField:
@@ -16,7 +16,7 @@ class InputField:
     Represents an input field in a model signature.
 
     Attributes:
-        desc (Optional[str]): A description of the input field. Defaults to an empty string.
+        desc: A description of the input field. Defaults to an empty string.
     """
 
     def __init__(self, desc: Optional[str] = ""):
@@ -28,7 +28,7 @@ class OutputField:
     Represents an output field in a model signature.
 
     Attributes:
-        desc (Optional[str]): A description of the output field. Defaults to an empty string.
+        desc: A description of the output field. Defaults to an empty string.
     """
 
     def __init__(self, desc: Optional[str] = ""):
@@ -102,10 +102,10 @@ class Signature(metaclass=_SignatureMeta):
         Converts a type object to a readable string representation.
 
         Args:
-            type_obj (Any): The type object to convert.
+            type_obj: The type object to convert.
 
         Returns:
-            str: A string representation of the type.
+            A string representation of the type.
         """
         if isinstance(type_obj, GenericAlias):  # For generic types
             return str(type_obj)
@@ -117,7 +117,7 @@ class Signature(metaclass=_SignatureMeta):
         Retrieves the input fields with their names and types.
 
         Returns:
-            Dict[str, str]: A dictionary mapping input field names to their types.
+            A dictionary mapping input field names to their types.
         """
         type_hints = get_type_hints(cls)
         return {key: cls._type_to_str(type_hints[key]) for key in cls._inputs}
@@ -128,7 +128,7 @@ class Signature(metaclass=_SignatureMeta):
         Retrieves the output fields with their names and types.
 
         Returns:
-            Dict[str, str]: A dictionary mapping output field names to their types.
+            A dictionary mapping output field names to their types.
         """
         type_hints = get_type_hints(cls)
         return {key: cls._type_to_str(type_hints[key]) for key in cls._outputs}
@@ -139,7 +139,7 @@ class Signature(metaclass=_SignatureMeta):
         Returns the signature of the parameters in string format.
 
         Returns:
-            str: A string representation of the input and output fields.
+            A string representation of the input and output fields.
         """
         inputs = [f"{key}: {typ}" for key, typ in cls._get_inputs().items()]
         outputs = [f"{key}: {typ}" for key, typ in cls._get_outputs().items()]
@@ -151,7 +151,7 @@ class Signature(metaclass=_SignatureMeta):
         Returns the descriptions and types of the input parameters.
 
         Returns:
-            List[Tuple[str, str, str]]: A list of tuples containing the input field name,
+            A list of tuples containing the input field name,
             type, and description.
         """
         inputs = cls._get_inputs()
@@ -163,7 +163,7 @@ class Signature(metaclass=_SignatureMeta):
         Returns the descriptions and types of the output parameters.
 
         Returns:
-            List[Tuple[str, str, str]]: A list of tuples containing the output field name,
+            A list of tuples containing the output field name,
             type, and description.
         """
         outputs = cls._get_outputs()
@@ -175,6 +175,70 @@ class Signature(metaclass=_SignatureMeta):
         Returns the class docstring.
 
         Returns:
-            Optional[str]: The docstring of the class, or `None` if no docstring is present.
+            The docstring of the class, or `None` if no docstring is present.
         """
         return cls.__doc__.strip() if cls.__doc__ else None
+
+def parse_annotations(annotation: str) -> List[Tuple[str, str]]:
+    """
+    Parses a string of annotations in the format "field1: type1, field2: type2".
+    Assumes `str` as the default type if none is provided.
+
+    Used in `msgflow.signatures`.
+    """
+    # Remove unnecessary spaces and surrounding quotes, if any
+    annotation = annotation.strip().strip('"')
+
+    # Split pairs by leading commas (not inside brackets)
+    pairs = re.split(r",\s*(?![^[]*\])", annotation)
+
+    result = []
+    for pair in pairs:
+        # Separate key and type, assuming type is `str` if omitted
+        if ":" in pair:
+            key, value_type = map(str.strip, pair.split(":", 1))
+        else:
+            key, value_type = pair.strip(), "str"
+        result.append((key, value_type))
+
+    return result
+
+def create_struct_from_signature(signature: str, struct_name: str = "DynamicStruct"):
+    """
+    Creates a msgspec struct class from a signature string.
+
+    Args:
+        signature: Signature string in the format "field1: type1, field2: type2".
+        struct_name: Name of the struct class to create.
+
+    Returns:
+        A msgspec struct class
+    """
+    type_map = {
+        "str": str,
+        "int": int,
+        "float": float,
+        "bool": bool,
+        "list": list,
+        "dict": dict,
+    }
+
+    annotations = parse_annotations(signature)
+
+    # Prepare the list of fields for the msgspec
+    struct_fields = []
+    for name, type_str in annotations:
+        # Support for built-in types
+        if type_str in type_map:
+            struct_fields.append((name, type_map[type_str.lower()]))
+        else:
+            # Try to handle more complex types
+            try:
+                struct_fields.append((name, eval(type_str)))
+            except:
+                raise ValueError(f"Unsupported type: `{type_str}`")
+
+    # Create the struct class dynamically using defstruct
+    DynamicStruct = msgspec.defstruct(struct_name, struct_fields)
+
+    return DynamicStruct

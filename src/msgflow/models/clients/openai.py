@@ -1,6 +1,7 @@
 import base64
 import tempfile
 from contextlib import contextmanager
+from os import getenv
 from typing import Any, Dict, List, Literal, Optional, Union
 import gevent
 import httpx
@@ -9,7 +10,6 @@ import openai
 from openai import OpenAI
 
 from msgflow.logger import logger
-from msgflow.envs import get_env
 from msgflow.exceptions import KeyExhaustedError
 from msgflow.models.base import BaseModel
 from msgflow.telemetry.events import EventsTiming
@@ -25,7 +25,6 @@ from msgflow.models.types import (
 from msgflow.utils.chat import adapt_struct_schema_to_json_schema
 from msgflow.utils.msgspec import struct_to_dict
 
-# TODO: add metadata to the response and separate the system prompt from the msg
 # TODO: from response to modelresponse IF you want to add more types of output like this
 # what may be necessary for greater tracing coverage
 
@@ -34,12 +33,13 @@ from msgflow.utils.msgspec import struct_to_dict
 
 # TODO split sampling params into 2, normal and run
 
-# logger = init_logger(__name__)
 
 """
 
 response.headers.get('x-ratelimit-limit-tokens')
-x-ratelimit-limit-requests
+x-ratelimit-limit-rA exceção AllModelsFailedError recebe uma lista de exceções (exceptions) e uma lista de informações sobre os modelos (model_info).
+
+A mensagem de erro é construída para incluir detalhes sobre cada modelo que falhou, incluindo o model_id, provider e a mensagem de erro associada.equests
 x-ratelimit-limit-tokens
 x-ratelimit-remaining-requests
 x-ratelimit-remaining-tokens
@@ -56,8 +56,8 @@ class _BaseOpenAI(BaseModel):
 
     def _initialize_client(self, organization, project):
         """Initialize the OpenAI client with empty API key."""
-        max_retries = get_env("OPENAI_MAX_RETRIES", openai.DEFAULT_MAX_RETRIES)
-        timeout = get_env("OPENAI_TIMEOUT", None)
+        max_retries = getenv("OPENAI_MAX_RETRIES", openai.DEFAULT_MAX_RETRIES)
+        timeout = getenv("OPENAI_TIMEOUT", None)
         base_url = self._get_base_url()
         self.client = OpenAI(
             organization=organization,
@@ -76,7 +76,7 @@ class _BaseOpenAI(BaseModel):
 
     def _get_api_key(self):
         """Load API keys from environment variable."""
-        keys = get_env("OPENAI_API_KEY")
+        keys = getenv("OPENAI_API_KEY")
         if not keys:
             raise ValueError(
                 "The OpenAI key is not available. Please set `OPENAI_API_KEY`"
@@ -153,8 +153,9 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
     ):
         super().__init__()
         self._initialize_client(organization, project)
+        self.model_id = model_id
         self.sampling_params = {
-            "model": model_id,
+            "model": self.model_id,
             "max_tokens": max_tokens,
             "temperature": temperature,
             "top_p": top_p,
