@@ -13,7 +13,7 @@ from msgflow.data.retrievers.types import (
 )
 from msgflow.models.router import ModelRouter
 from msgflow.nn.modules.module import Module
-from msgflow.utils import to_io_object
+from msgflow.utils.encode import to_io_object
 
 
 class Retriever(Module):
@@ -24,17 +24,17 @@ class Retriever(Module):
 
     def __init__(
         self,
-        *,
         name: str,
         retriever: Union[
             HybridRetriever, LexicalRetriever, SemanticRetriever, VectorDB
         ],
+        *,        
         model: Optional[
             Union[
                 AudioEmbedderModel, ImageEmbedderModel, TextEmbedderModel, ModelRouter
             ]
         ] = None,
-        task_inputs: Union[str, Dict[str, str]] = None,
+        task_inputs: Optional[Union[str, Dict[str, str]]] = None,
         task_multimodal_inputs: Optional[Dict[str, List[str]]] = None,
         response_mode: Optional[str] = "plain_response",
         response_template: Optional[str] = None,
@@ -44,12 +44,10 @@ class Retriever(Module):
         dict_key: Optional[str] = None,
     ):
         super().__init__()
-
         if task_inputs is None and task_multimodal_inputs is None:
             raise ValueError(
-                "`nn.Retriver requires `task_inputs` " "or `task_multimodal_inputs`"
+                "`nn.Retriever` requires `task_inputs` or `task_multimodal_inputs`"
             )
-
         self.set_name(name)
         self._set_retriever(retriever)        
         self._set_model(model)
@@ -70,12 +68,15 @@ class Retriever(Module):
         return response
 
     def _execute_retriever(self, queries) -> List[Dict[str, Any]]:
+        if len(queries) == 0:
+            raise ValueError("No data was found for the given input settings")
+                
+        queries_embed = None
         if self.model:
-            model_response = self.model(queries)
-            queries = model_response.consume()
-
+            queries_embed = self._execute_model(queries)
+    
         retriever_response = self.retriever(
-            queries=queries,
+            queries=queries_embed or queries,
             top_k=self.top_k,
             threshold=self.threshold,
             return_score=self.return_score,
@@ -85,34 +86,22 @@ class Retriever(Module):
 
         for query, query_results in zip(queries, retriever_response):
             formatted_result = {
-                "query": query,
                 "results": [
                     {"data": item.get("data"), "score": item.get("score")}
                     for item in query_results
                 ],
             }
+            if isinstance(query, str):
+                formatted_result["query"] = query
             results.append(formatted_result)
 
         return results
-
-    def _prepare_response(self, retriever_response, message):
-        if self.response_template:
-            response = self._format_iterative_response_template(retriever_response)
-        else:
-            response = retriever_response
-
-        # TODO: mover para module como uma função?
-        if self.response_mode == "plain_response":
-            return response
-        elif isinstance(message, Message):
-            if self.response_mode.startswith(("context", "outputs", "response")):
-                message.set(f"{self.response_mode}.{self.name}", response)
-            return message
-        else:
-            raise ValueError(
-                "For `response_mode` other than `plain_response` "
-                "the message object must be of type Message"
-            )
+    
+    def _execute_model(self, queries):
+        model_response = self.model(queries)
+        queries_embed = self._extract_raw_response(model_response)
+        # TODO: trace metadata
+        return queries_embed
 
     def _prepare_task(
         self, message: Union[str, List[str], List[Dict[str, Any]], Message]
@@ -121,7 +110,7 @@ class Retriever(Module):
             queries = [message]
         elif isinstance(message, list):
             if isinstance(message[0], dict):
-                queries = self._process_list_dict_task(message)
+                queries = self._process_list_of_dict_inputs(message)
             else:
                 queries = message
         elif isinstance(message, Message):
@@ -130,7 +119,7 @@ class Retriever(Module):
             raise ValueError("Unsupported message type")
         return queries
 
-    def _process_list_dict_task(self, message: List[Dict[str, Any]]) -> List[str]:
+    def _process_list_of_dict_inputs(self, message: List[Dict[str, Any]]) -> List[str]:
         """Useful to generation schemas
         [{'name': 'vilsin'}]
         dict_key='name'
@@ -139,16 +128,20 @@ class Retriever(Module):
             queries = [data[self.dict_key] for data in message]
             return queries
         else:
-            raise ValueError(
-                "message that contain List[Dict[str, Any]] "
+            raise AttributeError(
+                "message that contain `List[Dict[str, Any]]` "
                 "require a `dict_key` to select the key for retrieval"
             )
 
-    def _process_message_task(self, message: Message) -> List[str]:
+    def _process_message_task(self, message: Message) -> List[Union[str, ]]:
         if self.task_inputs:
             content = self._process_text_inputs(message)
         elif self.task_multimodal_inputs:
             content = self._process_multimodal_inputs(message)
+        else:
+            raise AttributeError(
+                "a message object was passed but neither `task_inputs` "
+                "nor `multimodal_task_inputs` were defined")
         # Recurssion
         queries = self._prepare_task(content)
         return queries
@@ -174,8 +167,7 @@ class Retriever(Module):
             if image_data:
                 image_bytes_io = to_io_object(image_data)
                 content.append(image_bytes_io)
-        # TODO: add raise se len(content) == 0?
-        # another multimodal inputs is not supported yet
+        # TODO: another multimodal inputs is not supported yet
         return content
 
     def _set_retriever(
@@ -240,35 +232,8 @@ class Retriever(Module):
         else:
             raise TypeError(f"`top_k` requires a int given `{type(top_k)}`")            
 
-    def _set_dict_key(self, dict_key: str): # TODO: depreciado, ou não? nao, mas pode ter outro nome
+    def _set_dict_key(self, dict_key: str):
         if isinstance(dict_key, str):
             self.register_buffer("dict_key", dict_key)
         else:
             raise TypeError(f"`dict_key` need be a string given `{type(dict_key)}`")
-
-    # TODO: move to module
-    def _set_task_inputs(self, inputs: Union[str, Dict[str, str]]):
-        self.register_buffer("task_inputs", inputs)
-
-    # TODO: move to module
-    def _set_task_multimodal_inputs(self, multimodal_inputs: Union[str, Dict[str, str]]):
-        self.register_buffer("task_multimodal_inputs", multimodal_inputs)
-
-    # TODO: move to module
-    def _set_response_template(self, response_template: Optional[str] = None):
-        if isinstance(response_template, str):           
-            self.register_buffer("response_template", response_template)
-        else:
-            raise TypeError("`response_template` requires a string not empty")
-
-    # TODO: move to module
-    def _set_response_mode(self, response_mode: str):
-        if response_mode in ["plain_response", "response"] or response_mode.startswith(
-            ("context", "outputs")
-        ):
-            self.register_buffer("response_mode", response_mode)
-        else:
-            raise ValueError(
-                f"`response_mode={response_mode}` is not supported "
-                "only `plain_response`, `context`, `outputs` and `response`"
-            )

@@ -15,6 +15,8 @@ dependencies = [
     "mermaid-py>=0.7.0",
     "msgspec>=0.19.0",
     "msgspec-ext",
+    "opentelemetry-api>=1.30.0",
+    "opentelemetry-sdk>=1.30.0",
     "ray>=2.42.1",
     "soundfile>=0.13.1",
     "tomli-w>=1.2.0",
@@ -27,6 +29,12 @@ openai = [
 ]
 data = [
     "ray[data]>=2.40.0",
+]
+python-pptx = [
+    "python-pptx>=1.0.2",
+]
+faiss-cpu = [
+    "faiss-cpu>=1.10.0",
 ]
 
 [build-system]

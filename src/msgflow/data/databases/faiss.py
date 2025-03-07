@@ -68,14 +68,14 @@ class FAISSVectorDB(BaseDB, VectorDB):
     def add(
         self,
         embeddings: Union[List[List[float]], np.ndarray],
-        documents: Optional[List[Dict]] = None,
+        documents: List[Dict],
     ):
         """
-        Add embeddings and their corresponding metadata to the vector store
+        Add embeddings and their corresponding metadata to the vector db
 
         Parameters:
         - embeddings: List or NumPy array of embeddings (N x dimension)
-        - documents: Optional list of metadata dictionaries
+        - documents: list of metadata
         """
         # Convert to NumPy array if needed
         if not isinstance(embeddings, np.ndarray):
@@ -99,17 +99,10 @@ class FAISSVectorDB(BaseDB, VectorDB):
             norms[norms == 0] = 1
             embeddings /= norms
 
-        # Add vectors to index
-        self.index.add(embeddings)
-
-        # Store metadata (if provided)
-        if documents is None:
-            documents = [{}] * embeddings.shape[0]
-
-        # Validate metadata
         if len(documents) != embeddings.shape[0]:
             raise ValueError("Number of documents must match number of embeddings")
 
+        self.index.add(embeddings)
         self.documents.extend(documents)
 
     def search(

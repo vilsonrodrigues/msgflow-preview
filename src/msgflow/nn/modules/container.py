@@ -16,6 +16,7 @@ from typing_extensions import Self
 from msgflow.message import Message
 from msgflow.nn.modules.module import Module, _addindent
 
+
 __all__ = [
     "Sequential",
     "ModuleList",
@@ -542,4 +543,4 @@ class ModuleDict(Module):
                     )
                 # modules can be Mapping (what it's typed at), or a list: [(name1, module1), (name2, module2)]
                 # that's too cumbersome to type correctly with overloads, so we add an ignore here
-                self[m[0]] = m[1]  # type: ignore[assignment]
+                self[m[0]] = m[1]  # type: ignore[assignment]islice

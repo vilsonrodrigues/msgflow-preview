@@ -1,5 +1,5 @@
 import os
-from typing import Any, Optional
+from typing import Any
 from msgspec_ext import BaseSettings, SettingsConfigDict
 from msgspec_ext import FilePath
 
@@ -20,26 +20,6 @@ def set_envs(**kwargs: Any):
     """
     for key, value in kwargs.items():
         os.environ[key.upper()] = str(value)
-
-
-def get_env(key: str, default: Optional[str] = None) -> str:
-    """Returns a environment variable value.
-
-    Args:
-        key:
-            The name of the environment variable to read.
-        default:
-            The default value to return if the variable is not set.
-            The default is None.
-
-    Returns:
-        The value of the environment variable or the default value
-        if it is not set.
-
-    Example:
-        api_key = get_env("API_TOKEN", default="default-token")
-    """
-    return os.getenv(key, default)
 
 
 class EnvironmentVariables(BaseSettings):

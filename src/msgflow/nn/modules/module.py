@@ -20,17 +20,17 @@ from code2mermaid import code_to_mermaid
 from jinja2 import Template  
 
 import msgflow
-from msgflow._internal.core import Core
-from msgflow.message_otel import Message
+from msgflow.message import Message
 from msgflow.models.model import Model
+from msgflow.models.response import Response, StreamResponse
 from msgflow.nn.parameter import Buffer, Parameter
-from msgflow.utils_._msgspec import (
+from msgflow.utils.msgspec import (
     deserialize_struct, 
     serialize_msgspec_struct
 )
-from msgflow.utils_.hooks import RemovableHandle
-from msgflow.utils_.plot import plot_mermaid
-from msgflow.utils_.validation import is_builtin_type
+from msgflow.utils.hooks import RemovableHandle
+from msgflow.utils.mermaid import plot_mermaid
+from msgflow.utils.validation import is_builtin_type
 
 
 __all__ = [
@@ -301,7 +301,7 @@ def _forward_unimplemented(self, *input: Any) -> None:
         f"Module [{type(self).__name__}] is missing the required `forward` function"
     )
 
-class Module(Core):
+class Module:
 
     training: bool # TODO mover para Agent
 
@@ -420,8 +420,8 @@ class Module(Core):
             template = raw_template.replace("{{ }}", "{}").replace("{{}}", "{}")
             return template.format(content)
         elif isinstance(raw_template, dict):
-            template = Template(self.task_template)
-            return template.render(raw_template)
+            template = Template(raw_template)
+            return template.render(content)
         else:
             raise ValueError("Unsupported content type for template formatting")    
 
@@ -436,14 +436,105 @@ class Module(Core):
             
     def _set_annotations(self, annotations: Dict[str, type]):
         if isinstance(annotations, dict):
-            self.__annotations__ = annotations
+            self.register_buffer("__annotations__", annotations)
         else:
             raise TypeError(f"`annotations` need be a `dict` given {type(annotations)}")
-                        
+
+    def _set_task_template(self, task_template: Optional[str] = None):        
+        if isinstance(task_template, str) or task_template is None:
+            if isinstance(task_template, str) and task_template == "":
+                raise ValueError("`task_template` requires a string not empty "
+                                 f"given {task_template}")
+            self.register_buffer("task_template", task_template)
+        else:
+            raise TypeError("`task_template` requires a string or None "
+                            f"given `{type(template)}`")
+
+    def _set_response_template(self, response_template: Optional[str] = None):
+        if isinstance(response_template, str) or response_template is None:
+            if isinstance(response_template, str) and response_template == "":
+                raise ValueError("`response_template` cannot be an empty str")
+            self.register_buffer("response_template", response_template)
+        else:
+            raise TypeError("`response_template` requires a string or None "
+                            f"given `{type(response_template)}`")
+
+    def _set_response_mode(self, response_mode: str):
+        if isinstance(response_mode, str):
+            if response_mode in ["plain_response", "response"] or response_mode.startswith(
+                ("context", "outputs")
+            ):
+                self.register_buffer("response_mode", response_mode)            
+            else:
+                raise ValueError(
+                    f"`response_mode={response_mode}` is not supported "
+                    "only `plain_response`, `context`, `outputs` and `response`"
+                )
+        else:
+            raise TypeError(f"`response_mode` requires a `str` given `{type(response_mode)}`")
+
+    def _extract_raw_response(self, model_response):
+        if isinstance(model_response, Response):
+            raw_response = model_response.consume()
+        elif isinstance(model_response, StreamResponse):
+            raw_response = model_response
+        else:
+            raise ValueError(f"Unsupported `model_response={type(model_response)}`")
+        return raw_response
+
+    def _prepare_response(self, raw_response, message):
+        if self.response_template:
+            response = self._format_response_template(raw_response)
+        else:
+            response = raw_response
+            
+        return self._define_response_mode(response, message)
+
+    def _define_response_mode(self, response, message):        
+        if self.response_mode == "plain_response":
+            return response
+        elif isinstance(message, Message):
+            if self.response_mode.startswith(("context", "outputs", "response")):
+                message.set(f"{self.response_mode}.{self.name}", response)
+            return message
+        else:
+            raise ValueError(
+                "For `response_mode` other than `plain_response` "
+                "the message object must be of type Message"
+            )
+
+    def _set_task_inputs(self, task_inputs: Optional[Union[str, Dict[str, str]]] = None):
+        # TODO: suporte para lista de inputs ["outputs.text1", "outputs.text2"]
+        if isinstance(task_inputs, (str, dict)) or task_inputs is None:
+            if isinstance(task_inputs, str) and task_inputs == "":
+                raise ValueError("`task_inputs` requires a string not empty " 
+                                 f"given `{task_inputs}`")
+            if isinstance(task_inputs, dict) and not task_inputs:
+                raise ValueError("`task_inputs` requires a dict not empty "
+                                 f"given `{task_inputs}`")                                 
+            self.register_buffer("task_inputs", task_inputs)
+        else:
+            raise TypeError("`task_inputs` requires a string, dict or None, "
+                            f"given `{type(task_inputs)}`")
+
+    def _set_task_multimodal_inputs(
+        self, 
+        task_multimodal_inputs: Optional[Dict[str, List[str]]] = None
+    ):        
+        # TODO permitir passar em vez de uma lista passar so um valor se for unico
+        if isinstance(task_multimodal_inputs, dict) or task_multimodal_inputs is None:
+            if not task_multimodal_inputs and task_multimodal_inputs is not None:
+                raise ValueError("`task_multimodal_inputs` requires a dict not empty"
+                                 f"given `{task_multimodal_inputs}`")
+            self.register_buffer("task_multimodal_inputs", task_multimodal_inputs)
+        else:
+            raise TypeError("`task_multimodal_inputs` requires a dict "
+                            f"given `{type(task_multimodal_inputs)}`")
+
     # TODO ambos os casos eu devo poder por em tool library pra acessar esse buffer
     # por meio de um get_annotation ou get description
-    def set_description(self, description: str):
-        if isinstance(description, str):
+    def set_description(self, description: Optional[str] = None):
+        if isinstance(description, str) or description is None:
             self.register_buffer("__doc__", description)
         else:
             raise ValueError("`description` requires a string not empty")

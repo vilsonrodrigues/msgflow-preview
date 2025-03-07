@@ -5,7 +5,7 @@ import gevent
 
 from msgflow.nn.modules.container import ModuleDict
 from msgflow.nn.modules.module import Module
-from msgflow.utils import (
+from msgflow.utils.chat import (
     convert_camel_to_snake_case,
     generate_json_schema,
 )
@@ -18,6 +18,7 @@ from msgflow.utils import (
 # add temporary functions
 # TODO: maximum number of functions
 # TODO: provide the option of special functions that make the model have control over its own functions
+# TODO: mcp
 
 class Tool(Module):
     """Tool class description"""

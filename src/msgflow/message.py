@@ -4,13 +4,7 @@ from typing import Any, Optional, Union
 from opentelemetry import trace
 from opentelemetry.context import Context
 from opentelemetry.trace import SpanKind  
-from msgflow.data.accessor import Accessor
-
-
-# não preciso de um requires_pgrad, preciso apenas durante o set
-# preciso add em _route se for em context ou outputs
-# dentro de acessor eu preciso verificar se existe o param _route na classe
-# removo então toda a necessidade do core message
+from msgflow.accessor import Accessor
 
 
 class _CoreMessage(Accessor):

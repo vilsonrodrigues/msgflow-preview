@@ -9,24 +9,18 @@ from typing import (
     Optional, 
     Union
 )
-import gevent
 import msgspec
 
 from msgflow.models.router import ModelRouter
-from msgflow.models.response import Response, StreamResponse
 from msgflow.message import Message
 from msgflow.models.types import ChatCompletionModel
-from msgflow.utils import (
-    chatml_to_steps_format,
-    encode_local_file_in_base64,
-    encode_base64_from_url,
-    is_base64,
-)
-from msgflow.utils.validation import is_subclass_of
 from msgflow.generation.reasoning.react import ReAct
 from msgflow.nn.modules.module import Module
 from msgflow.nn.modules.tool import ToolLibrary
 from msgflow.nn.parameter import Parameter
+from msgflow.utils.chat import chatml_to_steps_format, get_react_tools_prompt_format
+from msgflow.utils.encode import encode_base64_from_url, encode_local_file_in_base64
+from msgflow.utils.validation import is_base64, is_subclass_of
 
 # Context Manager function that will manage the processing of assembling the context
 # new features: context_cache fixed message in the model, in the retrieval
@@ -88,7 +82,7 @@ class Agent(Module):
             ...
         chat_history_mode:
             ...
-        chat_few_shot
+        fixed_messages:
             ...
         audio_input_format
             ...
@@ -120,9 +114,9 @@ class Agent(Module):
         name: str,
         model: Union[ChatCompletionModel, ModelRouter],
         *,
-        system_prompt: Optional[str] = "",
-        instructions: Optional[str] = "",
-        expected_output: Optional[str] = "",
+        system_prompt: Optional[str] = None,
+        instructions: Optional[str] = None,
+        expected_output: Optional[str] = None,
         stream: Optional[bool] = False,
         task_inputs: Optional[Union[str, Dict[str, str]]] = None,
         task_template: Optional[str] = None,
@@ -134,12 +128,12 @@ class Agent(Module):
         response_mode: Optional[str] = "plain_response",
         tools: Optional[List[Callable]] = None,
         tool_choice: Optional[str] = None,
-        response_template: Optional[str] = "",
+        response_template: Optional[str] = None,
         # chat_history: Optional[Union[ChatHistory, MultiChatHistory]] = None, #TODO: requires reason here
         # chat_history_mode: Literal["relevant", "recent", "full"] = "relevant",
-        chat_few_shot: Optional[List[Dict[str, Any]]] = None,
+        fixed_messages: Optional[List[Dict[str, Any]]] = None,
         predicted_outputs: Optional[bool] = False,
-        signature: Optional[str] = None,
+        #signature: Optional[str] = None,
         audio_input_format: Optional[Literal["standard", "generation"]] = "generation",
         verbose: Optional[bool] = False,
         description: Optional[str] = "",
@@ -166,7 +160,7 @@ class Agent(Module):
         self._set_system_prompt(system_prompt)
         self._set_generation_schema(generation_schema)
         self._set_audio_input_format(audio_input_format)
-        self._set_chat_few_shot(chat_few_shot)
+        self._set_fixed_messages(fixed_messages)
         # self._set_chat_history(chat_history)
         self._set_context_inputs(context_inputs)
         self._set_context_cache(context_cache)
@@ -189,32 +183,8 @@ class Agent(Module):
         return response
 
     def _execute_model(self, model_state, prefilling=None):
-        agent_state = []
-
-        agent_system_prompt = self._get_agent_system_prompt()
-
-        if agent_system_prompt:
-            agent_state.extend(agent_system_prompt)
-
-        if self.tool_library:
-            tool_schemas = self.tool_library.get_functions_json_schema()
-        else:
-            tool_schemas = None
-
-        if issubclass(self.generation_schema, ReAct) and tool_schemas:
-            react_tools = f"## Available tools: \n{tool_schemas}"
-            if agent_system_prompt:
-                agent_system_prompt += f"\n\n {react_tools}"
-            else:
-                agent_system_prompt = react_tools
-            # Disable tool_schemas to react controlflow preference
-            tool_schemas = None
+        agent_state, agent_system_prompt, tool_schemas = self._prepare_model_execution(model_state)
         
-        if self.chat_few_shot:
-            agent_state.extend(self.chat_few_shot)
-
-        agent_state.extend(model_state)
-
         if self.verbose:
             print(agent_state)
 
@@ -230,38 +200,64 @@ class Agent(Module):
 
         return model_response
 
+    def _prepare_model_execution(self, model_state):
+        agent_state = []
+
+        if self.fixed_messages:
+            agent_state.extend(self.fixed_messages)
+
+        agent_state.extend(model_state)
+
+        agent_system_prompt = self._get_agent_system_prompt()
+
+        if self.tool_library:
+            tool_schemas = self.tool_library.get_functions_json_schema()
+        else:
+            tool_schemas = None
+
+        if issubclass(self.generation_schema, ReAct) and tool_schemas:
+            react_tools = get_react_tools_prompt_format(tool_schemas)
+            if agent_system_prompt:
+                react_tools += f"\n\n {agent_system_prompt}"
+            else:
+                agent_system_prompt = react_tools
+            # Disable tool_schemas to react controlflow preference
+            tool_schemas = None
+        
+        return agent_state, agent_system_prompt, tool_schemas
+
     def _process_model_response(self, model_response, model_state, message):
         if model_response.response_type == "tool_call":
-            raw_response, model_response, model_state = (
-                self._process_tool_call_response(model_response, model_state)
+            model_response, model_state = (
+                self._process_tool_call_response(model_response, model_state, message)
             )
         elif issubclass(self.generation_schema, ReAct):
-            raw_response, model_response, model_state = self._process_react_response(
-                model_response, model_state
+            model_response, model_state = self._process_react_response(
+                model_response, model_state, message
             )
-        elif isinstance(model_response, Response):
-            raw_response = model_response.consume()
-        elif isinstance(model_response, StreamResponse):
-            raw_response = model_response
-        else:
-            raise ValueError(f"Unsupported `model_response={type(model_response)}`")
+        
+        raw_response = self._extract_raw_response(model_response)
+
+        response_type = model_response.response_type
+        response_metadata = model_response.metadata
 
         if model_response.response_type in self._supported_outputs:
             response = self._prepare_response(
-                # TODO here instead of passing just the response type
-                # I can pass the entire model_response and then
-                # capture the metadata using trace
-                raw_response, model_response.response_type, message, model_state
+                raw_response, 
+                response_type, 
+                response_metadata, 
+                model_state, 
+                message
             )
             return response
         else:
-            raise ValueError(
-                f"Unsupported `response_type={model_response.response_type}`"
-            )
+            raise ValueError(f"Unsupported `response_type={response_type}`")
 
-    def _process_react_response(self, model_response, model_state):
-        while True:
-            raw_response = model_response.consume()
+    def _process_react_response(self, model_response, model_state, message):
+        while True:            
+            raw_response = self._extract_raw_response(model_response)
+
+            self._process_response_metadata(model_response.metadata, message)
 
             if raw_response.get("current_step"):
                 actions = raw_response["current_step"]["actions"]
@@ -288,11 +284,11 @@ class Agent(Module):
                     )
 
             elif raw_response.get("final_answer"):
-                return raw_response, model_response, model_state
+                return model_response, model_state
 
             model_response = self._execute_model(model_state)
 
-    def _process_tool_call_response(self, model_response, model_state):
+    def _process_tool_call_response(self, model_response, model_state, message):
         """
         Mensagens: [{'role': 'assistant', 'tool_calls': [{'id': 'call_1YLHAVwHwDPjEBuMpWQfSktO',
         'type': 'function', 'function': {'arguments': '{"order_id":"order_12345"}',
@@ -301,40 +297,36 @@ class Agent(Module):
         """
         while True:
             if model_response.response_type == "tool_call":
-                response = model_response.consume()
-                tool_callings = response.get_calls()
+                raw_response = self._extract_raw_response(model_response)
+                self._process_response_metadata(model_response.metadata, message)
+                tool_callings = raw_response.get_calls()
                 tool_results = self._process_tool_call(tool_callings)
-                response.insert_results(tool_results)
-                tool_results_message = response.get_messages()
+                raw_response.insert_results(tool_results)
+                tool_results_message = raw_response.get_messages()
                 model_state.extend(tool_results_message)
             else:
-                raw_response = model_response.consume()
-                return raw_response, model_response, model_state
+                return model_response, model_state
 
             model_response = self._execute_model(model_state)
 
     def _process_tool_call(self, tool_callings):
-        greenlet = gevent.spawn(self.tool_library, tool_callings)
-        tool_results = greenlet.get()
+        tool_results = self.tool_library(tool_callings)
         return tool_results
 
-    def _prepare_response(self, raw_response, response_type, message, model_state):
-        if (
-            response_type == "structured"
-            and self.response_mode != "steps"
-            and raw_response.get("final_answer")
-        ):
-            raw_response = raw_response["final_answer"]
+    def _prepare_response(self, raw_response, response_type, response_metadata, model_state, message):
+        self._process_response_metadata(response_metadata, message)
 
         if self.response_template and response_type in [
             "text_generation",
             "structured",
         ]:
-            # TODO: support to b64_audio_text_generation, add template in transcript
             response = self._format_response_template(raw_response)
         else:
             response = raw_response
 
+        return self._define_response_mode(response, model_state, message)
+
+    def _define_response_mode(self, response, model_state, message):
         if self.response_mode == "plain_response":
             return response
         elif self.response_mode == "steps":
@@ -353,6 +345,10 @@ class Agent(Module):
         steps_response = chatml_to_steps_format(model_state, response)
         return steps_response
 
+    def _process_response_metadata(self, response_metadata, message):
+        # TODO
+        return
+
     def _prepare_task(
         self, message: Union[str, Dict[str, Any], Message]
     ) -> List[Dict[str, Any]]:
@@ -364,7 +360,7 @@ class Agent(Module):
             raise ValueError("Unsupported message type")
         return [{"role": "user", "content": content}]
 
-    def _process_str_dict_task(self, message: str) -> List[Dict[str, Any]]:
+    def _process_str_dict_task(self, message: Union[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
         content = self._format_task_template(message)
         return content
 
@@ -372,7 +368,7 @@ class Agent(Module):
         content = ""
 
         # Process context
-        context_content = self._process_context(message)
+        context_content = self._context_manager(message)
 
         if context_content:
             content += f"# Context:\n{context_content}\n\n"
@@ -392,7 +388,7 @@ class Agent(Module):
             content += f"# Task:\n{self.task_template}\n\n"
 
         # Remove whitespace
-        content = content.strip()
+        #content = content.strip()
 
         # Process multimodal content
         if self.task_multimodal_inputs:
@@ -420,13 +416,16 @@ class Agent(Module):
         else:
             return None
 
-    def _process_context(self, message: Message): # TODO support to list, dict, str
-        if not self.context_inputs:
-            return None
-
+    def _context_manager(self, message: Message): # TODO support to list, dict, str
+        """ Manager agent context """
+        content = ""
+        
+        if self.context_cache:
+            content += f"{self.context_cache}\n\n"
+            
         if isinstance(self.context_inputs, str) and self.context_inputs == "context":
-            return "\n\n".join(str(v) for v in message.get("context").values())
-        elif isinstance(self.context_inputs, list):  # ["context.1", "context.2"]
+            msg_context = "\n\n".join(str(v) for v in message.get("context").values())
+        elif isinstance(self.context_inputs, list): # ["context.1", "context.2"]
             context_values = []
             for path in self.context_inputs:
                 # OR inputs
@@ -436,9 +435,18 @@ class Agent(Module):
                         context_values.append(str(context_value))
                 else:
                     context_values.append(str(message.get(path)))
-            return " ".join(context_values)
+            msg_context = " ".join(context_values)
         else:
-            raise ValueError("Invalid context_inputs format")
+            msg_context = None
+        
+        if msg_context:
+            content += f"{msg_context}\n\n"                        
+
+        if content:
+            context_content += f"# Context:\n{content}\n\n"
+            return context_content
+        else:
+            return None
 
     def _process_multimodal_inputs(self, message: Message) -> List[Dict[str, Any]]:
         # TODO: suporte para consumir todas as entradas de images or outro
@@ -481,45 +489,6 @@ class Agent(Module):
                     )
         return content
 
-    # TODO move to module
-    def _set_task_template(self, task_template: Optional[str] = None):        
-        if isinstance(task_template, str) or task_template is None:
-            if isinstance(task_template, str) and task_template == "":
-                raise ValueError("`task_template` requires a string not empty "
-                                 f"given {task_template}")
-            self.register_buffer("task_template", task_template)
-        else:
-            raise TypeError("`task_template` requires a string or None "
-                            f"given `{type(template)}`")
-
-    def _set_task_inputs(self, task_inputs: Optional[Union[str, Dict[str, str]]] = None):
-        # TODO: suporte para lista de inputs ["outputs.text1", "outputs.text2"]
-        if isinstance(task_inputs, (str, dict)) or task_inputs is None:
-            if isinstance(task_inputs, str) and task_inputs == "":
-                raise ValueError("`task_inputs` requires a string not empty " 
-                                 f"given `{task_inputs}`")
-            if isinstance(task_inputs, dict) and not task_inputs:
-                raise ValueError("`task_inputs` requires a dict not empty "
-                                 f"given `{task_inputs}`")                                 
-            self.register_buffer("task_inputs", task_inputs)
-        else:
-            raise TypeError("`task_inputs` requires a string, dict or None, "
-                            f"given `{type(task_inputs)}`")
-
-    def _set_task_multimodal_inputs(
-        self, 
-        task_multimodal_inputs: Optional[Dict[str, List[str]]] = None
-    ):        
-        # TODO permitir passar em vez de uma lista passar so um valor se for unico
-        if isinstance(task_multimodal_inputs, dict):
-            if not task_multimodal_inputs:
-                raise ValueError("`task_multimodal_inputs` requires a dict not empty"
-                                 f"given `{task_multimodal_inputs}`")
-            self.register_buffer("task_multimodal_inputs", task_multimodal_inputs)
-        else:
-            raise TypeError("`task_multimodal_inputs` requires a dict "
-                            f"given `{type(task_multimodal_inputs)}`")
-
     def _set_audio_input_format(self, audio_input_format: str):
         if isinstance(audio_input_format, str):
             if audio_input_format not in ["standard", "generation"]:
@@ -535,8 +504,8 @@ class Agent(Module):
     def _set_context_inputs(self, context_inputs: Optional[Union[str, List[str]]] = None):
         if isinstance(context_inputs, (str, list)) or context_inputs is None:
             if isinstance(context_inputs, str) and context_inputs == "":
-                raise ValueError("`context_inputs` requires a string not empty"
-                                 f"given `{context_inputs}"`)
+                raise ValueError("`context_inputs` requires a string not empty" 
+                                 f"given `{context_inputs}`")
             if isinstance(context_inputs, list) and not context_inputs:
                 raise ValueError("`context_inputs` requires a list not empty"
                                  f"given `{context_inputs}`")
@@ -594,13 +563,12 @@ class Agent(Module):
         else:
             raise TypeError(f"`stream` need be a bool given `{type(stream)}`")            
 
-    # TODO: chat_few_shot eh um nome meio ruim
-    def _set_chat_few_shot(self, chat_few_shot: Optional[List[Dict[str, Any]]] = None):
-        if (isinstance(chat_few_shot, list) and all(dict(obj) for obj in chat_few_shot)) or None: 
-            self.register_buffer("chat_few_shot", chat_few_shot)
+    def _set_fixed_messages(self, fixed_messages: Optional[List[Dict[str, Any]]] = None):
+        if (isinstance(fixed_messages, list) and all(dict(obj) for obj in fixed_messages)) or None: 
+            self.register_buffer("fixed_messages", fixed_messages)
         else:
-            raise TypeError("`chat_few_shot` need be a list of dict or None"
-                            f"given `{type(chat_few_shot)}`")
+            raise TypeError("`fixed_messages` need be a list of dict or None"
+                            f"given `{type(fixed_messages)}`")
 
     def _set_generation_schema(self, generation_schema: Optional[msgspec.Struct] = None):
         if is_subclass_of(generation_schema, msgspec.Struct) or generation_schema is None:
@@ -633,16 +601,6 @@ class Agent(Module):
         else:
             raise TypeError("`tool_choice` need be a str or None "
                             f"given `{type(tool_choice)}`")            
-
-    # TODO move to module
-    def _set_response_template(self, response_template: Optional[str] = None):
-        if isinstance(response_template, str) or response_template is None:
-            if isinstance(response_template, str) and response_template == "":
-                raise ValueError("`response_template` cannot be an empty str")
-            self.register_buffer("response_template", response_template)
-        else:
-            raise TypeError("`response_template` requires a string or None "
-                            f"given `{type(response_template)}`")
 
     def _set_system_prompt(self, system_prompt: Optional[str] = None):
         if isinstance(system_prompt, str) or system_prompt is None:

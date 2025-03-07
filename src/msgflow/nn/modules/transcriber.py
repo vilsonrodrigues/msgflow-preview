@@ -3,8 +3,7 @@ from msgflow.message import Message
 from msgflow.models.router import ModelRouter
 from msgflow.models.types import ASRModel
 from msgflow.nn.modules.module import Module
-from msgflow.utils import to_bytes
-
+from msgflow.utils.encode import to_bytes
 
 
 class Transcriber(Module):
@@ -50,7 +49,6 @@ class Transcriber(Module):
         prompt: Optional[str] = None,
     ):
         super().__init__()
-
         self.set_name(name)
         self._set_model(model)
         self._set_task_inputs(task_inputs)
@@ -84,29 +82,7 @@ class Transcriber(Module):
             return response
         else:
             raise ValueError(
-                f"Unsupported model response type " "{model_response.response_type}"
-            )
-
-    def _prepare_response(self, raw_response, message):
-        if len(raw_response) == 1 and raw_response.get("text"):
-            response = raw_response.get("text")
-        else:
-            response = raw_response
-
-        if self.response_template:
-            response = self.response_template.format(raw_response)
-
-        # TODO: create a fn to validate this
-        if self.response_mode == "plain_response":
-            return response
-        elif isinstance(message, Message):
-            if self.response_mode.startswith(("context", "outputs", "response")):
-                message.set(f"{self.response_mode}.{self.name}", response)
-            return message
-        else:
-            raise ValueError(
-                "For `response_mode` other than `plain_response` and "
-                "the message object must be of type Message"
+                f"Unsupported model response type `{model_response.response_type}`"
             )
 
     def _prepare_task(self, message):
@@ -115,8 +91,10 @@ class Transcriber(Module):
         elif isinstance(message, Message):
             audio_data = self._process_message_task(message)
         else:
-            raise ValueError("Unsupported message type")
+            raise ValueError(f"Unsupported message type: {type(message)}")
+        
         audio = to_bytes(audio_data)
+        
         return audio
 
     def _process_message_task(self, message: Message):
@@ -130,13 +108,6 @@ class Transcriber(Module):
 
         return content
 
-    # TODO: move to Module
-    def _set_task_inputs(self, task_inputs: Union[str, Dict[str, str]]):
-        if isinstance(task_inputs, dict):
-            self.register_buffer("task_inputs", task_inputs)
-        else:
-            raise TypeError(f"`task_inputs` need be a `dict` given `{type(task_inputs)}")            
-
     def _set_model(self, model: Union[ASRModel, ModelRouter]):
         if isinstance(model, ASRModel) or isinstance(model, ModelRouter):
             self.register_buffer("model", model)
@@ -144,7 +115,7 @@ class Transcriber(Module):
             raise TypeError("`model` need be a `ASRModel` or `ModelRouter` "
                              f"given `{type(model)}")
 
-    def _set_language(self, language: str):
+    def _set_language(self, language: Optional[str] = None):
         if isinstance(language, str) or language is None:
             self.register_buffer("language", language)
         else:
@@ -169,35 +140,15 @@ class Transcriber(Module):
             if response_format in supported_formats:
                 self.register_buffer("response_format", response_format)
             else:
-                raise ValueError(f"`response_format` can be `{supported_formats}` given `{response_format}")    
+                raise ValueError(
+                    f"`response_format` can be `{supported_formats}` "
+                    f"given `{response_format}"
+                )    
         else:
-            raise TypeError(f"`response_format` need be a `str` or given `{type(response_format)}")               
+            raise TypeError(f"`response_format` need be a str or given `{type(response_format)}")               
 
-    def _set_prompt(self, prompt: str):
+    def _set_prompt(self, prompt: Optional[str] = None):
         if isinstance(prompt, str) or prompt is None:
             self.register_buffer("prompt", prompt)
         else:
-            raise TypeError(f"`prompt` need be a `str` or `None` given `{type(prompt)}")            
-
-    # TODO: move to module
-    def _set_response_template(self, response_template: str = ""):
-        if isinstance(response_template, str) or response_template is None:
-            self.register_buffer("response_template", response_template)
-        else:
-            raise TypeError("`response_template` requires a `str` or "
-                             f"`None` given `{type(response_template)}`")
-
-    # TODO: move to module
-    def _set_response_mode(self, response_mode: str):
-        if isinstance(response_mode, str):
-            if response_mode in ["plain_response", "response"] or response_mode.startswith(
-                ("context", "outputs")
-            ):
-                self.register_buffer("response_mode", response_mode)            
-            else:
-                raise ValueError(
-                    f"`response_mode={response_mode}` is not supported "
-                    "only `plain_response`, `context`, `outputs` and `response`"
-                )
-        else:
-            raise TypeError(f"`response_mode` requires a `str` given `{type(response_mode)}`")
+            raise TypeError(f"`prompt` need be a str or None given `{type(prompt)}")            
