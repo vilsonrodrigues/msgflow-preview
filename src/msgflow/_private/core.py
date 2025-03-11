@@ -39,18 +39,6 @@ class BaseClient(ABC, Core):
         instance_type (optional[callable]): A method or callable that returns additional
             instance-specific data to be included during serialization.
     """
-    @abstractmethod
-    def _initialize_client(self):
-        """
-        Initialize the client. This method must be implemented by subclasses.
-
-        This method is called during the deserialization process to ensure that the client
-        is properly initialized after its state has been restored.
-
-        Raises:
-            NotImplementedError: If the method is not implemented by the subclass.
-        """
-        raise NotImplementedError
 
     @abstractmethod
     def __call__(self):

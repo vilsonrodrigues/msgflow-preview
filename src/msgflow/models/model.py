@@ -40,12 +40,12 @@ _MODEL_NAMESPACE_TRANSLATOR = {
     #"fast_embedding": "FastEmbedding",
     "timm": "TIMM",
     #"sbert": "SBERT"
-    "local-vllm": "LocalVLLM",
+    "local_vllm": "LocalVLLM",
     "vllm": "VLLM",
     "together": "Together"
 } 
 
-_CHAT_COMPLETATION_PROVIDERS = ["openai", "local-vllm", "vllm", "together"] 
+_CHAT_COMPLETATION_PROVIDERS = ["openai", "local_vllm", "vllm", "together"] 
 _IMAGE_EMBEDDER_PROVIDERS = ["timm"]
 _IMAGE_TEXT_TO_IMAGE_PROVIDERS = ["openai"]
 _TTS_PROVIDERS = ["openai"]
@@ -53,7 +53,7 @@ _ASR_PROVIDERS = ["openai"]
 _TEXT_EMBEDDER_PROVIDERS = ["openai"]
 #_TEXT_RERANKER_PROVIDERS = ["openai", "sbert"]
 
-providers_by_model_type = {
+_PROVIDERS_BY_MODEL_TYPE = {
     "chat_completation": _CHAT_COMPLETATION_PROVIDERS,
     "asr": _ASR_PROVIDERS,
     "image_embedder": _IMAGE_EMBEDDER_PROVIDERS,
@@ -62,16 +62,12 @@ providers_by_model_type = {
     "text_embedder": _TEXT_EMBEDDER_PROVIDERS,    
 }
 
+_LOCAL_PROVIDERS = ["local_vllm"]
+
 class Model:
     supported_model_types = _SUPPORTED_MODEL_TYPES
-    chat_completation_providers = _CHAT_COMPLETATION_PROVIDERS
-    image_text_to_text_providers = _IMAGE_TEXT_TO_IMAGE_PROVIDERS
-    tts_providers = _TTS_PROVIDERS
-    asr_providers = _ASR_PROVIDERS
-    text_embedder_providers = _TEXT_EMBEDDER_PROVIDERS
-    image_embedder_providers = _IMAGE_EMBEDDER_PROVIDERS
-    #text_reranker_providers = _TEXT_RERANKER_PROVIDERS
-    providers_by_model_type = providers_by_model_type
+    providers_by_model_type = _PROVIDERS_BY_MODEL_TYPE
+    local_providers = _LOCAL_PROVIDERS
 
     @classmethod
     def _model_path_parser(cls, model_id: str) -> tuple[str, str]:
@@ -88,10 +84,13 @@ class Model:
             raise ValueError(f"Provider `{provider}` is not supported for {model_type}")
 
         provider_class_name = f"{_MODEL_NAMESPACE_TRANSLATOR[provider]}{model_type.title().replace('_', '')}"
-        local_models = ["local-vllm"]
-        module_base = "local" if provider in local_models else "clients"
-        module_name = f"msgflow.models.{module_base}.{provider}"
+                
+        module_base = "local" if provider in cls.local_providers else "clients"
         
+        # Solve cases as "local-vllm" to "vllm" to py files
+        provider = provider.replace("local_", "")
+        module_name = f"msgflow.models.{module_base}.{provider}"
+                
         return import_module_from_lib(provider_class_name, module_name)
 
     @classmethod
@@ -117,7 +116,7 @@ class Model:
         # Create instance without calling __init__
         instance = object.__new__(model_cls)
         # Restore the instance state
-        instance.deserialize(params)
+        instance.from_serialized(params)
         return instance
 
     @classmethod
