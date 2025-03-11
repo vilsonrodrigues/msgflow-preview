@@ -17,7 +17,6 @@ dependencies = [
     "msgspec-ext",
     "opentelemetry-api>=1.30.0",
     "opentelemetry-sdk>=1.30.0",
-    "ray>=2.42.1",
     "soundfile>=0.13.1",
     "tomli-w>=1.2.0",
     "typing-extensions>=4.12.2",
@@ -35,6 +34,11 @@ python-pptx = [
 ]
 faiss-cpu = [
     "faiss-cpu>=1.10.0",
+]
+ctranslate2 = [
+    "ctranslate2>=4.5.0",
+    "torch>=2.6.0",
+    "transformers>=4.49.0",
 ]
 
 [build-system]

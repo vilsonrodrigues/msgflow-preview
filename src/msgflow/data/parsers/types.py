@@ -13,5 +13,8 @@ class MediaParser:
 class PptxParser:
     parser_type = "pptx"
 
+class XlsxParser:
+    parser_type = "xlsx"
+
 class WebParser:
     parser_type = "web"    

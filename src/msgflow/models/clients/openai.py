@@ -4,10 +4,14 @@ from contextlib import contextmanager
 from os import getenv
 from typing import Any, Dict, List, Literal, Optional, Union
 import gevent
-import httpx
 import msgspec
-import openai
-from openai import OpenAI
+try:
+    import httpx
+    import openai
+    from openai import OpenAI
+except:
+    raise ImportError("`openai` client is not detected, please install"
+                      "using `pip install msgflow[openai]`")
 
 from msgflow.logger import logger
 from msgflow.exceptions import KeyExhaustedError
@@ -54,14 +58,13 @@ class _BaseOpenAI(BaseModel):
     _api_key: List[str] = []
     current_key_index: int = 0
 
-    def _initialize_client(self, organization, project):
+    def _initialize_client(self):
         """Initialize the OpenAI client with empty API key."""
         max_retries = getenv("OPENAI_MAX_RETRIES", openai.DEFAULT_MAX_RETRIES)
         timeout = getenv("OPENAI_TIMEOUT", None)
         base_url = self._get_base_url()
         self.client = OpenAI(
-            organization=organization,
-            project=project,
+            **self.sampling_params,
             base_url=base_url,
             api_key="",
             timeout=timeout,
@@ -151,10 +154,10 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         organization: Optional[str] = None,
         project: Optional[str] = None,
     ):
-        super().__init__()
-        self._initialize_client(organization, project)
+        super().__init__()        
         self.model_id = model_id
-        self.sampling_params = {
+        self.sampling_params = {"organization": organization, "project": project}
+        self.sampling_run_params = {
             "model": self.model_id,
             "max_tokens": max_tokens,
             "temperature": temperature,
@@ -162,13 +165,8 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             "modalities": modalities,
             "audio": audio,
         }
+        self._initialize_client()
         self._get_api_key()
-
-    def get_model_info(self):
-        return {
-            "model_id": self.sampling_params["model"],
-            "provider": self.provider,
-        }        
 
     def _log_tokens_usage(self, usage): # deprecated
         """
@@ -205,13 +203,13 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                 {"role": "assistant", "content": prefilling}
             )
         model_output = self.client.chat.completions.create(
-            **kwargs, **self.sampling_params
+            **kwargs, **self.sampling_run_params
         )
         return model_output
 
     def _generate(self, **kwargs):
         response = Response()
-        metadata = {}        
+        metadata = {}
         events_timing = EventsTiming()
         events_timing.start("model_execution")
         
@@ -241,7 +239,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         elif choice.message.content:
             if generation_schema:
                 response.set_response_type("structured")
-                print(choice.message.content)
+                #print(choice.message.content)
                 struct = msgspec.json.decode(
                     choice.message.content, type=generation_schema
                 )
@@ -396,13 +394,15 @@ class OpenAITTS(_BaseOpenAI, TTSModel):
         project: Optional[str] = None,
     ):
         super().__init__()
-        self._initialize_client(organization, project)
-        self.sampling_params = {
+        self.model_id = model_id
+        self.sampling_params = {"organization": organization, "project": project}
+        self.sampling_run_params = {
             "model": model_id,
             "voice": voice,
             "response_format": response_format,
             "speed": speed,
         }
+        self._initialize_client()        
         self._get_api_key()
 
     @contextmanager
@@ -431,7 +431,7 @@ class OpenAITTS(_BaseOpenAI, TTSModel):
     @contextmanager
     def _execute(self, **kwargs):
         with self.client.audio.speech.with_streaming_response.create(
-            **kwargs, **self.sampling_params
+            **kwargs, **self.sampling_run_params
         ) as model_output:
             yield model_output
 
@@ -493,15 +493,17 @@ class OpenAIImageTextToImage(_BaseOpenAI, ImageTextToImageModel):
         project: Optional[str] = None,
     ):
         super().__init__()
-        self._initialize_client(organization, project)
-        self.sampling_params = {"model": model_id, "size": size, "quality": quality}
+        self.model_id = model_id
+        self.sampling_params = {"organization": organization, "project": project}        
+        self.sampling_run_params = {"model": model_id, "size": size, "quality": quality}
+        self._initialize_client()        
         self._get_api_key()
 
     def _execute(self, **kwargs):
         if kwargs.get("image"):
-            model_output = self.client.images.edit(**kwargs, **self.sampling_params)
+            model_output = self.client.images.edit(**kwargs, **self.sampling_run_params)
         else:
-            model_output = self.client.images.generate(**kwargs, **self.sampling_params)
+            model_output = self.client.images.generate(**kwargs, **self.sampling_run_params)
         return model_output
 
     def _generate(self, **kwargs):
@@ -549,14 +551,16 @@ class OpenAIASR(_BaseOpenAI, ASRModel):
         organization: Optional[str] = None,
         project: Optional[str] = None,
     ):
-        super().__init__()
-        self._initialize_client(organization, project)
-        self.sampling_params = {"model": model_id, "temperature": temperature}
+        super().__init__()        
+        self.model_id = model_id
+        self.sampling_params = {"organization": organization, "project": project}        
+        self.sampling_run_params = {"model": model_id, "temperature": temperature}
+        self._initialize_client()        
         self._get_api_key()
 
     def _execute(self, **kwargs):
         model_output = self.client.audio.transcriptions.create(
-            **kwargs, **self.sampling_params
+            **kwargs, **self.sampling_run_params
         )
         return model_output
 
@@ -621,4 +625,37 @@ class OpenAIASR(_BaseOpenAI, ASRModel):
 
 class OpenAITextEmbedder(_BaseOpenAI, TextEmbedderModel): 
     # TODO allow slice embedding
-    ...
+    def __init__(
+        self,
+        *,
+        model_id: Optional[str] = "text-embedding-3-small",
+        organization: Optional[str] = None,
+        project: Optional[str] = None,
+    ):
+        super().__init__()        
+        self.model_id = model_id
+        self.sampling_params = {"organization": organization, "project": project}        
+        self.sampling_run_params = {"model": model_id}
+        self._initialize_client()        
+        self._get_api_key()
+
+    def _execute(self, **kwargs):
+        model_output = self.client.embeddings.create(
+            **kwargs, **self.sampling_run_params
+        )
+        return model_output
+
+    def _generate(self, **kwargs):
+        response = Response()
+        response.set_response_type("text_embedding")
+        model_output = self._execute_model(**kwargs)
+        embedding = model_output.data[0].embedding
+        response.add(embedding)
+        return response
+
+    def __call__(
+        self,
+        text: str,
+    ):
+        response = self._generate(text=text)
+        return response
