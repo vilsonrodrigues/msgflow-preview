@@ -12,9 +12,9 @@ __all__ = [
     "ModuleDict",
     "Retriever",
     "Sequential",
-    "Transcriber",
     "Tool",
     "ToolLibrary",
+    "Transcriber",
 ]
 
 # Please keep this list sorted
