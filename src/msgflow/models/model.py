@@ -1,5 +1,4 @@
-from typing import Any, Type, Dict
-from msgflow.utils.imports import import_module_from_lib
+from typing import Any, Dict, Type
 from msgflow.models.base import BaseClient
 from msgflow.models.types import (
     ASRModel,
@@ -10,6 +9,8 @@ from msgflow.models.types import (
     TextRerankerModel,
     TTSModel,    
 )
+from msgflow.utils.imports import import_module_from_lib
+
 
 _SUPPORTED_MODEL_TYPES = [
     "asr",    
@@ -45,7 +46,7 @@ _MODEL_NAMESPACE_TRANSLATOR = {
     "together": "Together"
 } 
 
-_CHAT_COMPLETATION_PROVIDERS = ["openai", "local_vllm", "vllm", "together"] 
+_CHAT_COMPLETION_PROVIDERS = ["openai", "local_vllm", "vllm", "together"] 
 _IMAGE_EMBEDDER_PROVIDERS = ["timm"]
 _IMAGE_TEXT_TO_IMAGE_PROVIDERS = ["openai"]
 _TTS_PROVIDERS = ["openai"]
@@ -54,7 +55,7 @@ _TEXT_EMBEDDER_PROVIDERS = ["openai"]
 #_TEXT_RERANKER_PROVIDERS = ["openai", "sbert"]
 
 _PROVIDERS_BY_MODEL_TYPE = {
-    "chat_completation": _CHAT_COMPLETATION_PROVIDERS,
+    "chat_completion": _CHAT_COMPLETION_PROVIDERS,
     "asr": _ASR_PROVIDERS,
     "image_embedder": _IMAGE_EMBEDDER_PROVIDERS,
     "image_text_to_image": _IMAGE_TEXT_TO_IMAGE_PROVIDERS,
