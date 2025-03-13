@@ -8,8 +8,8 @@ from msgflow.nn.modules.transcriber import Transcriber
 __all__ = [
     "Agent",
     "Module",
+    "ModuleDict",    
     "ModuleList",
-    "ModuleDict",
     "Retriever",
     "Sequential",
     "Tool",
