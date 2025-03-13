@@ -41,11 +41,11 @@ class EnvironmentVariables(BaseSettings):
     #    the default configuration or the configuration 
     #    file specified by MSGFLOW_LOGGING_CONFIG_PATH
     configure_logging: bool = True
-    logging_config_path: FilePath
+    logging_config_path: str = None
 
     # Timeout in secounds to a tool execution
     # default is None, the functions has not Timeout
-    tool_timeout: int
+    tool_timeout: int = None
 
     # This is used for configuring the default logging level
     logging_level: str = "INFO"
