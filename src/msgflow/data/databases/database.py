@@ -1,4 +1,4 @@
-from msgflow.utils import import_module_from_lib
+from msgflow.utils.imports import import_module_from_lib
 from msgflow.data.databases.types import (
     GeoDB,
     GraphDB,
@@ -15,7 +15,8 @@ _SUPPORTED_DB_TYPES = [
     "relational",
     "nosql",
     "in_memory",
-    "time_series" "geo",
+    "time_series",
+    "geo",
 ]
 _DB_NAMESPACE_TRANSLATOR = {
     "qdrant": "Qdrant",
