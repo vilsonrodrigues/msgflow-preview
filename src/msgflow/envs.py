@@ -1,7 +1,7 @@
 import os
-from typing import Any
+from typing import Any, Literal
 from msgspec_ext import BaseSettings, SettingsConfigDict
-from msgspec_ext import FilePath
+from msgspec_ext import HttpUrl
 
 def set_envs(**kwargs: Any):
     """Sets environment variables based on named arguments.
@@ -36,8 +36,8 @@ class EnvironmentVariables(BaseSettings):
     verbose: bool = False
 
     # Logging configuration
-    # If set to 0, msgflow will not configure logging
-    # If set to 1, msgflow will configure logging using 
+    # If set to False, msgflow will not configure logging
+    # If set to True, msgflow will configure logging using 
     #    the default configuration or the configuration 
     #    file specified by MSGFLOW_LOGGING_CONFIG_PATH
     configure_logging: bool = True
@@ -54,7 +54,23 @@ class EnvironmentVariables(BaseSettings):
     logging_prefix: str = ""
     
     # Trace function calls
-    # If set to 1, msgflow will trace function calls. Useful for debugging
+    # If set to True, msgflow will trace function calls. Useful for debugging
     trace_function: bool = False
+
+    # if set, msgflow will track executions in nn modules using OTel
+    telemetry_requires_trace: bool = False 
+
+    # OTLP endpoint
+    telemetry_otlp_endpoint: HttpUrl = "http://localhost.com:4321"
+
+    # Span exporter type
+    telemetry_span_exporter_type: Literal["console", "otlp"] = "console"
+
+    # Capture state dict
+    telemetry_capture_state_dict: bool = False
+
+    # State checkpoint, if True, if a module output is in message, skip process
+    # if False, reprocess
+    state_checkpoint: bool = False
 
 envs = EnvironmentVariables()

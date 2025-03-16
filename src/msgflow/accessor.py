@@ -1,5 +1,4 @@
 from collections import OrderedDict
-from msgflow.utils.validation import is_builtin_type
 
 
 class Accessor:
@@ -75,10 +74,6 @@ class Accessor:
         # Check if path starts with specific prefixes and class has _route attribute
         if hasattr(self, "_route") and any(attr.startswith(prefix) for prefix in ["context.", "outputs.", "response."]):
             self._route.append(parts[-1])
-
-        # Trace content in a same context        
-        if hasattr(self, "trace") and is_builtin_type(value):
-            self.trace(parts[-1], value)            
 
         target = self._attributes
 

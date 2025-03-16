@@ -15,7 +15,7 @@ from msgflow.models.types import (
     TextEmbedderModel,
 )
 from msgflow.utils.pooling import apply_pooling
-from msgflow.telemetry.events import EventsTiming
+from msgflow.telemetry.events.timing import EventsTiming
 
 
 def _ct2_transformers_converter(model_id: str, output_dir: str):

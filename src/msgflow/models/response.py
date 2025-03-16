@@ -10,29 +10,28 @@ class _BaseResponse:
         if isinstance(response_type, str):
             self.response_type = response_type
         else:
-            raise TypeError("`Response` classes requires `response_type` str"
-                            f"given {type(response_type)}")
+            raise TypeError("`response_type` requires str"
+                            f"given `{type(response_type)}`")
 
     def set_metadata(self, metadata: Dict):
         if isinstance(metadata, Dict):        
             self.metadata = metadata
         else:
-            raise TypeError("`Response` classes requires `metadata` dict"
-                            f"given {type(metadata)}") 
+            raise TypeError(f"`metadata` dict given `{type(metadata)}`") 
 
 class Response(_BaseResponse):
     response_type: Literal[
-        "audio_embeddings",
+        "audio_embedding",
         "audio_generation",
         "audio_text_generation",
-        "image_embeddings",        
+        "image_embedding",        
         "image_generation",        
         "structured",        
         "tool_call",
         "transcript",
         "translate",
         "text_classification",        
-        "text_embeddings",
+        "text_embedding",
         "text_generation",
     ] = None
     data = None
@@ -46,7 +45,7 @@ class Response(_BaseResponse):
 
 class StreamResponse(_BaseResponse):
     response_type: Literal[
-        "audio_generation" "text_generation", "tool_call", "structured"
+        "audio_generation", "structured", "text_generation", "tool_call"
     ] = None
     first_chunk_event = Event()
     queue = Queue()

@@ -1,4 +1,3 @@
-from enum import Enum
 from pathlib import Path
 from typing import (
     Any, 
@@ -36,7 +35,7 @@ from msgflow.utils.validation import is_base64, is_subclass_of
 
 # add time/date to the system prompt (this can be bad if you use prompt cache)
 
-class PromptSpec(Enum):
+class PromptSpec:
     SYSTEM_PROMPT = "Who are you"
     INSTRUCTIONS = "How you should do"
     # FEW_SHOT = 'Samples of what to do'

@@ -1,7 +1,9 @@
-from typing import Dict, Generic, List, TypeVar
+from typing import Dict, List
 from msgspec import Struct
+from typing_extensions import Generic, TypeVar
 
-T = TypeVar("T")
+
+T = TypeVar("T", default=str)
 
 
 class Solution(Struct):

@@ -9,6 +9,7 @@ try:
     import httpx
     import openai
     from openai import OpenAI
+    from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 except:
     raise ImportError("`openai` client is not detected, please install"
                       "using `pip install msgflow[openai]`")
@@ -16,7 +17,7 @@ except:
 from msgflow.logger import logger
 from msgflow.exceptions import KeyExhaustedError
 from msgflow.models.base import BaseModel
-from msgflow.telemetry.events import EventsTiming
+#from msgflow.telemetry.events.timing import EventsTiming
 from msgflow.models.response import Response, StreamResponse
 from msgflow.models.tool_call_agg import ToolCallAggregator
 from msgflow.models.types import (
@@ -28,6 +29,8 @@ from msgflow.models.types import (
 )
 from msgflow.utils.chat import adapt_struct_schema_to_json_schema
 from msgflow.utils.msgspec import struct_to_dict
+
+OpenAIInstrumentor().instrument()
 
 # TODO: from response to modelresponse IF you want to add more types of output like this
 # what may be necessary for greater tracing coverage
@@ -168,32 +171,6 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         self._initialize_client()
         self._get_api_key()
 
-    def _log_tokens_usage(self, usage): # deprecated
-        """
-        "usage": {
-            "prompt_tokens": 2006,
-            "completion_tokens": 300,
-            "total_tokens": 2306,
-            "prompt_tokens_details": {
-                "cached_tokens": 1920
-            },
-            "completion_tokens_details": {
-                "reasoning_tokens": 0
-            }
-        }
-        """
-        # TODO
-        usage.completion_tokens
-        usage.prompt_tokens
-        usage.total_tokens
-        usage.completion_tokens_details
-        usage.completion_tokens_details.audio_tokens
-        usage.completion_tokens_details.reasoning_tokens
-        usage.prompt_tokens_details
-        usage.prompt_tokens_details.audio_tokens
-        usage.prompt_tokens_details.cached_tokens
-        # print(usage)
-
     def _execute(self, **kwargs):
         if kwargs.get("tool_schemas"):
             kwargs["parallel_tool_calls"] = True
@@ -209,9 +186,9 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
 
     def _generate(self, **kwargs):
         response = Response()
-        metadata = {}
-        events_timing = EventsTiming()
-        events_timing.start("model_execution")
+        #metadata = {}
+        #events_timing = EventsTiming()
+        #events_timing.start("model_execution")
         
         generation_schema = kwargs.pop("generation_schema")
         if generation_schema:
@@ -219,11 +196,11 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             json_schema = adapt_struct_schema_to_json_schema(schema)
             kwargs["response_format"] = json_schema
 
-        events_timing.start("model_generation")
+        #events_timing.start("model_generation")
 
         model_output = self._execute_model(**kwargs)
 
-        events_timing.end("model_generation")
+        #events_timing.end("model_generation")
 
         choice = model_output.choices[0]
 
@@ -262,26 +239,26 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                 response.set_response_type("audio_generation")
             response.add(audio_response)
 
-        events_timing.end("model_execution")
+        #events_timing.end("model_execution")
 
-        if model_output.usage:
-            metadata["token_usage"] = model_output.usage.dict()
+        #if model_output.usage:
+        #    metadata["token_usage"] = model_output.usage.dict()
             #self._log_tokens_usage(model_output.usage) deprecated :)
 
-        metadata["timing"] = events_timing.get_events()
+        #metadata["timing"] = events_timing.get_events()
         
-        model_info = self.get_model_info()
-        model_info["stream"] = "false"
-        metadata["model_info"] = model_info
+        #model_info = self.get_model_info()
+        #model_info["stream"] = "false"
+        #metadata["model_info"] = model_info
 
-        response.set_metadata(metadata)
+        #response.set_metadata(metadata)
         
         return response
 
     def _stream_generate(self, **kwargs):
         metadata = {}
-        events_timing = EventsTiming()
-        events_timing.start("model_execution")
+        #events_timing = EventsTiming()
+        #events_timing.start("model_execution")
 
         aggregator = ToolCallAggregator()
         stream_response = kwargs.pop("stream_response")
@@ -291,7 +268,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             schema = msgspec.json.schema(generation_schema)
             kwargs["response_format"] = adapt_struct_schema_to_json_schema(schema)
 
-        events_timing.start("model_generation")
+        #events_timing.start("model_generation")
 
         model_output = self._execute_model(**kwargs)        
 
@@ -318,10 +295,10 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                 metadata["tokens_usage"] = chunk.usage.dict()
                 #print(chunk.usage)
 
-        events_timing.end("model_generation")
-        events_timing.end("model_execution")
+        #events_timing.end("model_generation")
+        #events_timing.end("model_execution")
 
-        metadata["timing"] = events_timing.get_events()
+        #metadata["timing"] = events_timing.get_events()
 
         model_info = self.get_model_info()
         model_info["stream"] = "true"

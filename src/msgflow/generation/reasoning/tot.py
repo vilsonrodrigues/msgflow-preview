@@ -1,8 +1,10 @@
-from typing import Dict, Generic, List, Optional, TypeVar
+from typing import Dict, List, Optional
 from enum import Enum
 from msgspec import Struct
+from typing_extensions import Generic, TypeVar
 
-T = TypeVar("T")
+
+T = TypeVar("T", default=str)
 
 
 class ThoughtState(Enum):

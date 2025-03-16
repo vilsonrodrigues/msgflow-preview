@@ -1,45 +1,25 @@
-import uuid
 from collections import OrderedDict
+from uuid import uuid4
 from typing import Any, Optional, Union
-from opentelemetry import trace
-from opentelemetry.context import Context
-from opentelemetry.trace import SpanKind  
 from msgflow.accessor import Accessor
 
 
 class _CoreMessage(Accessor):
     _route = []
-    tracer = trace.get_tracer(__name__)
 
-    def __init__(self, user_id: str, chat_id: str, trace_ctx: Context):
+    def __init__(self, user_id: str, chat_id: str):
         super().__init__()
-        self.id = str(uuid.uuid4())
+        self.execution_id = str(uuid4())
         self.user_id = user_id
         self.chat_id = chat_id
-        self.trace_ctx = trace_ctx
-
+        
     def get_route(self):
         return " -> ".join(self._route)
-
-    def trace(self, span_name: str, content: Any):        
-        with self.tracer.start_as_current_span(
-            span_name,
-            context=self.trace_ctx,
-            kind=SpanKind.INTERNAL
-        ) as span:
-            try:
-                # TODO: you may need to convert the obj content to str
-                span.set_attribute(span_name, content)
-                return
-            except Exception as e:
-                span.record_exception(e)
-                span.set_status(trace.Status(trace.StatusCode.ERROR))
-                raise
 
 
 class Message(_CoreMessage):
     r"""TODO class description"""
-
+    
     outputs = OrderedDict()
     response = OrderedDict()
 
@@ -53,11 +33,10 @@ class Message(_CoreMessage):
         images: Optional[OrderedDict[str, Any]] = OrderedDict(),
         videos: Optional[OrderedDict[str, Any]] = OrderedDict(),
         extra: Optional[OrderedDict[str, Any]] = OrderedDict(),
-        user_id: Optional[str] = str(uuid.uuid4()),
-        chat_id: Optional[str] = str(uuid.uuid4()),
-        trace_ctx: Optional[Context] = Context()
+        user_id: Optional[str] = str(uuid4()),
+        chat_id: Optional[str] = str(uuid4()),
     ):
-        super().__init__(user_id, chat_id, trace_ctx)
+        super().__init__(user_id, chat_id)
         self.content = content
         self.text = text
         self.context = context
@@ -73,10 +52,10 @@ class Message(_CoreMessage):
             return self.get("response")
 
     def __repr__(self):
-        to_exclude = ["user_id", "chat_id", "trace_ctx", "tracer", "_route"]
+        to_ignore = ["_route"]
         attrs = [
             (k, v) for k, v in self.__dict__.items() 
-            if k not in to_exclude
+            if k not in to_ignore
         ]
         attrs_str = "\n".join(f"   {k}={repr(v)}" for k, v in attrs)
         return f"{self.__class__.__name__}(\n{attrs_str}\n)"  

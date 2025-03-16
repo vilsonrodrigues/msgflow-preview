@@ -19,7 +19,7 @@ from msgflow.models.types import (
     VideoClassifierModel
 )
 from msgflow.utils.torch import TORCH_DTYPE_MAP
-from msgflow.telemetry.events import EventsTiming
+from msgflow.telemetry.events.timing import EventsTiming
 
 
 class _BaseTorchVision(BaseClient, BaseVision):

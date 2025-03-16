@@ -4,7 +4,7 @@ class KeyExhaustedError(Exception):
     pass
 
 class ToolCallTimeOutError(Exception):
-    ...
+    pass
 
 class ModelRouterError(Exception):
     def __init__(self, exceptions, model_info):

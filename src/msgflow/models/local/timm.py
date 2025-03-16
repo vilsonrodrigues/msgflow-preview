@@ -11,7 +11,7 @@ from msgflow.models.response import Response
 from msgflow.models.base import BaseClient
 from msgflow.models.types import ImageClassifierModel, ImageEmbedderModel
 from msgflow.utils.torch import TORCH_DTYPE_MAP
-from msgflow.telemetry.events import EventsTiming
+from msgflow.telemetry.events.timing import EventsTiming
 
 
 class _BaseTimm(BaseClient, BaseVision):

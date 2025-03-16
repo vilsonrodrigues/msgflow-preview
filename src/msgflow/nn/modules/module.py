@@ -1,5 +1,7 @@
 import functools
 import inspect
+import os
+import platform
 import weakref
 from collections import namedtuple, OrderedDict
 from typing import (
@@ -18,20 +20,27 @@ from typing import (
 import msgspec
 from code2mermaid import code_to_mermaid
 from jinja2 import Template  
+from opentelemetry import trace
 
 import msgflow
+from msgflow.envs import envs
 from msgflow.message import Message
 from msgflow.models.model import Model
 from msgflow.models.response import Response, StreamResponse
 from msgflow.nn.parameter import Buffer, Parameter
+from msgflow.utils.convert import camel_snake_to_capitalize
+from msgflow.utils.hooks import RemovableHandle
 from msgflow.utils.msgspec import (
     deserialize_struct, 
     serialize_msgspec_struct
 )
-from msgflow.utils.hooks import RemovableHandle
 from msgflow.utils.mermaid import plot_mermaid
 from msgflow.utils.validation import is_builtin_type
+from msgflow.telemetry.tracer import get_tracer
+from msgflow.version import __version__ as msgflow_version
 
+
+tracer = get_tracer()
 
 __all__ = [
     "register_module_forward_pre_hook",
@@ -1013,11 +1022,9 @@ class Module:
         return handle
 
     def _call_impl(self, *args, **kwargs):
-        # Se não houver hooks, podemos simplificar o fluxo
         if not (self._forward_hooks or self._forward_pre_hooks):
             return self._call(*args, **kwargs)
         
-        # Processa forward pre hooks
         for hook in self._forward_pre_hooks.values():
             if hook.__kwdefaults__ and "kwargs" in hook.__kwdefaults__:
                 hook_result = hook(self, args, kwargs)
@@ -1037,7 +1044,6 @@ class Module:
         # Executa o forward com verificação de Message
         result = self._call(*args, **kwargs)
         
-        # Processa forward hooks
         for hook in self._forward_hooks.values():
             if hook.__kwdefaults__ and "kwargs" in hook.__kwdefaults__:
                 hook_result = hook(self, args, kwargs, result)
@@ -1058,23 +1064,48 @@ class Module:
                 None
             )
         )
-        
-        # TODO: isso aqui deverá ter uma env que le em runtime
-        # e por default ela é false
+    
         if message is not None:
             # Check if this module has already processed the message
             # If it is True, skip the module
-            if self.in_msg(self.name):
+            if envs.state_checkpoint and message.in_msg(self.name):
                 return message
         
-        module_output = self.forward(*args, **kwargs)
+        module_name = getattr(self, "name", self.__class__.__name__)
+        module_name_capitalized = camel_snake_to_capitalize(module_name)
+
+        # Trace capture
+        current_span = trace.get_current_span()
+        # If there is no active span or it is not recording, this is the root module
+        if current_span is None or not current_span.is_recording():
+            span_name = f"Workflow {module_name_capitalized} Started"
+            with tracer.start_as_current_span(span_name) as span:
+                span.set_attribute(span, "msgflow_version", platform.python_version())
+                if message:
+                    span.set_attribute(span, "msgflow_execution_id", message.get("execution_id"))
+                    span.set_attribute(span, "msgflow_user_id", message.get("user_id"))
+                    span.set_attribute(span, "msgflow_chat_id", message.get("chat_id"))
+                if envs.telemetry_capture_state_dict:
+                    state_dict = self.state_dict()
+                    encoded_state_dict = msgspec.json.encode(state_dict)
+                    span.set_attribute(span, "msgflow_state_dict", encoded_state_dict)
+                span.set_attribute(span, "python_version", platform.python_version())
+                span.set_attribute(span, "platform", platform.platform())
+                span.set_attribute(span, "platform_version", platform.version())
+                span.set_attribute(span, "platform_version", platform.version())
+                span.set_attribute(span, "num_cpus", os.cpu_count())                                
+                module_output = self.forward(*args, **kwargs)
+        else:
+            span_name = f"Module {module_name_capitalized} Execution"
+            with tracer.start_as_current_span(span_name) as span:
+                module_output = self.forward(*args, **kwargs)
         return module_output
 
     __call__: Callable[..., Any] = _call_impl
 
-    #def __getstate__(self): TODO deprecated. agora herda de Core
-    #    state = self.__dict__.copy()
-    #    return state
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        return state
 
     def __setstate__(self, state):
         self.__dict__.update(state)

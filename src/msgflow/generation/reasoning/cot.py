@@ -1,8 +1,10 @@
-from typing import Dict, Generic, List, Optional, Union, TypeVar
 from enum import Enum
+from typing import Dict, List, Optional, Union
 from msgspec import Struct
+from typing_extensions import Generic, TypeVar
 
-T = TypeVar("T")
+
+T = TypeVar("T", default=str)
 
 
 class StepType(Enum):
