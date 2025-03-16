@@ -1,6 +1,6 @@
 [project]
 name = "msgflow"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Messages and Dynamic workflows in Python powered by Pretrained models"
 readme = "README.md"
 authors = [
@@ -16,8 +16,8 @@ dependencies = [
     "msgspec>=0.19.0",
     "msgspec-ext",
     "opentelemetry-api>=1.30.0",
+    "opentelemetry-exporter-otlp>=1.30.0",
     "opentelemetry-sdk>=1.30.0",
-    "soundfile>=0.13.1",
     "tomli-w>=1.2.0",
     "typing-extensions>=4.12.2",
 ]
@@ -25,6 +25,7 @@ dependencies = [
 [project.optional-dependencies]
 openai = [
     "openai>=1.63.2",
+    "opentelemetry-instrumentation-openai>=0.38.12",
 ]
 data = [
     "ray[data]>=2.40.0",
@@ -59,6 +60,9 @@ docs = [
     "mkdocstrings-python>=1.16.1",
     "pymdown-extensions>=10.14.3",
 ]
+
+[tool.hatch.version]
+path = "msgflow/version.py"
 
 [tool.uv.sources]
 msgspec-ext = { git = "https://github.com/msgflow-ai/msgspec-ext-preview" }
