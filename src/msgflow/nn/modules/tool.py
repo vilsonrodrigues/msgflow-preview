@@ -1,6 +1,7 @@
 from __future__ import annotations
 import inspect
 from typing import Any, Callable, Iterator, List, Mapping, Sequence, Tuple
+
 import gevent
 
 from msgflow.nn.modules.container import ModuleDict
@@ -9,7 +10,7 @@ from msgflow.utils.chat import (
     convert_camel_to_snake_case,
     generate_json_schema,
 )
-
+from msgflow.telemetry.span import trace_tool_library_call
 
 # TODO: dynamic fns have dependencies, so they must be imported before running
 # consider the possibility of having specific fn pools/libraries for each user
@@ -137,6 +138,7 @@ class ToolLibrary(Module):
         # entao use a fn original
         return [self.library[tool_name].get_json_schema() for tool_name in self.library]
 
+    @trace_tool_library_call
     def forward(self, tool_callings: List[Tuple[str, str, Any]]) -> Mapping[str, str]:
         """ Execute tool calls.
 
@@ -157,7 +159,7 @@ class ToolLibrary(Module):
 
                 {'123121': '12:00', '322': '4 * 2 = 8'}
         """
-        tool_results = {}
+        tool_responses = {}
         greenlets = {}
 
         for id, name, args in tool_callings:
@@ -169,7 +171,7 @@ class ToolLibrary(Module):
 
                 greenlets[id] = greenlet
             else:
-                tool_results[id] = "This tool is not available"
+                tool_responses[id] = "This tool is not available"
 
         if greenlets:
             try:
@@ -177,8 +179,9 @@ class ToolLibrary(Module):
 
                 # Collect results
                 for id, greenlet in greenlets.items():
-                    tool_results[id] = greenlet.value
+                    tool_responses[id] = greenlet.value
             except gevent.Timeout:
                 raise TimeoutError(f"Execution exceeded time limit")
 
-        return tool_results
+        return tool_responses
+    

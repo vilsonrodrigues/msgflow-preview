@@ -59,3 +59,5 @@ class ModelRouter:
                 "state": state}
         return data
     
+    def get_model_info(self) -> List[Dict[str, str]]:
+        return [model.get_model_info() for model in self.models]

@@ -28,19 +28,16 @@ from msgflow.message import Message
 from msgflow.models.model import Model
 from msgflow.models.response import Response, StreamResponse
 from msgflow.nn.parameter import Buffer, Parameter
+from msgflow.telemetry.span import Spans
 from msgflow.utils.convert import camel_snake_to_capitalize
 from msgflow.utils.hooks import RemovableHandle
+from msgflow.utils.mermaid import plot_mermaid
 from msgflow.utils.msgspec import (
     deserialize_struct, 
     serialize_msgspec_struct
 )
-from msgflow.utils.mermaid import plot_mermaid
 from msgflow.utils.validation import is_builtin_type
-from msgflow.telemetry.tracer import get_tracer
-from msgflow.version import __version__ as msgflow_version
 
-
-tracer = get_tracer()
 
 __all__ = [
     "register_module_forward_pre_hook",
@@ -349,13 +346,10 @@ class Module:
     call_super_init: bool = False    
 
     def __init__(self, *args, **kwargs) -> None:
-        """Initialize internal Module state, shared by both nn.Module and ScriptModule."""
-        # torch._C._log_api_usage_once("python.nn_module")
-
         # Backward compatibility: no args used to be allowed when call_super_init=False
         if self.call_super_init is False and bool(kwargs):
             raise TypeError(
-                f"{type(self).__name__}.__init__() got an unexpected keyword argument '{next(iter(kwargs))}'"
+                f"{type(self).__name__}.__init__() got an unexpected keyword argument `{next(iter(kwargs))}`"
                 ""
             )
 
@@ -371,7 +365,7 @@ class Module:
         handling for parameters, submodules, and buffers but simply calls into
         super().__setattr__ for all other attributes.
         """
-        super().__setattr__("training", True) # mover para agent
+        super().__setattr__("training", True)
         super().__setattr__("_parameters", {})
         super().__setattr__("_buffers", {})
         super().__setattr__("_non_persistent_buffers_set", set()) # ?
@@ -385,6 +379,7 @@ class Module:
         super().__setattr__("_load_state_dict_pre_hooks", OrderedDict())
         super().__setattr__("_load_state_dict_post_hooks", OrderedDict())
         super().__setattr__("_modules", {})
+        super().__setattr__("_spans", Spans())        
 
         if self.call_super_init:
             super().__init__(*args, **kwargs)
@@ -577,7 +572,7 @@ class Module:
 
         Example::
 
-            >>> # xdoctest: +SKIP("undefined vars")
+            >>> # xdoctest: +SKIP("undefined vars") TODO
             >>> self.register_buffer('running_mean', torch.zeros(num_features))
 
         """
@@ -722,7 +717,7 @@ class Module:
                 fully-qualified string.)
 
         Returns:
-            torch.nn.Module: The submodule referenced by ``target``
+            msgflow.nn.Module: The submodule referenced by ``target``
 
         Raises:
             AttributeError: If the target string references an invalid
@@ -821,7 +816,7 @@ class Module:
                 fully-qualified string.)
 
         Returns:
-            torch.nn.Parameter: The Parameter referenced by ``target``
+            msgflow.nn.Parameter: The Parameter referenced by ``target``
 
         Raises:
             AttributeError: If the target string references an invalid
@@ -858,7 +853,7 @@ class Module:
                 to look for. (See ``get_submodule`` for how to specify a
                 fully-qualified string.)
 
-        Returns:
+        Returns: TODO
             torch.Tensor: The buffer referenced by ``target``
 
         Raises:
@@ -1041,7 +1036,6 @@ class Module:
                         hook_result = (hook_result,)
                     args = hook_result
         
-        # Executa o forward com verificação de Message
         result = self._call(*args, **kwargs)
         
         for hook in self._forward_hooks.values():
@@ -1074,30 +1068,19 @@ class Module:
         module_name = getattr(self, "name", self.__class__.__name__)
         module_name_capitalized = camel_snake_to_capitalize(module_name)
 
+        encoded_state_dict = None
+        if envs.telemetry_capture_state_dict:
+            state_dict = self.state_dict()
+            encoded_state_dict = msgspec.json.encode(state_dict)
+
         # Trace capture
         current_span = trace.get_current_span()
         # If there is no active span or it is not recording, this is the root module
         if current_span is None or not current_span.is_recording():
-            span_name = f"Workflow {module_name_capitalized} Started"
-            with tracer.start_as_current_span(span_name) as span:
-                span.set_attribute(span, "msgflow_version", platform.python_version())
-                if message:
-                    span.set_attribute(span, "msgflow_execution_id", message.get("execution_id"))
-                    span.set_attribute(span, "msgflow_user_id", message.get("user_id"))
-                    span.set_attribute(span, "msgflow_chat_id", message.get("chat_id"))
-                if envs.telemetry_capture_state_dict:
-                    state_dict = self.state_dict()
-                    encoded_state_dict = msgspec.json.encode(state_dict)
-                    span.set_attribute(span, "msgflow_state_dict", encoded_state_dict)
-                span.set_attribute(span, "python_version", platform.python_version())
-                span.set_attribute(span, "platform", platform.platform())
-                span.set_attribute(span, "platform_version", platform.version())
-                span.set_attribute(span, "platform_version", platform.version())
-                span.set_attribute(span, "num_cpus", os.cpu_count())                                
+            with self._spans.init_flow(module_name_capitalized, message, encoded_state_dict) as span:
                 module_output = self.forward(*args, **kwargs)
         else:
-            span_name = f"Module {module_name_capitalized} Execution"
-            with tracer.start_as_current_span(span_name) as span:
+            with self._spans.init_module(module_name_capitalized) as span:
                 module_output = self.forward(*args, **kwargs)
         return module_output
 
@@ -1130,9 +1113,6 @@ class Module:
         if "_non_persistent_buffers_set" not in self.__dict__:
             self._non_persistent_buffers_set = set()
 
-    # It is crucial that the return type is not annotated as `Any`, otherwise type checking
-    # on `torch.nn.Module` and all its subclasses is largely disabled as a result. See:
-    # https://github.com/pytorch/pytorch/pull/115074
     def __getattr__(self, name: str) -> Union[Any, "Module"]:
         if "_parameters" in self.__dict__:
             _parameters = self.__dict__["_parameters"]
@@ -1147,7 +1127,7 @@ class Module:
             if name in modules:
                 return modules[name]
         raise AttributeError(
-            f"'{type(self).__name__}' object has no attribute '{name}'"
+            f"`{type(self).__name__}` object has no attribute `{name}`"
         )
 
     def __setattr__(self, name: str, value: Union[Any, "Module"]) -> None:
@@ -1200,8 +1180,8 @@ class Module:
             elif modules is not None and name in modules:
                 if value is not None:
                     raise TypeError(
-                        f"cannot assign '{type(value)}' as child module '{name}' "
-                        "(torch.nn.Module or None expected)"
+                        f"cannot assign `{type(value)}` as child module `{name}` "
+                        "(msgflow.nn.Module or None expected)"
                     )
                 for hook in _global_module_registration_hooks.values():
                     output = hook(self, name, value)
@@ -1211,11 +1191,6 @@ class Module:
             else:
                 buffers = self.__dict__.get("_buffers")
                 if isinstance(value, Buffer) or buffers is not None and name in buffers:
-                    #if value is not None and not isinstance(value, torch.Tensor):
-                    #    raise TypeError(
-                    #        f"cannot assign '{torch.typename(value)}' as buffer '{name}' "
-                    #        "(torch.nn.Buffer, torch.Tensor or None expected)"
-                    #    )
                     if isinstance(value, Buffer):
                         persistent = value.persistent
                     else:
@@ -1375,11 +1350,11 @@ class Module:
         return destination
 
     def _register_load_state_dict_pre_hook(self, hook, with_module=False):
-        r"""See :meth:`~torch.nn.Module.register_load_state_dict_pre_hook` for details.
+        r"""See :meth:`~msgflow.nn.Module.register_load_state_dict_pre_hook` for details.
 
         A subtle difference is that if ``with_module`` is set to ``False``, then the
         hook will not take the ``module`` as the first argument whereas
-        :meth:`~torch.nn.Module.register_load_state_dict_pre_hook` always takes the
+        :meth:`~msgflow.nn.Module.register_load_state_dict_pre_hook` always takes the
         ``module`` as the first argument.
 
         Arguments:
@@ -1427,7 +1402,7 @@ class Module:
         clearing out both missing and unexpected keys will avoid an error.
 
         Returns:
-            :class:`torch.utils.hooks.RemovableHandle`:
+            :class:`msgflow.utils.hooks.RemovableHandle`:
                 a handle that can be used to remove the added hook by calling
                 ``handle.remove()``
         """
@@ -1765,7 +1740,7 @@ class Module:
         mode, i.e. whether they are affected, e.g. :class:`Dropout`, :class:`BatchNorm`,
         etc.
 
-        This is equivalent with :meth:`self.train(False) <torch.nn.Module.train>`.
+        This is equivalent with :meth:`self.train(False) <msgflow.nn.Module.train>`.
 
         See :ref:`locally-disable-grad-doc` for a comparison between
         `.eval()` and several similar mechanisms that may be confused with it.
@@ -1801,11 +1776,11 @@ class Module:
     def zero_pgrad(self, set_to_none: bool = True) -> None: # TODO isso é interessante mas vai mudar
         r"""Reset gradients of all model parameters.
 
-        See similar function under :class:`torch.optim.Optimizer` for more context.
+        See similar function under :class:`msgflow.optim.Optimizer` for more context.
 
         Args:
             set_to_none (bool): instead of setting to zero, set the grads to None.
-                See :meth:`torch.optim.Optimizer.zero_grad` for details.
+                See :meth:`msgflow.optim.Optimizer.zero_grad` for details.
         """
         for p in self.parameters():
             if p.pgrad is not None:

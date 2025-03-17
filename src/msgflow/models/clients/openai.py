@@ -3,13 +3,14 @@ import tempfile
 from contextlib import contextmanager
 from os import getenv
 from typing import Any, Dict, List, Literal, Optional, Union
+
 import gevent
 import msgspec
+from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 try:
     import httpx
     import openai
-    from openai import OpenAI
-    from opentelemetry.instrumentation.openai import OpenAIInstrumentor
+    from openai import OpenAI    
 except:
     raise ImportError("`openai` client is not detected, please install"
                       "using `pip install msgflow[openai]`")
@@ -17,7 +18,6 @@ except:
 from msgflow.logger import logger
 from msgflow.exceptions import KeyExhaustedError
 from msgflow.models.base import BaseModel
-#from msgflow.telemetry.events.timing import EventsTiming
 from msgflow.models.response import Response, StreamResponse
 from msgflow.models.tool_call_agg import ToolCallAggregator
 from msgflow.models.types import (
@@ -29,6 +29,8 @@ from msgflow.models.types import (
 )
 from msgflow.utils.chat import adapt_struct_schema_to_json_schema
 from msgflow.utils.msgspec import struct_to_dict
+from msgflow.utils.tenacity import model_retry
+
 
 OpenAIInstrumentor().instrument()
 
@@ -39,20 +41,6 @@ OpenAIInstrumentor().instrument()
 # support continuing generation by validating the reason
 
 # TODO split sampling params into 2, normal and run
-
-
-"""
-
-response.headers.get('x-ratelimit-limit-tokens')
-x-ratelimit-limit-rA exceção AllModelsFailedError recebe uma lista de exceções (exceptions) e uma lista de informações sobre os modelos (model_info).
-
-A mensagem de erro é construída para incluir detalhes sobre cada modelo que falhou, incluindo o model_id, provider e a mensagem de erro associada.equests
-x-ratelimit-limit-tokens
-x-ratelimit-remaining-requests
-x-ratelimit-remaining-tokens
-x-ratelimit-reset-requests
-x-ratelimit-reset-tokens
-"""
 
 
 class _BaseOpenAI(BaseModel):
@@ -171,6 +159,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         self._initialize_client()
         self._get_api_key()
 
+    @model_retry
     def _execute(self, **kwargs):
         if kwargs.get("tool_schemas"):
             kwargs["parallel_tool_calls"] = True
@@ -186,9 +175,6 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
 
     def _generate(self, **kwargs):
         response = Response()
-        #metadata = {}
-        #events_timing = EventsTiming()
-        #events_timing.start("model_execution")
         
         generation_schema = kwargs.pop("generation_schema")
         if generation_schema:
@@ -196,11 +182,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             json_schema = adapt_struct_schema_to_json_schema(schema)
             kwargs["response_format"] = json_schema
 
-        #events_timing.start("model_generation")
-
-        model_output = self._execute_model(**kwargs)
-
-        #events_timing.end("model_generation")
+        model_output = self._execute_model(**kwargs)        
 
         choice = model_output.choices[0]
 
@@ -238,27 +220,11 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             else:
                 response.set_response_type("audio_generation")
             response.add(audio_response)
-
-        #events_timing.end("model_execution")
-
-        #if model_output.usage:
-        #    metadata["token_usage"] = model_output.usage.dict()
-            #self._log_tokens_usage(model_output.usage) deprecated :)
-
-        #metadata["timing"] = events_timing.get_events()
-        
-        #model_info = self.get_model_info()
-        #model_info["stream"] = "false"
-        #metadata["model_info"] = model_info
-
-        #response.set_metadata(metadata)
         
         return response
 
     def _stream_generate(self, **kwargs):
         metadata = {}
-        #events_timing = EventsTiming()
-        #events_timing.start("model_execution")
 
         aggregator = ToolCallAggregator()
         stream_response = kwargs.pop("stream_response")
@@ -267,8 +233,6 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         if generation_schema:
             schema = msgspec.json.schema(generation_schema)
             kwargs["response_format"] = adapt_struct_schema_to_json_schema(schema)
-
-        #events_timing.start("model_generation")
 
         model_output = self._execute_model(**kwargs)        
 
@@ -291,21 +255,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                     name = tool_call.function.name
                     arguments = tool_call.function.arguments
                     aggregator.process(call_index, id, name, arguments)
-            elif chunk.usage:  # TODO: revisar logs em streaming
-                metadata["tokens_usage"] = chunk.usage.dict()
-                #print(chunk.usage)
-
-        #events_timing.end("model_generation")
-        #events_timing.end("model_execution")
-
-        #metadata["timing"] = events_timing.get_events()
-
-        model_info = self.get_model_info()
-        model_info["stream"] = "true"
-        metadata["model_info"] = model_info        
         
-        stream_response.set_metadata(metadata)
-
         if aggregator.tool_calls:
             stream_response.add(aggregator)
             stream_response.first_chunk_event.set()
@@ -406,6 +356,7 @@ class OpenAITTS(_BaseOpenAI, TTSModel):
             raise e
 
     @contextmanager
+    @model_retry
     def _execute(self, **kwargs):
         with self.client.audio.speech.with_streaming_response.create(
             **kwargs, **self.sampling_run_params
@@ -476,6 +427,7 @@ class OpenAIImageTextToImage(_BaseOpenAI, ImageTextToImageModel):
         self._initialize_client()        
         self._get_api_key()
 
+    @model_retry
     def _execute(self, **kwargs):
         if kwargs.get("image"):
             model_output = self.client.images.edit(**kwargs, **self.sampling_run_params)
@@ -535,6 +487,7 @@ class OpenAIASR(_BaseOpenAI, ASRModel):
         self._initialize_client()        
         self._get_api_key()
 
+    @model_retry
     def _execute(self, **kwargs):
         model_output = self.client.audio.transcriptions.create(
             **kwargs, **self.sampling_run_params
@@ -616,6 +569,7 @@ class OpenAITextEmbedder(_BaseOpenAI, TextEmbedderModel):
         self._initialize_client()        
         self._get_api_key()
 
+    @model_retry
     def _execute(self, **kwargs):
         model_output = self.client.embeddings.create(
             **kwargs, **self.sampling_run_params

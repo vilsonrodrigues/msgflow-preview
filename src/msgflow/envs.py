@@ -29,7 +29,7 @@ class EnvironmentVariables(BaseSettings):
     )
     
     # Max objects in cache to functions
-    max_lru_cache: int = 16
+    # max_lru_cache: int = 16
     
     # If set to False, msgflow will not print logs
     # If set to True, msgflow will print logs
@@ -69,8 +69,20 @@ class EnvironmentVariables(BaseSettings):
     # Capture state dict
     telemetry_capture_state_dict: bool = False
 
+    # Capture platform details
+    telemetry_capture_platform: bool = False
+
+    # Capture tool call responses
+    telemetry_capture_tool_call_responses: bool = True    
+
     # State checkpoint, if True, if a module output is in message, skip process
     # if False, reprocess
     state_checkpoint: bool = False
+
+    # Max attemps to model clients
+    model_stop_after_attempt: int = 5
+
+    # Retry delay
+    model_stop_after_delay: int = 0
 
 envs = EnvironmentVariables()

@@ -6,7 +6,7 @@ from msgflow._private.core import BaseClient
 class BaseModel(BaseClient):
 
     msgflow_type = "model"   
-    to_remove = ["model", "processor", "client"]
+    to_ignore = ["model", "processor", "client"]
 
     def instance_type(self) -> Dict[str, str]:
          return {"model_type": self.model_type}  
@@ -15,7 +15,7 @@ class BaseModel(BaseClient):
         return {
             "model_id": self.model_id,
             "provider": self.provider,
-        }   
+        }
 
     @abstractmethod
     def _initialize_client(self):

@@ -8,6 +8,7 @@ from typing import (
     Optional, 
     Union
 )
+
 import msgspec
 
 from msgflow.models.router import ModelRouter
@@ -134,7 +135,7 @@ class Agent(Module):
         predicted_outputs: Optional[bool] = False,
         #signature: Optional[str] = None,
         audio_input_format: Optional[Literal["standard", "generation"]] = "generation",
-        verbose: Optional[bool] = False,
+        #verbose: Optional[bool] = False,
         description: Optional[str] = "",
         _annotations: Optional[Dict[str, type]] = None,
     ):
@@ -142,7 +143,7 @@ class Agent(Module):
 
         if stream and response_template:
             raise ValueError("`response_template` is not `stream=True` compatible")
-        if stream and issubclass(generation_schema, ReAct):
+        if stream and is_subclass_of(generation_schema, ReAct):
             raise ValueError(
                 "`generation_schema=ReAct` is not `stream=True` compatible"
             )
@@ -176,7 +177,7 @@ class Agent(Module):
         self._set_annotations(_annotations or {"message": str, "return": str})
 
     def forward(self, message: Union[str, Dict[str, Any], Message]):
-        model_state = self._prepare_task(message)    
+        model_state = self._prepare_task(message)
         model_response = self._execute_model(model_state, self.prefilling)
         response = self._process_model_response(model_response, model_state, message)
         return response
@@ -214,7 +215,7 @@ class Agent(Module):
         else:
             tool_schemas = None
 
-        if issubclass(self.generation_schema, ReAct) and tool_schemas:
+        if is_subclass_of(self.generation_schema, ReAct) and tool_schemas:
             react_tools = get_react_tools_prompt_format(tool_schemas)
             if agent_system_prompt:
                 react_tools += f"\n\n {agent_system_prompt}"
@@ -230,7 +231,7 @@ class Agent(Module):
             model_response, model_state = (
                 self._process_tool_call_response(model_response, model_state, message)
             )
-        elif issubclass(self.generation_schema, ReAct):
+        elif is_subclass_of(self.generation_schema, ReAct):
             model_response, model_state = self._process_react_response(
                 model_response, model_state, message
             )
@@ -308,7 +309,7 @@ class Agent(Module):
 
             model_response = self._execute_model(model_state)
 
-    def _process_tool_call(self, tool_callings):
+    def _process_tool_call(self, tool_callings):        
         tool_results = self.tool_library(tool_callings)
         return tool_results
 
@@ -577,7 +578,8 @@ class Agent(Module):
                             f"given `{type(generation_schema)}`")
 
     def _set_model(self, model: Union[ChatCompletionModel, ModelRouter]):
-        if isinstance(model, (ChatCompletionModel, ModelRouter)):
+        if (isinstance(model, ChatCompletionModel) or 
+           (isinstance(model, ModelRouter) and model.model_types != "chat_completion")):                
             self.register_buffer("model", model)
         else:
             raise TypeError("`model` need be a `ChatCompletionModel` "

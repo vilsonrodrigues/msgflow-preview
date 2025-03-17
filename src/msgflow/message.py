@@ -19,7 +19,7 @@ class _CoreMessage(Accessor):
 
 class Message(_CoreMessage):
     r"""TODO class description"""
-    
+
     outputs = OrderedDict()
     response = OrderedDict()
 

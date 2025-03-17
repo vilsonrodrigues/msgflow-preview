@@ -33,7 +33,7 @@ class BaseClient(ABC, Core):
     to be easily saved and restored.
 
     Attributes:
-        to_remove ([optional[list[str]]): A list of attribute keys to be removed during serialization.
+        to_ignore ([optional[list[str]]): A list of attribute keys to be ignored during serialization.
         msgflow_type (str): A string identifying the type of the client in the msgFlow system.
         provider (optional[str]): The provider associated with the client, if applicable.
         instance_type (optional[callable]): A method or callable that returns additional
@@ -65,8 +65,8 @@ class BaseClient(ABC, Core):
             including metadata and the client's internal state.
         """
         state =  self.__getstate__()
-        if hasattr(self, "to_remove"):
-            for key in self.to_remove:
+        if hasattr(self, "to_ignore"):
+            for key in self.to_ignore:
                 state.pop(key, None)
         data = {"msgflow_type": self.msgflow_type}
         if hasattr(self, "provider"):
