@@ -440,7 +440,7 @@ class Module:
             
     def _set_annotations(self, annotations: Dict[str, type]):
         if isinstance(annotations, dict):
-            self.register_buffer("__annotations__", annotations)
+            self.register_buffer("annotations", annotations)
         else:
             raise TypeError(f"`annotations` need be a `dict` given {type(annotations)}")
 
@@ -539,11 +539,11 @@ class Module:
     # por meio de um get_annotation ou get description
     def set_description(self, description: Optional[str] = None):
         if isinstance(description, str) or description is None:
-            self.register_buffer("__doc__", description)
+            self.register_buffer("description", description) # TODO de __doc__ para description
         else:
             raise ValueError("`description` requires a string not empty")
 
-    def get_module_name(self):        
+    def get_module_name(self):
         module_name = getattr(self, "name")
         if module_name is None:
             module_name = self.__class__.__name__
@@ -551,6 +551,33 @@ class Module:
             # Buffer
             module_name = module_name.data
         return module_name
+
+    def get_module_description(self):
+        module_description = getattr(self, "description")
+        if module_description is None:
+            module_description = self.__class__.__doc__
+        else:
+            # Buffer
+            module_description = module_description.data
+        return module_description
+
+    def get_module_description(self):
+        module_description = getattr(self, "description")
+        if module_description is None:
+            module_description = self.__class__.__doc__
+        else:
+            # Buffer
+            module_description = module_description.data
+        return module_description
+
+    def get_module_annotations(self):
+        module_annotations = getattr(self, "annotations")
+        if module_annotations is None:
+            module_annotations = self.__class__.__annotations__
+        else:
+            # Buffer
+            module_annotations = module_annotations.data
+        return module_annotations    
 
     # msgflow END
 

@@ -6,9 +6,7 @@ import gevent
 
 from msgflow.nn.modules.container import ModuleDict
 from msgflow.nn.modules.module import Module
-from msgflow.utils.chat import (
-    generate_json_schema,
-)
+from msgflow.utils.chat import generate_json_schema
 from msgflow.utils.convert import convert_camel_to_snake_case
 from msgflow.telemetry.span import trace_tool_library_call
 

@@ -188,11 +188,11 @@ def generate_json_schema(cls: type) -> Dict:
     Returns:
         JSON schema for the class
     """
-    name = cls.name if hasattr(cls, "name") else cls.__name__
-    description = cls.__docstring__ if hasattr(cls, "__docstring__") else cls.__doc__
+    name = cls.get_module_name()
+    description = cls.get_module_description()
     clean_description = clean_docstring(description)
     param_descriptions = parse_docstring_args(description)
-    annotations = cls.__annotations__ if hasattr(cls, "__annotations__") else {}
+    annotations = cls.get_module_annotations()
 
     properties = {}
     required = []
