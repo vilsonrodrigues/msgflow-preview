@@ -584,8 +584,8 @@ class Module:
             raise KeyError("buffer name can't contain '.'")
         elif name == "":
             raise KeyError("buffer name can't be empty string")
-        elif hasattr(self, name) and name not in self._buffers:
-            raise KeyError(f"attribute '{name}' already exists")
+        #elif hasattr(self, name) and name not in self._buffers:
+        #    raise KeyError(f"attribute '{name}' already exists")
         elif data is None:
             raise KeyError("buffer data can't be None")
         else:
