@@ -29,7 +29,7 @@ from msgflow.models.model import Model
 from msgflow.models.response import Response, StreamResponse
 from msgflow.nn.parameter import Buffer, Parameter
 from msgflow.telemetry.span import Spans
-from msgflow.utils.convert import camel_snake_to_capitalize
+from msgflow.utils.convert import convert_camel_snake_to_title
 from msgflow.utils.hooks import RemovableHandle
 from msgflow.utils.mermaid import plot_mermaid
 from msgflow.utils.msgspec import (
@@ -1093,7 +1093,7 @@ class Module:
                 return message
         
         module_name = self.get_module_name()
-        module_name_capitalized = camel_snake_to_capitalize(module_name)
+        module_name_title = convert_camel_snake_to_title(module_name)
 
         encoded_state_dict = None
         if envs.telemetry_capture_state_dict:
@@ -1104,10 +1104,10 @@ class Module:
         current_span = trace.get_current_span()
         # If there is no active span or it is not recording, this is the root module
         if current_span is None or not current_span.is_recording():
-            with self._spans.init_flow(module_name_capitalized, message, encoded_state_dict) as span:
+            with self._spans.init_flow(module_name_title, message, encoded_state_dict) as span:
                 module_output = self.forward(*args, **kwargs)
         else:
-            with self._spans.init_module(module_name_capitalized) as span:
+            with self._spans.init_module(module_name_title) as span:
                 module_output = self.forward(*args, **kwargs)
         return module_output
 
