@@ -97,10 +97,6 @@ def chatml_to_steps_format(model_state, response):
 
     return steps
 
-def convert_camel_to_snake_case(camel_str) -> str:
-    snake_str = re.sub(r"(?<!^)([A-Z])", r"_\1", camel_str).lower()
-    return snake_str
-
 def text_code_to_callable(text_code: str) -> Callable:
     """Convert text Python code to a callable object"""
     local_context = {}

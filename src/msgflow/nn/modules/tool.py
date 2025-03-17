@@ -7,9 +7,9 @@ import gevent
 from msgflow.nn.modules.container import ModuleDict
 from msgflow.nn.modules.module import Module
 from msgflow.utils.chat import (
-    convert_camel_to_snake_case,
     generate_json_schema,
 )
+from msgflow.utils.convert import convert_camel_to_snake_case
 from msgflow.telemetry.span import trace_tool_library_call
 
 # TODO: dynamic fns have dependencies, so they must be imported before running
@@ -60,6 +60,8 @@ def _convert_module_to_nn_tool(impl: Callable) -> Tool:
             )
 
         name = convert_camel_to_snake_case(impl.__name__)
+
+        impl = impl()
 
     elif inspect.isfunction(impl):
         if hasattr(impl, "__doc__") and impl.__doc__ is not None:
