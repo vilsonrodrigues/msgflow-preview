@@ -543,6 +543,15 @@ class Module:
         else:
             raise ValueError("`description` requires a string not empty")
 
+    def get_module_name(self):        
+        module_name = getattr(self, "name")
+        if module_name is None:
+            module_name = self.__class__.__name__
+        else:
+            # Buffer
+            module_name = module_name.data
+        return module_name
+
     # msgflow END
 
     def register_buffer(self, name: str, data: Any, persistent: bool = True) -> None:
@@ -1065,7 +1074,7 @@ class Module:
             if envs.state_checkpoint and message.in_msg(self.name):
                 return message
         
-        module_name = getattr(self, "name", self.__class__.__name__)
+        module_name = self.get_module_name()
         module_name_capitalized = camel_snake_to_capitalize(module_name)
 
         encoded_state_dict = None
