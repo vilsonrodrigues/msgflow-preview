@@ -17,7 +17,7 @@ def configure_tracer():
     if _tracer_configured:
         return
 
-    if not envs.requires_trace:
+    if not envs.telemetry_requires_trace:
         logger.debug("Tracing disabled, configuring NoOp tracer")
         no_op_provider = NoOpTracerProvider()
         trace.set_tracer_provider(no_op_provider)
