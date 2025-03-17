@@ -1,6 +1,6 @@
 from __future__ import annotations
 import inspect
-from typing import Any, Callable, Iterator, List, Mapping, Sequence, Tuple
+from typing import Any, Callable, Iterator, List, Mapping, Tuple
 
 import gevent
 
@@ -138,7 +138,7 @@ class ToolLibrary(Module):
     def get_tool_names(self) -> List[str]:
         return list(self.library.keys())
 
-    def get_functions_json_schema(self) -> Sequence[Mapping[str, Any]]:
+    def get_tool_json_schemas(self) -> List[Mapping[str, Any]]:
         """ Returns a list of JSON schemas from functions """
         # TODO: para suportar fn que não sao necessariamente chamaveis via call
         # possa passar fns que nao sao Function, e ainda é necessario conseguir o json schema
