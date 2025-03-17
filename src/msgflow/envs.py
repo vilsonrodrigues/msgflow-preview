@@ -1,7 +1,7 @@
 import os
 from typing import Any, Literal
 from msgspec_ext import BaseSettings, SettingsConfigDict
-from msgspec_ext import HttpUrl
+
 
 def set_envs(**kwargs: Any):
     """Sets environment variables based on named arguments.
@@ -61,7 +61,7 @@ class EnvironmentVariables(BaseSettings):
     telemetry_requires_trace: bool = False 
 
     # OTLP endpoint
-    telemetry_otlp_endpoint: HttpUrl = "http://localhost.com:4321"
+    telemetry_otlp_endpoint: str = "http://localhost.com:4321"
 
     # Span exporter type
     telemetry_span_exporter_type: Literal["console", "otlp"] = "console"
