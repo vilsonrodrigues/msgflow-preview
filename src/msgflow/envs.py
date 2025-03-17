@@ -82,7 +82,13 @@ class EnvironmentVariables(BaseSettings):
     # Max attemps to model clients
     model_stop_after_attempt: int = 5
 
-    # Retry delay
+    # Model retry delay
     model_stop_after_delay: int = 0
+
+    # Max attemps to tool call
+    tool_stop_after_attempt: int = 5
+
+    # Tool retry delay
+    tool_stop_after_delay: int = 0
 
 envs = EnvironmentVariables()

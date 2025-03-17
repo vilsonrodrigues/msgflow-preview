@@ -8,6 +8,7 @@ from msgflow.nn.modules.container import ModuleDict
 from msgflow.nn.modules.module import Module
 from msgflow.utils.chat import generate_json_schema
 from msgflow.utils.convert import convert_camel_to_snake_case
+from msgflow.utils.tenacity import tool_retry
 from msgflow.telemetry.span import trace_tool_library_call
 
 # TODO: dynamic fns have dependencies, so they must be imported before running
@@ -90,6 +91,7 @@ def _convert_module_to_nn_tool(impl: Callable) -> Tool:
             self._set_annotations(annotations)    
             super().__setattr__("impl", impl) # Not a buffer for now      
 
+        @tool_retry
         def forward(self, *args, **kwargs):
             return self.impl(*args, **kwargs)
 
