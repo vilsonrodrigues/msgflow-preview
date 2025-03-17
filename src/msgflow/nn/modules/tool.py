@@ -106,10 +106,12 @@ class ToolLibrary(Module):
 
     def __init__(
         self,
+        name: str,
         tools: List[Callable],
         # special_tools: Optional[List[str]] = None
     ):
         super().__init__()
+        self.set_name(f"{name}_tool_library")
         self.library = ModuleDict()
         for tool in tools:
             self.add(tool)
@@ -132,6 +134,9 @@ class ToolLibrary(Module):
 
     def get_tools(self) -> Iterator[Mapping[str, Tool]]:
         return self.library.items()
+
+    def get_tool_names(self) -> List[str]:
+        return list(self.library.keys())
 
     def get_functions_json_schema(self) -> Sequence[Mapping[str, Any]]:
         """ Returns a list of JSON schemas from functions """
@@ -164,8 +169,10 @@ class ToolLibrary(Module):
         tool_responses = {}
         greenlets = {}
 
+        tool_names = self.get_tool_names()
+
         for id, name, args in tool_callings:
-            if name in self.library.items():
+            if name in tool_names:
                 if args:
                     greenlet = gevent.spawn(self.library[name], **args)
                 else:
