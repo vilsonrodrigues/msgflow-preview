@@ -21,7 +21,7 @@ from msgflow.telemetry.span import trace_tool_library_call
 # TODO: provide the option of special functions that make the model have control over its own functions
 # TODO: mcp
 
-class Tool(Module):
+class ToolBase(Module):
     """Tool class description"""
 
     def get_json_schema(self):
@@ -83,7 +83,7 @@ def _convert_module_to_nn_tool(impl: Callable) -> Tool:
 
         name = impl.__name__
 
-    class WrappedTool(Tool):
+    class Tool(ToolBase):
 
         def __init__(self):
             super().__init__()
@@ -95,7 +95,7 @@ def _convert_module_to_nn_tool(impl: Callable) -> Tool:
         def forward(self, *args, **kwargs):
             return self.impl(*args, **kwargs)
 
-    return WrappedTool()
+    return Tool()
 
 
 # implementar cancelamento de tarefas baseado em id
@@ -117,7 +117,7 @@ class ToolLibrary(Module):
     def add(self, tool: Callable):
         if tool.__name__ in self.library.keys():
             raise ValueError(f"The tool name `{tool.__name__}` is already in tool library")
-        if not isinstance(tool, Tool):
+        if not isinstance(tool, ToolBase):
             tool = _convert_module_to_nn_tool(tool)
         self.library.update({tool.name.data: tool})
 
