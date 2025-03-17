@@ -544,7 +544,7 @@ class Module:
             raise ValueError("`description` requires a string not empty")
 
     def get_module_name(self):
-        module_name = getattr(self, "name")
+        module_name = getattr(self, "name", None)
         if module_name is None:
             module_name = self.__class__.__name__
         else:
@@ -553,16 +553,7 @@ class Module:
         return module_name
 
     def get_module_description(self):
-        module_description = getattr(self, "description")
-        if module_description is None:
-            module_description = self.__class__.__doc__
-        else:
-            # Buffer
-            module_description = module_description.data
-        return module_description
-
-    def get_module_description(self):
-        module_description = getattr(self, "description")
+        module_description = getattr(self, "description", None)
         if module_description is None:
             module_description = self.__class__.__doc__
         else:
@@ -571,7 +562,7 @@ class Module:
         return module_description
 
     def get_module_annotations(self):
-        module_annotations = getattr(self, "annotations")
+        module_annotations = getattr(self, "annotations", None)
         if module_annotations is None:
             module_annotations = self.__class__.__annotations__
         else:
