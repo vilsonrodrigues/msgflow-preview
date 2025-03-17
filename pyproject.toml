@@ -18,6 +18,7 @@ dependencies = [
     "opentelemetry-api>=1.30.0",
     "opentelemetry-exporter-otlp>=1.30.0",
     "opentelemetry-sdk>=1.30.0",
+    "tenacity>=9.0.0",
     "tomli-w>=1.2.0",
     "typing-extensions>=4.12.2",
 ]
@@ -62,7 +63,7 @@ docs = [
 ]
 
 [tool.hatch.version]
-path = "msgflow/version.py"
+path = "src/msgflow/version.py"
 
 [tool.uv.sources]
 msgspec-ext = { git = "https://github.com/msgflow-ai/msgspec-ext-preview" }
