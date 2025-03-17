@@ -210,9 +210,8 @@ class Agent(Module):
 
         agent_system_prompt = self._get_agent_system_prompt()
 
-        if self.tool_library:
-            tool_schemas = self.tool_library.get_functions_json_schema()
-        else:
+        tool_schemas = self.tool_library.get_tool_json_schemas()
+        if not tool_schemas:
             tool_schemas = None
 
         if is_subclass_of(self.generation_schema, ReAct) and tool_schemas:
@@ -550,11 +549,10 @@ class Agent(Module):
     #    super().__setattr__("chat_history", chat_history)
 
     def _set_tools(self, tools: Optional[List[Callable]] = None):
-        if (isinstance(tools, list) and all(callable(obj) for obj in tools)) or None:                
-            tool_library = ToolLibrary(tools)
-            self.tool_library = tool_library
+        if (isinstance(tools, list) and all(callable(obj) for obj in tools)) or None:
+            self.tool_library = ToolLibrary(self.get_module_name(), tools or [])
         else:
-            raise TypeError("`tool_library` need be a list of callables or None"
+            raise TypeError("`tools` need be a list of callables or None"
                             f"given `{type(tool_library)}`")
 
     def _set_stream(self, stream: bool):
