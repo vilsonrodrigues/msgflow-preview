@@ -1,8 +1,18 @@
 # https://mpitutorial.com/tutorials/mpi-scatter-gather-and-allgather/
-from typing import Callable, List, Literal, Optional, Tuple
+import inspect
+from typing import Callable, List, Optional, Tuple
 import gevent
 from msgflow.message import Message
+from msgflow.nn.modules.module import Module
 
+
+def _get_callable_name(callable):
+    if isinstance(callable, Module):
+        return callable.get_module_name()
+    elif inspect.isfunction(callable):    
+        return callable.__name__
+    else:
+        return callable.__class__.name    
 
 def bcast_gather(
     message: Message,
@@ -26,7 +36,8 @@ def bcast_gather(
     results = gevent.joinall(tasks)
 
     for module, response in zip(to_send, results):
-        message.set(f"{response_mode}.{module.name}", response.value)
+        module_name = _get_callable_name(module)
+        message.set(f"{response_mode}.{module_name}", response.value)
 
     return message
 
@@ -34,7 +45,7 @@ def bcast_gather(
 def scatter_gather(
     messages: List[Message],
     to_send: List[Callable],
-    response_mode: Optional[Literal["context", "outputs"]] = "outputs",
+    response_mode: Optional[str] = "outputs",
 ) -> Tuple[Message]:
     """Scatter N messages to N modules"""
     if not all(isinstance(message, Message) for message in messages):
@@ -44,7 +55,7 @@ def scatter_gather(
         raise TypeError("`to_send` requires be a list of Callable")
         
     if not isinstance(response_mode, str):
-        raise TypeError("`response_mode` requires be a string")
+        raise TypeError(f"`response_mode` requires be a string given {type(response_mode)}")
     else:
         if response_mode == "":
             raise ValueError("`response_mode` requires be a string not empty")
@@ -53,6 +64,7 @@ def scatter_gather(
     results = gevent.joinall(tasks)
 
     for module, message, response in zip(to_send, messages, results):
-        message.set(f"{response_mode}.{module.name}", response.value)
+        module_name = _get_callable_name(module)
+        message.set(f"{response_mode}.{module_name}", response.value)
 
     return tuple(messages)
