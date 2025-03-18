@@ -183,10 +183,7 @@ class Agent(Module):
         return response
 
     def _execute_model(self, model_state, prefilling=None):
-        agent_state, agent_system_prompt, tool_schemas = self._prepare_model_execution(model_state)
-        
-        if self.verbose:
-            print(agent_state)
+        agent_state, agent_system_prompt, tool_schemas = self._prepare_model_execution(model_state)        
 
         model_response = self.model(
             messages=agent_state,
@@ -259,10 +256,10 @@ class Agent(Module):
                 tool_callings = [
                     (act["id"], act["name"], act["arguments"]) for act in actions
                 ]
-                tool_results = self._process_tool_call(tool_callings)
+                tool_responses = self._process_tool_call(tool_callings)
 
                 for act in actions:
-                    act["result"] = tool_results[[act["id"]]]
+                    act["result"] = tool_responses[[act["id"]]]
 
                 if model_state[-1]["role"] == "assistant":
                     last_react_msg = model_state[-1]["content"]
@@ -294,18 +291,18 @@ class Agent(Module):
             if model_response.response_type == "tool_call":
                 raw_response = self._extract_raw_response(model_response)
                 tool_callings = raw_response.get_calls()
-                tool_results = self._process_tool_call(tool_callings)
-                raw_response.insert_results(tool_results)
-                tool_results_message = raw_response.get_messages()
-                model_state.extend(tool_results_message)
+                tool_responses = self._process_tool_call(tool_callings)
+                raw_response.insert_results(tool_responses)
+                tool_responses_message = raw_response.get_messages()
+                model_state.extend(tool_responses_message)
             else:
                 return model_response, model_state
 
             model_response = self._execute_model(model_state)
 
     def _process_tool_call(self, tool_callings):        
-        tool_results = self.tool_library(tool_callings)
-        return tool_results
+        tool_responses = self.tool_library(tool_callings)
+        return tool_responses
 
     def _prepare_response(self, raw_response, response_type, model_state, message):
 
