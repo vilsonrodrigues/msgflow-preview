@@ -1,4 +1,3 @@
-from __future__ import annotations
 import inspect
 from typing import Any, Callable, Iterator, List, Mapping, Tuple
 
@@ -29,6 +28,7 @@ class ToolBase(Module):
 
 def _convert_module_to_nn_tool(impl: Callable) -> ToolBase:
     """Convert a callable in nn.Tool"""
+    # Case 1: Uninitialized class
     if inspect.isclass(impl):
         if not hasattr(impl, "__call__"):
             raise NotImplementedError(
@@ -62,6 +62,7 @@ def _convert_module_to_nn_tool(impl: Callable) -> ToolBase:
 
         impl = impl()
 
+    # Case 2: Function
     elif inspect.isfunction(impl):
         if hasattr(impl, "__doc__") and impl.__doc__ is not None:
             doc = impl.__doc__
@@ -81,6 +82,36 @@ def _convert_module_to_nn_tool(impl: Callable) -> ToolBase:
             )
 
         name = impl.__name__
+        
+    # Case 3: Initialized and callable instance
+    elif callable(impl):
+        if not hasattr(impl, "__call__"):
+            raise NotImplementedError(
+                "To transform an instance into a `nn.Tool`, "
+                " is necessary implement a `def __call__`"
+            )
+
+        if hasattr(impl.__call__, "__doc__") and impl.__call__.__doc__ is not None:
+            doc = impl.__call__.__doc__
+        else:
+            raise NotImplementedError(
+                "To transform a class into a `nn.Tool` "
+                "it is necessary to implement a docstring "
+                "in the class or in `def __call__`"
+            )
+
+        if hasattr(impl.__call__, "__annotations__"):
+            annotations = impl.__call__.__annotations__
+        else:
+            raise NotImplementedError(
+                "To transform an instance into a `nn.Tool`, "
+                "it is necessary to implement annotations in `__call__`"
+            )
+
+        name = convert_camel_to_snake_case(impl.__class__.__name__)
+
+    else:
+        raise ValueError("The given object is not a callable function, class, or instance")
 
     class Tool(ToolBase):
 
