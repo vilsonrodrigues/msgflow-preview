@@ -27,7 +27,7 @@ class ToolBase(Module):
         return generate_json_schema(self)
 
 
-def _convert_module_to_nn_tool(impl: Callable) -> Tool:
+def _convert_module_to_nn_tool(impl: Callable) -> ToolBase:
     """Convert a callable in nn.Tool"""
     if inspect.isclass(impl):
         if not hasattr(impl, "__call__"):
