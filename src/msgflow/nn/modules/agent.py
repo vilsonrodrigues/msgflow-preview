@@ -228,23 +228,21 @@ class Agent(Module):
     def _process_model_response(self, model_response, model_state, message):
         if model_response.response_type == "tool_call":
             model_response, model_state = (
-                self._process_tool_call_response(model_response, model_state, message)
+                self._process_tool_call_response(model_response, model_state)
             )
         elif is_subclass_of(self.generation_schema, ReAct):
             model_response, model_state = self._process_react_response(
-                model_response, model_state, message
+                model_response, model_state
             )
         
         raw_response = self._extract_raw_response(model_response)
 
         response_type = model_response.response_type
-        response_metadata = model_response.metadata
 
         if model_response.response_type in self._supported_outputs:
             response = self._prepare_response(
                 raw_response, 
-                response_type, 
-                response_metadata, 
+                model_response.response_type,
                 model_state, 
                 message
             )
@@ -252,11 +250,9 @@ class Agent(Module):
         else:
             raise ValueError(f"Unsupported `response_type={response_type}`")
 
-    def _process_react_response(self, model_response, model_state, message):
+    def _process_react_response(self, model_response, model_state):
         while True:            
             raw_response = self._extract_raw_response(model_response)
-
-            self._process_response_metadata(model_response.metadata, message)
 
             if raw_response.get("current_step"):
                 actions = raw_response["current_step"]["actions"]
@@ -287,7 +283,7 @@ class Agent(Module):
 
             model_response = self._execute_model(model_state)
 
-    def _process_tool_call_response(self, model_response, model_state, message):
+    def _process_tool_call_response(self, model_response, model_state):
         """
         Mensagens: [{'role': 'assistant', 'tool_calls': [{'id': 'call_1YLHAVwHwDPjEBuMpWQfSktO',
         'type': 'function', 'function': {'arguments': '{"order_id":"order_12345"}',
@@ -297,7 +293,6 @@ class Agent(Module):
         while True:
             if model_response.response_type == "tool_call":
                 raw_response = self._extract_raw_response(model_response)
-                self._process_response_metadata(model_response.metadata, message)
                 tool_callings = raw_response.get_calls()
                 tool_results = self._process_tool_call(tool_callings)
                 raw_response.insert_results(tool_results)
@@ -312,8 +307,7 @@ class Agent(Module):
         tool_results = self.tool_library(tool_callings)
         return tool_results
 
-    def _prepare_response(self, raw_response, response_type, response_metadata, model_state, message):
-        self._process_response_metadata(response_metadata, message)
+    def _prepare_response(self, raw_response, response_type, model_state, message):
 
         if self.response_template and response_type in [
             "text_generation",
@@ -343,10 +337,6 @@ class Agent(Module):
     def _apply_steps_format(self, model_state, response):
         steps_response = chatml_to_steps_format(model_state, response)
         return steps_response
-
-    def _process_response_metadata(self, response_metadata, message):
-        # TODO
-        return
 
     def _prepare_task(
         self, message: Union[str, Dict[str, Any], Message]
