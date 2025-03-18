@@ -14,7 +14,7 @@ import msgspec
 from msgflow.models.router import ModelRouter
 from msgflow.message import Message
 from msgflow.models.types import ChatCompletionModel
-from msgflow.generation.reasoning.react import ReAct
+from msgflow.generation.plan.react import ReAct
 from msgflow.nn.modules.module import Module
 from msgflow.nn.modules.tool import ToolLibrary
 from msgflow.nn.parameter import Parameter
