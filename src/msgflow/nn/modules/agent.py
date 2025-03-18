@@ -70,7 +70,7 @@ class Agent(Module):
             * `response`: Write on `response` field in Message object.
             * `context`: Write on `context` field in Message object. It`s insert how `context.agent_name`.
             * `outputs`: Write on `outputs` field in Message object. It`s insert how `outputs.agent_name`.
-        tool_library:
+        tools:
             ...
         response_template:
             ...

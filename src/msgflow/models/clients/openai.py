@@ -6,11 +6,11 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 import gevent
 import msgspec
-from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 try:
     import httpx
     import openai
     from openai import OpenAI    
+    from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 except:
     raise ImportError("`openai` client is not detected, please install"
                       "using `pip install msgflow[openai]`")
