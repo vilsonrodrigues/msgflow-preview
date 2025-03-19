@@ -1,4 +1,6 @@
+import hashlib
 import re
+
 
 def convert_camel_snake_to_title(name: str) -> str:
     """ Convert a name to title format """
@@ -10,4 +12,7 @@ def convert_camel_snake_to_title(name: str) -> str:
 
 def convert_camel_to_snake_case(camel_str) -> str:
     snake_str = re.sub(r"(?<!^)([A-Z])", r"_\1", camel_str).lower()
-    return snake_str    
+    return snake_str
+
+def convert_str_to_hash(data: str) -> str:    
+    return hashlib.sha256(data.encode()).hexdigest()
