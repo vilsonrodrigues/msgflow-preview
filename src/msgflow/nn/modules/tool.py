@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Callable, Iterator, List, Mapping, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Tuple
 
 import gevent
 
@@ -163,7 +163,7 @@ class ToolLibrary(Module):
     def clear(self):
         self.library.clear()
 
-    def get_tools(self) -> Iterator[Mapping[str, ToolBase]]:
+    def get_tools(self) -> Iterator[Dict[str, ToolBase]]:
         return self.library.items()
 
     def get_tool_names(self) -> List[str]:
