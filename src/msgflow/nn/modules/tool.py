@@ -163,13 +163,13 @@ class ToolLibrary(Module):
     def clear(self):
         self.library.clear()
 
-    def get_tools(self) -> Iterator[Mapping[str, Tool]]:
+    def get_tools(self) -> Iterator[Mapping[str, ToolBase]]:
         return self.library.items()
 
     def get_tool_names(self) -> List[str]:
         return list(self.library.keys())
 
-    def get_tool_json_schemas(self) -> List[Mapping[str, Any]]:
+    def get_tool_json_schemas(self) -> List[Dict[str, Any]]:
         """ Returns a list of JSON schemas from functions """
         # TODO: para suportar fn que não sao necessariamente chamaveis via call
         # possa passar fns que nao sao Function, e ainda é necessario conseguir o json schema
@@ -177,7 +177,7 @@ class ToolLibrary(Module):
         return [self.library[tool_name].get_json_schema() for tool_name in self.library]
 
     @trace_tool_library_call
-    def forward(self, tool_callings: List[Tuple[str, str, Any]]) -> Mapping[str, str]:
+    def forward(self, tool_callings: List[Tuple[str, str, Any]]) -> Dict[str, str]:
         """ Execute tool calls.
 
         Args:
