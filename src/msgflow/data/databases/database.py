@@ -19,6 +19,7 @@ _SUPPORTED_DB_TYPES = [
     "geo",
 ]
 _DB_NAMESPACE_TRANSLATOR = {
+    "diskmanager": "DiskManager",
     "qdrant": "Qdrant",
     "postgres": "Postgres",
     "weavite": "Weavite",
@@ -56,6 +57,7 @@ _VECTOR_DB_PROVIDERS = [
 ]
 _GRAPH_DB_PROVIDERS = ["neo4j"]
 
+_IN_MEMORY_DB_PROVIDERS = ["diskmanager"]
 
 class DataBase:
     supported_db_types = _SUPPORTED_DB_TYPES
