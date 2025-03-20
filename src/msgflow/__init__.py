@@ -1,3 +1,4 @@
+from .cache import response_cache
 from .data.databases.database import DataBase
 from .data.retrievers.retriever import Retriever
 from .envs import set_envs
@@ -18,6 +19,7 @@ __all__ = [
     "Signature",
     "get_fn_name",
     "load",
+    "response_cache",
     "save",
     "set_envs",     
 ]
