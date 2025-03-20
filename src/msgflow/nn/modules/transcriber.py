@@ -1,6 +1,6 @@
 from typing import Dict, Optional, Union
 from msgflow.message import Message
-from msgflow.models.router import ModelRouter
+from msgflow.models.gateway import ModelRouter
 from msgflow.models.types import ASRModel
 from msgflow.nn.modules.module import Module
 from msgflow.utils.encode import to_bytes
@@ -91,7 +91,7 @@ class Transcriber(Module):
         elif isinstance(message, Message):
             audio_data = self._process_message_task(message)
         else:
-            raise ValueError(f"Unsupported message type: {type(message)}")
+            raise ValueError(f"Unsupported message type: `{type(message)}`")
         
         audio = to_bytes(audio_data)
         
@@ -104,7 +104,7 @@ class Transcriber(Module):
             content = message.get(self.task_inputs)
 
         if content is None:
-            raise ValueError(f"No audio found in paths: {self.task_inputs}")
+            raise ValueError(f"No audio found in paths: `{self.task_inputs}`")
 
         return content
 
@@ -151,4 +151,4 @@ class Transcriber(Module):
         if isinstance(prompt, str) or prompt is None:
             self.register_buffer("prompt", prompt)
         else:
-            raise TypeError(f"`prompt` need be a str or None given `{type(prompt)}")            
+            raise TypeError(f"`prompt` need be a str or None given `{type(prompt)}`")            

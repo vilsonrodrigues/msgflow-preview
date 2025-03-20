@@ -28,7 +28,6 @@ from msgflow.message import Message
 from msgflow.models.model import Model
 from msgflow.models.response import Response, StreamResponse
 from msgflow.nn.parameter import Buffer, Parameter
-from msgflow.telemetry.span import Spans
 from msgflow.utils.convert import convert_camel_snake_to_title
 from msgflow.utils.hooks import RemovableHandle
 from msgflow.utils.mermaid import plot_mermaid
@@ -37,6 +36,7 @@ from msgflow.utils.msgspec import (
     serialize_msgspec_struct
 )
 from msgflow.utils.validation import is_builtin_type
+from msgflow.telemetry.span import Spans
 
 
 __all__ = [
