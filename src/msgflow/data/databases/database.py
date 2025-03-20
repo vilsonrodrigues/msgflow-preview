@@ -2,7 +2,7 @@ from msgflow.utils.imports import import_module_from_lib
 from msgflow.data.databases.types import (
     GeoDB,
     GraphDB,
-    InMemoryDB,
+    KvDB,
     NoSQLDB,
     RelationalDB,
     TimeSeriesDB,
@@ -57,7 +57,7 @@ _VECTOR_DB_PROVIDERS = [
 ]
 _GRAPH_DB_PROVIDERS = ["neo4j"]
 
-_IN_MEMORY_DB_PROVIDERS = ["diskmanager"]
+_KV_DB_PROVIDERS = ["diskmanager"]
 
 class DataBase:
     supported_db_types = _SUPPORTED_DB_TYPES

@@ -6,11 +6,11 @@ except:
     raise ImportError("`diskcache` is not detected, please install"
                       "using `pip install msgflow[diskcache]`")
 from msgflow.data.databases.base import BaseDB
-from msgflow.data.databases.types import InMemoryDB
+from msgflow.data.databases.types import KvDB
 from msgflow.utils.convert import convert_str_to_hash
 
 
-class DiskCacheInMemoryDB(BaseDB, InMemoryDB):
+class DiskCacheKvDB(BaseDB, KvDB):
 
     provider: diskcache
 

@@ -18,8 +18,8 @@ class GeoDB:
     db_type = "geo_db"
 
 
-class InMemoryDB:
-    db_type = "in_memory_db"
+class KvDB:
+    db_type = "kv_db"
 
 
 class TimeSeriesDB:
