@@ -11,10 +11,10 @@ from typing import (
 
 import msgspec
 
-from msgflow.models.router import ModelRouter
+from msgflow.generation.plan.react import ReAct
+from msgflow.models.gateway import ModelGateway
 from msgflow.message import Message
 from msgflow.models.types import ChatCompletionModel
-from msgflow.generation.plan.react import ReAct
 from msgflow.nn.modules.module import Module
 from msgflow.nn.modules.tool import ToolLibrary
 from msgflow.nn.parameter import Parameter
@@ -112,7 +112,7 @@ class Agent(Module):
     def __init__(
         self,
         name: str,
-        model: Union[ChatCompletionModel, ModelRouter],
+        model: Union[ChatCompletionModel, ModelGateway],
         *,
         system_prompt: Optional[str] = None,
         instructions: Optional[str] = None,
@@ -562,13 +562,13 @@ class Agent(Module):
             raise TypeError("`generation_schema` need be a `msgspec.Struct` or None"
                             f"given `{type(generation_schema)}`")
 
-    def _set_model(self, model: Union[ChatCompletionModel, ModelRouter]):
+    def _set_model(self, model: Union[ChatCompletionModel, ModelGateway]):
         if (isinstance(model, ChatCompletionModel) or 
-           (isinstance(model, ModelRouter) and model.model_types != "chat_completion")):                
+           (isinstance(model, ModelGateway) and model.model_types != "chat_completion")):                
             self.register_buffer("model", model)
         else:
             raise TypeError("`model` need be a `ChatCompletionModel` "
-                            f"or `ModelRouter` given `{type(model)}`")
+                            f"or `ModelGateway` given `{type(model)}`")
 
     # TODO 
     #def _set_predicted_outputs(self, predicted_outputs: bool):

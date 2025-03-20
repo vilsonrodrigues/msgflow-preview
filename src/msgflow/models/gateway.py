@@ -3,7 +3,7 @@ from msgflow.exceptions import ModelRouterError
 from msgflow.models.base import BaseModel
 
 
-class ModelRouter:
+class ModelGateway:
     
     msgflow_type = "model_router"   
     current_model_index = 0
