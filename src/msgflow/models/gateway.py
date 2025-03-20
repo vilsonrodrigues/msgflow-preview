@@ -5,7 +5,7 @@ from msgflow.models.base import BaseModel
 
 class ModelGateway:
     
-    msgflow_type = "model_router"   
+    msgflow_type = "model_gateway"   
     current_model_index = 0
     model_types = None
 
