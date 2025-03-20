@@ -15,7 +15,7 @@ class ModelGateway:
 
     def _set_models(self, models):
         if not all(isinstance(model, BaseModel) for model in models):    
-            raise TypeError("`models` requires inheriting from `models.base.BaseModel`")
+            raise TypeError("`models` requires inheriting from `msgflow.models.base.BaseModel`")
         if len(models) <= 1:
             raise ValueError(f"`models` requires 2 or more models given {len(models)}")
         model_types = set(model.model_type for model in models)
