@@ -100,7 +100,6 @@ class Retriever(Module):
     def _execute_model(self, queries):
         model_response = self.model(queries)
         queries_embed = self._extract_raw_response(model_response)
-        # TODO: trace metadata
         return queries_embed
 
     def _prepare_task(
@@ -227,8 +226,8 @@ class Retriever(Module):
         else:
             raise TypeError(f"`top_k` requires a int given `{type(top_k)}`")            
 
-    def _set_dict_key(self, dict_key: str):
-        if isinstance(dict_key, str):
+    def _set_dict_key(self, dict_key: Optional[str] = None):
+        if isinstance(dict_key, str) or dict_key is None:
             self.register_buffer("dict_key", dict_key)
         else:
             raise TypeError(f"`dict_key` need be a string given `{type(dict_key)}`")

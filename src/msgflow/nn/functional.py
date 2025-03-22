@@ -129,7 +129,7 @@ def scatter_gather(
                 message.set(f"{response_mode}.{module_name}", task.value)
             else:
                 message.set(f"{response_mode}.{module_name}", None)
-                message.set(f"errors.{module_name}", str(task.exception))
+                logger.error(f"{module_name}: {task.exception}")
         except Exception as e:
             message.set(f"{response_mode}.{module_name}", None)
             logger.error(str(e))
