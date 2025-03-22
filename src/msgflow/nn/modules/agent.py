@@ -305,7 +305,6 @@ class Agent(Module):
         return tool_responses
 
     def _prepare_response(self, raw_response, response_type, model_state, message):
-
         if self.response_template.data and response_type in [
             "text_generation",
             "structured",
@@ -344,11 +343,19 @@ class Agent(Module):
             content = self._process_message_task(message)
         else:
             raise ValueError("Unsupported message type")
+        
+        if content is None:
+            raise ValueError("No data was detected to make the model input")
         return [{"role": "user", "content": content}]
 
     def _process_str_dict_task(self, message: Union[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
-        content = self._format_task_template(message)
-        return content
+        if self.task_template.data:
+            content = self._format_task_template(message)
+            return content
+        else:
+            if isinstance(message, dict):
+                raise AttributeError("message is a dict that requires a `task_template`")
+            return message
 
     def _process_message_task(self, message: Message) -> List[Dict[str, Any]]:
         content = ""
@@ -379,7 +386,7 @@ class Agent(Module):
             multimodal_content = []
             multimodal_content.append({"type": "text", "text": content})
             multimodal_content.extend(self._process_multimodal_inputs(message))
-            return multimodal_content
+            return multimodal_content        
         else:
             return content
 
