@@ -429,7 +429,7 @@ class Agent(Module):
             content += f"{msg_context}\n\n"                        
 
         if content:
-            context_content += f"# Context:\n{content}\n\n"
+            context_content = f"# Context:\n{content}\n\n"
             return context_content
         else:
             return None
