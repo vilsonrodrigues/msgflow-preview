@@ -540,7 +540,7 @@ class Agent(Module):
             self.tool_library = ToolLibrary(self.get_module_name(), tools or [])
         else:
             raise TypeError("`tools` need be a list of callables or None"
-                            f"given `{type(tool_library)}`")
+                            f"given `{type(tools)}`")
 
     def _set_stream(self, stream: bool):
         if isinstance(stream, bool):
@@ -563,8 +563,11 @@ class Agent(Module):
                             f"given `{type(generation_schema)}`")
 
     def _set_model(self, model: Union[ChatCompletionModel, ModelGateway]):
-        if (isinstance(model, ChatCompletionModel) or 
-           (isinstance(model, ModelGateway) and model.model_types != "chat_completion")):                
+        if (
+            isinstance(model, ChatCompletionModel) 
+            or
+            (isinstance(model, ModelGateway) and model.model_types == "chat_completion")
+        ):
             self.register_buffer("model", model)
         else:
             raise TypeError("`model` need be a `ChatCompletionModel` "

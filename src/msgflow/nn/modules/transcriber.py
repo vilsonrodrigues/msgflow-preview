@@ -1,6 +1,6 @@
 from typing import Dict, Optional, Union
 from msgflow.message import Message
-from msgflow.models.gateway import ModelRouter
+from msgflow.models.gateway import ModelGateway
 from msgflow.models.types import ASRModel
 from msgflow.nn.modules.module import Module
 from msgflow.utils.encode import to_bytes
@@ -38,7 +38,7 @@ class Transcriber(Module):
     def __init__(
         self,
         name: str,
-        model: Union[ASRModel, ModelRouter],
+        model: Union[ASRModel, ModelGateway],
         *,        
         task_inputs: Union[str, Dict[str, str]] = None,
         response_mode: Optional[str] = "plain_response",
@@ -108,11 +108,15 @@ class Transcriber(Module):
 
         return content
 
-    def _set_model(self, model: Union[ASRModel, ModelRouter]):
-        if isinstance(model, ASRModel) or isinstance(model, ModelRouter):
+    def _set_model(self, model: Union[ASRModel, ModelGateway]):
+        if (
+            isinstance(model, ASRModel) 
+            or 
+            (isinstance(model, ModelGateway) and model.model_types == "asr")
+        ):
             self.register_buffer("model", model)
         else:
-            raise TypeError("`model` need be a `ASRModel` or `ModelRouter` "
+            raise TypeError("`model` need be a `ASRModel` or `ModelGateway` "
                              f"given `{type(model)}")
 
     def _set_language(self, language: Optional[str] = None):
