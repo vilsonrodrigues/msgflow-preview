@@ -132,7 +132,7 @@ class Agent(Module):
         # chat_history: Optional[Union[ChatHistory, MultiChatHistory]] = None, #TODO: requires reason here
         # chat_history_mode: Literal["relevant", "recent", "full"] = "relevant",
         fixed_messages: Optional[List[Dict[str, Any]]] = None,
-        predicted_outputs: Optional[bool] = False,
+        #predicted_outputs: Optional[bool] = False,
         #signature: Optional[str] = None,
         audio_input_format: Optional[Literal["standard", "generation"]] = "generation",
         #verbose: Optional[bool] = False,
@@ -173,7 +173,7 @@ class Agent(Module):
         self._set_task_template(task_template)
         self._set_stream(stream)
         self._set_tool_choice(tool_choice)
-        self._set_predicted_outputs(predicted_outputs)
+        #self._set_predicted_outputs(predicted_outputs)
         self._set_annotations(_annotations or {"message": str, "return": str})
 
     def forward(self, message: Union[str, Dict[str, Any], Message]):
