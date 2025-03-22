@@ -1,7 +1,5 @@
 import functools
 import inspect
-import os
-import platform
 import weakref
 from collections import namedtuple, OrderedDict
 from typing import (
@@ -35,7 +33,7 @@ from msgflow.utils.msgspec import (
     deserialize_struct, 
     serialize_msgspec_struct
 )
-from msgflow.utils.validation import is_builtin_type
+from msgflow.utils.validation import is_builtin_type, is_subclass_of
 from msgflow.telemetry.span import Spans
 
 
@@ -1324,7 +1322,7 @@ class Module:
         """ Get serializable value from an object """
         if is_builtin_type(obj):
             return obj
-        elif issubclass(obj, msgspec.Struct):
+        elif is_subclass_of(obj, msgspec.Struct):
             return serialize_msgspec_struct(obj)
         elif hasattr(obj, "serialize"):
             return obj.serialize()
