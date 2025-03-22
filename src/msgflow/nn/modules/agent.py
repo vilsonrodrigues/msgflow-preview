@@ -306,7 +306,7 @@ class Agent(Module):
 
     def _prepare_response(self, raw_response, response_type, model_state, message):
 
-        if self.response_template and response_type in [
+        if self.response_template.data and response_type in [
             "text_generation",
             "structured",
         ]:
@@ -362,7 +362,7 @@ class Agent(Module):
         # Process text content
         if self.task_inputs:
             text_content = self._process_text_inputs(message)
-            if self.task_template:
+            if self.task_template.data:
                 text_content = self._format_task_template(text_content)
             content += f"# Task:\n{text_content}\n\n"
         # It's possible to use `task_template` as the default task message

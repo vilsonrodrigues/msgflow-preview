@@ -485,7 +485,7 @@ class Module:
         return raw_response
 
     def _prepare_response(self, raw_response, message):
-        if self.response_template:
+        if self.response_template.data:
             response = self._format_response_template(raw_response)
         else:
             response = raw_response
