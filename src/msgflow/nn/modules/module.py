@@ -411,10 +411,10 @@ class Module:
         return content
 
     def _format_task_template(self, content: Union[str, Dict[str, Any]]) -> str:
-        return self._format_template(content, self.task_template)
+        return self._format_template(content, self.task_template.data)
 
     def _format_response_template(self, content: str) -> str:
-        return self._format_template(content, self.response_template)    
+        return self._format_template(content, self.response_template.data)    
 
     def _format_template(self, content: Union[str, Dict[str, Any]], raw_template: str) -> str:
         if isinstance(content, str):

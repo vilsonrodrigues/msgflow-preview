@@ -362,16 +362,14 @@ class Agent(Module):
         # Process text content
         if self.task_inputs:
             text_content = self._process_text_inputs(message)
-
             if self.task_template:
                 text_content = self._format_task_template(text_content)
             content += f"# Task:\n{text_content}\n\n"
-
         # It's possible to use `task_template` as the default task message
         # if no `task_inputs` is selected. This can be useful for multimodal
         # models that require a text message to be sent along with the data
-        elif self.task_template:
-            content += f"# Task:\n{self.task_template}\n\n"
+        elif self.task_template.data:
+            content += f"# Task:\n{self.task_template.data}\n\n"
 
         # Remove whitespace
         #content = content.strip()
