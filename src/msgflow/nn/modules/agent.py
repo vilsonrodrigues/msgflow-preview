@@ -549,7 +549,11 @@ class Agent(Module):
             raise TypeError(f"`stream` need be a bool given `{type(stream)}`")            
 
     def _set_fixed_messages(self, fixed_messages: Optional[List[Dict[str, Any]]] = None):
-        if (isinstance(fixed_messages, list) and all(dict(obj) for obj in fixed_messages)) or None: 
+        if (
+            (isinstance(fixed_messages, list) and all(dict(obj) for obj in fixed_messages)) 
+            or 
+            fixed_messages is None
+        ):
             self.register_buffer("fixed_messages", fixed_messages)
         else:
             raise TypeError("`fixed_messages` need be a list of dict or None"
