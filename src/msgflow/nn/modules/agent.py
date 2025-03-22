@@ -536,7 +536,11 @@ class Agent(Module):
     #    super().__setattr__("chat_history", chat_history)
 
     def _set_tools(self, tools: Optional[List[Callable]] = None):
-        if (isinstance(tools, list) and all(callable(obj) for obj in tools)) or None:
+        if (
+            (isinstance(tools, list) and all(callable(obj) for obj in tools)) 
+            or 
+            tools is None
+        ):
             self.tool_library = ToolLibrary(self.get_module_name(), tools or [])
         else:
             raise TypeError("`tools` need be a list of callables or None"
