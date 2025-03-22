@@ -147,10 +147,10 @@ class Agent(Module):
             raise ValueError(
                 "`generation_schema=ReAct` is not `stream=True` compatible"
             )
-        if tools and predicted_outputs:
-            raise ValueError("`tools` is not `predicted_outputs=True` compatible")
-        if task_template is None and predicted_outputs:
-            raise ValueError("`predicted_outputs=True` requires a `task_template`")
+        #if tools and predicted_outputs:
+        #    raise ValueError("`tools` is not `predicted_outputs=True` compatible")
+        #if task_template is None and predicted_outputs:
+        #    raise ValueError("`predicted_outputs=True` requires a `task_template`")
 
         self.set_name(name)
         self.set_description(description)
