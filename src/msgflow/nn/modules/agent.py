@@ -404,14 +404,14 @@ class Agent(Module):
         """ Manager agent context """
         content = ""
         
-        if self.context_cache:
-            content += f"{self.context_cache}\n\n"
+        if self.context_cache.data:
+            content += f"{self.context_cache.data}\n\n"
             
-        if isinstance(self.context_inputs, str) and self.context_inputs == "context":
+        if isinstance(self.context_inputs.data, str) and self.context_inputs.data == "context":
             msg_context = "\n\n".join(str(v) for v in message.get("context").values())
-        elif isinstance(self.context_inputs, list): # ["context.1", "context.2"]
+        elif isinstance(self.context_inputs.data, list): # ["context.1", "context.2"]
             context_values = []
-            for path in self.context_inputs:
+            for path in self.context_inputs.data:
                 # OR inputs
                 if isinstance(path, tuple):
                     context_value = self._get_content_from_or_input(path, message)
@@ -435,42 +435,44 @@ class Agent(Module):
     def _process_multimodal_inputs(self, message: Message) -> List[Dict[str, Any]]:
         # TODO: suporte para consumir todas as entradas de images or outro
         content = []
-        for image_path in self.task_multimodal_inputs.get("images", []):
-            if isinstance(image_path, tuple):
-                image_data = self._get_content_from_or_input(image_path, message)
-            else:
-                image_data = message.get(image_path)
-            if image_data:
-                if not image_data.startswith("http") and not is_base64(image_data):
-                    base64_image = encode_local_file_in_base64(image_data)
-                    image_data = f"data:image/jpeg;base64,{base64_image}"
-                content.append({"type": "image_url", "image_url": {"url": image_data}})
+        
+        if isinstance(self.task_multimodal_inputs.data, dict):
+            for image_path in self.task_multimodal_inputs.data.get("images", []):
+                if isinstance(image_path, tuple):
+                    image_data = self._get_content_from_or_input(image_path, message)
+                else:
+                    image_data = message.get(image_path)
+                if image_data:
+                    if not image_data.startswith("http") and not is_base64(image_data):
+                        base64_image = encode_local_file_in_base64(image_data)
+                        image_data = f"data:image/jpeg;base64,{base64_image}"
+                    content.append({"type": "image_url", "image_url": {"url": image_data}})
 
-        for audio_path in self.task_multimodal_inputs.get("audios", []):
-            if isinstance(audio_path, tuple):
-                image_data = self._get_content_from_or_input(audio_path, message)
-            else:
-                audio_data = message.get(audio_path)
-            if audio_data:
-                audio_format = Path(audio_data).suffix
-                if not audio_data.startswith("http") and not is_base64(audio_data):
-                    base64_audio = encode_local_file_in_base64(audio_data)
-                if self.audio_input_format == "standard":  # vLLM style
-                    if not is_base64(audio_data):
-                        audio_data = f"data:audio/{audio_format};base64,{base64_audio}"
-                    content.append(
-                        {"type": "audio_url", "audio_url": {"url": audio_data}}
-                    )
-                elif self.audio_input_format == "generation":  # OpenAI style
-                    # OpenAI requires a base64 file as input
-                    if audio_data.startswith("http"):
-                        audio_data = encode_base64_from_url(audio_data)
-                    content.append(
-                        {
-                            "type": "input_audio",
-                            "input_audio": {"data": audio_data, "format": audio_format},
-                        }
-                    )
+            for audio_path in self.task_multimodal_inputs.data.get("audios", []):
+                if isinstance(audio_path, tuple):
+                    image_data = self._get_content_from_or_input(audio_path, message)
+                else:
+                    audio_data = message.get(audio_path)
+                if audio_data:
+                    audio_format = Path(audio_data).suffix
+                    if not audio_data.startswith("http") and not is_base64(audio_data):
+                        base64_audio = encode_local_file_in_base64(audio_data)
+                    if self.audio_input_format == "standard":  # vLLM style
+                        if not is_base64(audio_data):
+                            audio_data = f"data:audio/{audio_format};base64,{base64_audio}"
+                        content.append(
+                            {"type": "audio_url", "audio_url": {"url": audio_data}}
+                        )
+                    elif self.audio_input_format == "generation":  # OpenAI style
+                        # OpenAI requires a base64 file as input
+                        if audio_data.startswith("http"):
+                            audio_data = encode_base64_from_url(audio_data)
+                        content.append(
+                            {
+                                "type": "input_audio",
+                                "input_audio": {"data": audio_data, "format": audio_format},
+                            }
+                        )
         return content
 
     def _set_audio_input_format(self, audio_input_format: str):
