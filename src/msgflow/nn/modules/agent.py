@@ -364,10 +364,10 @@ class Agent(Module):
         context_content = self._context_manager(message)
 
         if context_content:
-            content += f"# Context:\n{context_content}\n\n"
+            content += context_content
 
         # Process text content
-        if self.task_inputs:
+        if self.task_inputs.data:
             text_content = self._process_text_inputs(message)
             if self.task_template.data:
                 text_content = self._format_task_template(text_content)
