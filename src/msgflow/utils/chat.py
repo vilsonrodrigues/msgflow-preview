@@ -1,4 +1,8 @@
+import os
 import re
+import requests
+import tempfile
+from uuid import uuid4
 from typing import (
     Any,
     Callable,
@@ -8,6 +12,8 @@ from typing import (
     get_origin,
 )
 from jinja2 import Template
+from urllib.parse import urlparse
+from msgflow.logger import logger
 
 
 def adapt_struct_schema_to_json_schema(
@@ -249,3 +255,35 @@ def get_react_tools_prompt_format(tool_schemas):
     react_tools = template.render(tools=tool_schemas)
     return react_tools
 
+def get_filename(data_path: str) -> str:
+    if data_path.startswith(("http://", "https://", "ftp://")):
+        parsed_url = urlparse(data_path)
+        filename = os.path.basename(parsed_url.path)
+    # Local file
+    else:
+        filename = os.path.basename(data_path)    
+    return filename
+
+def download_file(url: str) -> str:
+    """ Download a webfile and returns the path """
+    try:
+        response = requests.get(url, stream=True)
+        response.raise_for_status()
+
+        filename = os.path.basename(urlparse(url).path)
+        if not filename:
+            filename = f"downloaded_file_{str(uuid4())}"
+
+        temp_dir = tempfile.gettempdir()
+        file_path = os.path.join(temp_dir, filename)
+
+        with open(file_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+
+        return file_path
+
+    except requests.exceptions.RequestException as e:
+        logger.error(str(e))
+        return None

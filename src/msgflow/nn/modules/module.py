@@ -421,7 +421,7 @@ class Module:
             # Convert jinja to string format template
             template = raw_template.replace("{{ }}", "{}").replace("{{}}", "{}")
             return template.format(content)
-        elif isinstance(raw_template, dict):
+        elif isinstance(content, dict):
             template = Template(raw_template)
             return template.render(content)
         else:

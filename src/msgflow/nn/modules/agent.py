@@ -18,7 +18,12 @@ from msgflow.models.types import ChatCompletionModel
 from msgflow.nn.modules.module import Module
 from msgflow.nn.modules.tool import ToolLibrary
 from msgflow.nn.parameter import Parameter
-from msgflow.utils.chat import chatml_to_steps_format, get_react_tools_prompt_format
+from msgflow.utils.chat import (
+    chatml_to_steps_format, 
+    download_file, 
+    get_filename, 
+    get_react_tools_prompt_format
+)
 from msgflow.utils.encode import encode_base64_from_url, encode_local_file_in_base64
 from msgflow.utils.validation import is_base64, is_subclass_of
 
@@ -183,7 +188,7 @@ class Agent(Module):
         return response
 
     def _execute_model(self, model_state, prefilling=None):
-        agent_state, agent_system_prompt, tool_schemas = self._prepare_model_execution(model_state)        
+        agent_state, agent_system_prompt, tool_schemas = self._prepare_model_execution(model_state)
 
         model_response = self.model(
             messages=agent_state,
@@ -200,8 +205,8 @@ class Agent(Module):
     def _prepare_model_execution(self, model_state):
         agent_state = []
 
-        if self.fixed_messages:
-            agent_state.extend(self.fixed_messages)
+        if self.fixed_messages.data:
+            agent_state.extend(self.fixed_messages.data)
 
         agent_state.extend(model_state)
 
@@ -379,13 +384,13 @@ class Agent(Module):
             content += f"# Task:\n{self.task_template.data}\n\n"
 
         # Remove whitespace
-        #content = content.strip()
+        content = content.strip()
 
         # Process multimodal content
-        if self.task_multimodal_inputs:
+        if self.task_multimodal_inputs.data:
             multimodal_content = []
-            multimodal_content.append({"type": "text", "text": content})
-            multimodal_content.extend(self._process_multimodal_inputs(message))
+            multimodal_content.append(self._process_multimodal_inputs(message))
+            multimodal_content.extend({"type": "text", "text": content})
             return multimodal_content        
         else:
             return content
@@ -480,6 +485,24 @@ class Agent(Module):
                                 "input_audio": {"data": audio_data, "format": audio_format},
                             }
                         )
+
+            for pdf_path in self.task_multimodal_inputs.data.get("pdfs", []):
+                if isinstance(pdf_path, tuple):
+                    pdf_data = self._get_content_from_or_input(pdf_path, message)
+                else:
+                    pdf_data = message.get(pdf_path)
+                
+                if pdf_data:
+                    filename = get_filename(pdf_data)
+                    if pdf_data.startswith("http"):
+                        pdf_data = download_file(pdf_data)                        
+                    if pdf_data is not is_base64(pdf_data):
+                        base64_pdf = encode_local_file_in_base64(pdf_data)
+                    pdf_data = f"data:application/pdf;base64,{base64_pdf}"                    
+                    content.append(
+                        {"type": "file", "file": {"filename": filename, "file_data": pdf_data}}
+                    )
+
         return content
 
     def _set_audio_input_format(self, audio_input_format: str):
@@ -523,11 +546,11 @@ class Agent(Module):
 
     def _set_response_mode(self, response_mode: str):
         if isinstance(response_mode, str):
-            if response_mode in [
-                "plain_response",
-                "steps",
-                "response",
-            ] or response_mode.startswith(("context", "outputs")):
+            if (
+                response_mode in ["plain_response", "steps","response"] 
+                or 
+                response_mode.startswith(("context", "outputs"))
+            ):
                 self.register_buffer("response_mode", response_mode)            
             else:
                 raise ValueError(
