@@ -394,11 +394,11 @@ class Agent(Module):
         # TODO allow other fields besides outputs?
         if self.task_inputs == "outputs":  # Consume all values in outputs
             return "\n\n".join(str(v) for v in message.get("outputs").values())
-        elif isinstance(self.task_inputs, str):
-            return message.get(self.task_inputs)
-        elif isinstance(self.task_inputs, dict):
+        elif isinstance(self.task_inputs.data, str):
+            return message.get(self.task_inputs.data)
+        elif isinstance(self.task_inputs.data, dict):
             text_inputs = {}
-            for k, v in self.task_inputs.items():                
+            for k, v in self.task_inputs.data.items():                
                 if isinstance(v, tuple): # OR inputs
                     text_inputs[k] = self._get_content_from_or_input(v, message)
                 else:
