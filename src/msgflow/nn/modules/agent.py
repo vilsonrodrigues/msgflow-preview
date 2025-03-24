@@ -388,9 +388,8 @@ class Agent(Module):
 
         # Process multimodal content
         if self.task_multimodal_inputs.data:
-            multimodal_content = []
-            multimodal_content.append(self._process_multimodal_inputs(message))
-            multimodal_content.extend({"type": "text", "text": content})
+            multimodal_content = self._process_multimodal_inputs(message)
+            multimodal_content.append({"type": "text", "text": content})
             return multimodal_content        
         else:
             return content
@@ -424,8 +423,7 @@ class Agent(Module):
         elif isinstance(self.context_inputs.data, list): # ["context.1", "context.2"]
             context_values = []
             for path in self.context_inputs.data:
-                # OR inputs
-                if isinstance(path, tuple):
+                if isinstance(path, tuple): # OR inputs
                     context_value = self._get_content_from_or_input(path, message)
                     if context_value is not None:
                         context_values.append(str(context_value))
