@@ -5,8 +5,10 @@ from gevent import Greenlet
 from msgflow.logger import logger
 from msgflow.message import Message
 from msgflow.utils.common import get_callable_name
+from msgflow.telemetry.span import trace
 
 
+@trace
 def bcast_gather(
     message: Message,
     to_send: List[Callable],
@@ -63,7 +65,7 @@ def bcast_gather(
 
     return message
 
-
+@trace
 def scatter_gather(
     messages: List[Message],
     to_send: List[Callable],

@@ -1,6 +1,7 @@
 import platform
 import os
 from contextlib import contextmanager
+from functools import wraps
 
 import msgspec
 from opentelemetry.trace import SpanKind
@@ -74,6 +75,20 @@ class Spans:
     def custom_span(self, name, attributes=None, kind=SpanKind.INTERNAL):
         with self.span_context(name, attributes, kind) as span:
             yield span        
+
+spans = Spans()
+
+def trace(
+    name: Optional[str] = None,
+    attributes: Optional[Dict[str, str]] = None, 
+):
+    def decorator(func):        
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            with spans(name or func.__name__, attributes=attributes) as span:
+                return func(*args, **kwargs)
+        return wrapper
+    return decorator                         
 
 def trace_tool_library_call(forward):
     def wrapper(self, tool_callings):

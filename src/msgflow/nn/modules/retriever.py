@@ -11,7 +11,7 @@ from msgflow.data.retrievers.types import (
     LexicalRetriever,
     SemanticRetriever,
 )
-from msgflow.models.gateway import ModelGateway
+from msgflow.models.gateway import ModelRouter
 from msgflow.nn.modules.module import Module
 from msgflow.utils.encode import to_io_object
 
@@ -31,7 +31,7 @@ class Retriever(Module):
         *,        
         model: Optional[
             Union[
-                AudioEmbedderModel, ImageEmbedderModel, TextEmbedderModel, ModelGateway
+                AudioEmbedderModel, ImageEmbedderModel, TextEmbedderModel, ModelRouter
             ]
         ] = None,
         task_inputs: Optional[Union[str, Dict[str, str]]] = None,
@@ -100,6 +100,7 @@ class Retriever(Module):
     def _execute_model(self, queries):
         model_response = self.model(queries)
         queries_embed = self._extract_raw_response(model_response)
+        # TODO: trace metadata
         return queries_embed
 
     def _prepare_task(
@@ -187,22 +188,27 @@ class Retriever(Module):
 
     def _set_model(
         self,
-        model: Optional[Union[
-            AudioEmbedderModel, ImageEmbedderModel, TextEmbedderModel, ModelGateway
-        ]] = None
+        model: Union[
+            AudioEmbedderModel, ImageEmbedderModel, TextEmbedderModel, ModelRouter
+        ],
     ):
         if (
-            isinstance(model, (AudioEmbedderModel,ImageEmbedderModel,TextEmbedderModel)) 
-            or
-            (isinstance(model, ModelGateway) and "embedder" in model.model_types)
-            or 
-            model is None
-        ):        
+            isinstance(
+                model,
+                (
+                    AudioEmbedderModel,
+                    ImageEmbedderModel,
+                    TextEmbedderModel,
+                    ModelRouter,
+                ),
+            )
+            or model is None
+        ):
             self.register_buffer("model", model)
         else:
             raise TypeError("`model` requires be `AudioEmbedderModel` "
                             "`ImageEmbedderModel`, `TextEmbedderModel, `"
-                            f"`ModelGateway` or None given `{type(model)}`")
+                            f"`ModelRouter` or None given `{type(model)}`")
 
     def _set_threshold(self, threshold: Optional[float] = 0.0):
         if isinstance(threshold, float):
@@ -226,8 +232,8 @@ class Retriever(Module):
         else:
             raise TypeError(f"`top_k` requires a int given `{type(top_k)}`")            
 
-    def _set_dict_key(self, dict_key: Optional[str] = None):
-        if isinstance(dict_key, str) or dict_key is None:
+    def _set_dict_key(self, dict_key: str):
+        if isinstance(dict_key, str):
             self.register_buffer("dict_key", dict_key)
         else:
             raise TypeError(f"`dict_key` need be a string given `{type(dict_key)}`")

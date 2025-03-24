@@ -42,7 +42,7 @@ from msgflow.utils.validation import is_base64, is_subclass_of
 # add time/date to the system prompt (this can be bad if you use prompt cache)
 
 class PromptSpec:
-    SYSTEM_PROMPT = "Who are you"
+    SYSTEM_MESSAGE = "Who are you"
     INSTRUCTIONS = "How you should do"
     # FEW_SHOT = 'Samples of what to do'
     EXPECTED_OUTPUT = "Describes what the response should be like"
@@ -59,7 +59,7 @@ class Agent(Module):
     Args:
         name: Agent name in snake case format.
         model: ChatCompletation Model client.
-        system_prompt: The Agent behaviour.
+        system_message: The Agent behaviour.
         instructions: What the Agent should do.
         expected_output: What the response should be like.
         stream: If the response is transmitted on-fly.initial_assist_msg
@@ -119,7 +119,7 @@ class Agent(Module):
         name: str,
         model: Union[ChatCompletionModel, ModelGateway],
         *,
-        system_prompt: Optional[str] = None,
+        system_message: Optional[str] = None,
         instructions: Optional[str] = None,
         expected_output: Optional[str] = None,
         stream: Optional[bool] = False,
@@ -162,7 +162,7 @@ class Agent(Module):
         self._set_model(model)
         self._set_expected_output(expected_output)
         self._set_instructions(instructions)
-        self._set_system_prompt(system_prompt)
+        self._set_system_message(system_message)
         self._set_generation_schema(generation_schema)
         self._set_audio_input_format(audio_input_format)
         self._set_fixed_messages(fixed_messages)
@@ -188,11 +188,11 @@ class Agent(Module):
         return response
 
     def _execute_model(self, model_state, prefilling=None):
-        agent_state, agent_system_prompt, tool_schemas = self._prepare_model_execution(model_state)
+        agent_state, system_message, tool_schemas = self._prepare_model_execution(model_state)
 
         model_response = self.model(
             messages=agent_state,
-            system_prompt=agent_system_prompt,
+            system_prompt=system_message,
             prefilling=prefilling,
             stream=self.stream,
             tool_schemas=tool_schemas,
@@ -210,7 +210,7 @@ class Agent(Module):
 
         agent_state.extend(model_state)
 
-        agent_system_prompt = self._get_agent_system_prompt()
+        system_prompt = self._get_system_prompt()
 
         tool_schemas = self.tool_library.get_tool_json_schemas()
         if not tool_schemas:
@@ -218,14 +218,14 @@ class Agent(Module):
 
         if is_subclass_of(self.generation_schema, ReAct) and tool_schemas:
             react_tools = get_react_tools_prompt_format(tool_schemas)
-            if agent_system_prompt:
-                react_tools += f"\n\n {agent_system_prompt}"
+            if system_prompt:
+                react_tools += f"\n\n {system_prompt}"
             else:
-                agent_system_prompt = react_tools
+                system_prompt = react_tools
             # Disable tool_schemas to react controlflow preference
             tool_schemas = None
         
-        return agent_state, agent_system_prompt, tool_schemas
+        return agent_state, system_prompt, tool_schemas
 
     def _process_model_response(self, model_response, model_state, message):
         if model_response.response_type == "tool_call":
@@ -627,12 +627,12 @@ class Agent(Module):
             raise TypeError("`tool_choice` need be a str or None "
                             f"given `{type(tool_choice)}`")            
 
-    def _set_system_prompt(self, system_prompt: Optional[str] = None):
-        if isinstance(system_prompt, str) or system_prompt is None:
-            self.system_prompt = Parameter(system_prompt, PromptSpec.SYSTEM_PROMPT)
+    def _set_system_message(self, system_message: Optional[str] = None):
+        if isinstance(system_message, str) or system_message is None:
+            self.system_message = Parameter(system_message, PromptSpec.SYSTEM_MESSAGE)
         else:
-            raise TypeError("`system_prompt` requires a string or None "
-                            f"given `{type(system_prompt)}`")
+            raise TypeError("`system_message` requires a string or None "
+                            f"given `{type(system_message)}`")
 
     def _set_instructions(self, instructions: Optional[str] = None):
         if isinstance(instructions, str) or instructions is None:
@@ -650,18 +650,18 @@ class Agent(Module):
             raise TypeError("`expected_output` requires a string or None "
                             f"given `{type(expected_output)}`")
 
-    def _get_agent_system_prompt(self):    
-        agent_system_prompt = ""
+    def _get_system_prompt(self):    
+        system_prompt = ""
 
-        if self.system_prompt.data:
-            agent_system_prompt += f"{self.system_prompt.data}\n\n"
+        if self.system_message.data:
+            system_prompt += f"{self.system_message.data}\n\n"
 
         if self.instructions.data:
-            agent_system_prompt += f"# Instructions:\n{self.instructions.data}\n\n"
+            system_prompt += f"# Instructions:\n{self.instructions.data}\n\n"
 
         if self.expected_output.data:
-            agent_system_prompt += (
+            system_prompt += (
                 f"# Expected Output:\n{self.expected_output.data}\n\n"
             )
 
-        return agent_system_prompt
+        return system_prompt
