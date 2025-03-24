@@ -54,11 +54,11 @@ class Message(_CoreMessage):
     def __repr__(self):
         to_ignore = ["_route"]
         attrs = [
-            (k, v) for k, v in self.__dict__.items() 
+            (k, v) for k, v in self._attributes.items() 
             if k not in to_ignore
         ]
         attrs_str = "\n".join(f"   {k}={repr(v)}" for k, v in attrs)
-        return f"{self.__class__.__name__}(\n{attrs_str}\n)"  
+        return f"{self.__class__.__name__}(\n{attrs_str}\n)"
 
     def in_msg(self, name: str) -> bool:
         """ Check if data id (name) is in message """
