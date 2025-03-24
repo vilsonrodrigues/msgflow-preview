@@ -34,7 +34,7 @@ from msgflow.utils.msgspec import (
     serialize_msgspec_struct
 )
 from msgflow.utils.validation import is_builtin_type, is_subclass_of
-from msgflow.telemetry.span import Spans
+from msgflow.telemetry.span import spans
 
 
 __all__ = [
@@ -377,7 +377,7 @@ class Module:
         super().__setattr__("_load_state_dict_pre_hooks", OrderedDict())
         super().__setattr__("_load_state_dict_post_hooks", OrderedDict())
         super().__setattr__("_modules", {})
-        super().__setattr__("_spans", Spans())        
+        super().__setattr__("_spans", spans)        
 
         if self.call_super_init:
             super().__init__(*args, **kwargs)

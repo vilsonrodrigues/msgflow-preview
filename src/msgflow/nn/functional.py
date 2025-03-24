@@ -1,20 +1,10 @@
 # https://mpitutorial.com/tutorials/mpi-scatter-gather-and-allgather/
-import inspect
 from typing import Callable, List, Optional, Tuple
 import gevent
 from gevent import Greenlet
 from msgflow.logger import logger
 from msgflow.message import Message
-from msgflow.nn.modules.module import Module
-
-
-def _get_callable_name(callable: Callable) -> str:
-    if isinstance(callable, Module):
-        return callable.get_module_name()
-    elif inspect.isfunction(callable):    
-        return callable.__name__
-    else:
-        return callable.__class__.__name__  
+from msgflow.utils.common import get_callable_name
 
 
 def bcast_gather(
@@ -61,7 +51,7 @@ def bcast_gather(
     gevent.joinall(tasks, timeout=timeout)
 
     for module, task in zip(to_send, tasks):
-        module_name = _get_callable_name(module)
+        module_name = get_callable_name(module)
         try:
             if task.successful():
                 message.set(f"{response_mode}.{module_name}", task.value)
@@ -123,7 +113,7 @@ def scatter_gather(
     gevent.joinall(tasks, timeout=timeout)
 
     for module, message, task in zip(to_send, messages, tasks):
-        module_name = _get_callable_name(module)
+        module_name = get_callable_name(module)
         try:
             if task.successful():
                 message.set(f"{response_mode}.{module_name}", task.value)
