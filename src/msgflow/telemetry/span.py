@@ -57,7 +57,7 @@ class Spans:
     @contextmanager
     def init_module(self, module_name):
         attributes = {}
-        attributes["msgflow.module.name"] = module_name
+        attributes["msgflow.nn.module.name"] = module_name
         span_name = "Module Initialized"
         with self.span_context(span_name, attributes) as span:
             yield span
@@ -67,7 +67,7 @@ class Spans:
         calls = [{"id": call[0], "name": call[1], "parameters": call[2]} 
                  for call in tool_callings]
         encoded_calls = msgspec.json.encode(calls)
-        attributes = {"msgflow.tool.callings": encoded_calls}
+        attributes = {"msgflow.nn.tool.callings": encoded_calls}
         with self.span_context("Tool Usage", attributes) as span:
             yield span
 
@@ -85,7 +85,7 @@ def trace(
     def decorator(func):        
         @wraps(func)
         def wrapper(*args, **kwargs):
-            with spans(name or func.__name__, attributes=attributes) as span:
+            with spans.custom_span(name or func.__name__, attributes=attributes) as span:
                 return func(*args, **kwargs)
         return wrapper
     return decorator                         
@@ -99,8 +99,21 @@ def trace_tool_library_call(forward):
                 for id, response in tool_responses.items():
                     responses.append({"id": id, "response": response})
                 encoded_responses = msgspec.json.encode(responses)
-                span.set_attribute("msgflow.tool.responses", encoded_responses)                
+                span.set_attribute("msgflow.nn.tool.responses", encoded_responses)                
             return tool_responses
     return wrapper
 
-# trace chat completion call
+def trace_agent_prepare_model_execution(_prepare_model_execution):
+    def wrapper(self, model_state):
+        attributes = {}
+        attributes["msgflow.nn.agent.method.name"] = "_prepare_model_execution"
+        with self._spans.custom_span("Prepare Model Execution", attributes) as span:            
+            agent_state, system_prompt, tool_schemas = _prepare_model_execution(self, model_state)
+            if envs.telemetry_capture_agent_prepare_model_execution:
+                encoded_state = msgspec.json.encode(agent_state)
+                encoded_tool_schemas = msgspec.json.encode(tool_schemas)                
+                span.set_attribute(f"{prefix_span}.agent_state", encoded_state)
+                span.set_attribute(f"{prefix_span}.system_prompt", system_prompt or "")
+                span.set_attribute(f"{prefix_span}.tool_schemas", encoded_tool_schemas)                              
+            return agent_state, system_prompt, tool_schemas
+    return wrapper

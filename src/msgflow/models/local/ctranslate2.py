@@ -8,14 +8,14 @@ try:
 except:
     raise ImportError("`ctranslate2` not detected, please install"
                       "using `pip install msgflow[ctranslate2]`")    
-from msgflow.models.response import Response
+from msgflow.models.response import ModelResponse
 from msgflow.models.base import BaseClient
 from msgflow.models.types import (
     TextClassifierModel,
     TextEmbedderModel,
 )
 from msgflow.utils.pooling import apply_pooling
-from msgflow.telemetry.events.timing import EventsTiming
+from msgflow.telemetry.span import trace
 
 
 def _ct2_transformers_converter(model_id: str, output_dir: str):
@@ -77,7 +77,7 @@ class _BaseCTranslate2(BaseClient):
         model_outputs = self.model.forward_batch(tokens)
         return model_outputs
 
-    def __call__(self, data: Union[str, List[str]]) -> Response:
+    def __call__(self, data: Union[str, List[str]]) -> ModelResponse:
         if not isinstance(list):
             data = [data]
         return self._generate(data)
@@ -99,28 +99,17 @@ class CTranslate2TextEmbedder(_BaseCTranslate2, TextEmbedderModel):
         embeddings = apply_pooling(last_hidden_state, self.pooling_strategy)
         return embeddings
 
+    @trace("ctranslate2.generation", {"response.type": "text_embedder"})
     def _generate(self, data):
-        response = Response()
-        metadata = {}        
-        events_timing = EventsTiming()
-        
-        events_timing.start("model_execution")
-        events_timing.start("model_generation")        
+        response = ModelResponse()       
         model_output = self._execute_model(data)
-        events_timing.end("model_generation")
 
         last_hidden_state = model_output.last_hidden_state
         embeddings = self._get_embeddings(last_hidden_state)
         embeddings_list = embeddings.tolist()
 
-        events_timing.end("model_execution")
-
-        metadata["timing"] = events_timing.get_events()
-        metadata["model_info"] = self.get_model_info()
-
         response.set_response_type("text_embedding")
         response.add(embeddings_list)
-        response.set_metadata(metadata)
 
         return response
     
@@ -144,30 +133,12 @@ class CTranslate2TextClassifier(_BaseCTranslate2, TextClassifierModel):
         labels = [self.id2label[id] for id in predicted_class_ids]
         return labels
 
+    @trace("ctranslate2.generation", {"response.type": "text_classification"})
     def _generate(self, data):
-        response = Response()                
-        metadata = {}        
-        events_timing = EventsTiming()
-        
-        events_timing.start("model_execution")
-        events_timing.start("model_generation")
+        response = ModelResponse()                
         model_output = self._execute_model(data)        
-        events_timing.end("model_generation")
-        
         pooler_output = model_output.pooler_output    
-        
-        events_timing.start("model_head_generation")          
-        
-        labels = self._execute_head_model(pooler_output)
-        
-        events_timing.end("model_head_generation")
-        events_timing.end("model_execution")
-        
-        metadata["timing"] = events_timing.get_events()
-        metadata["model_info"] = self.get_model_info()
-        
+        labels = self._execute_head_model(pooler_output)        
         response.set_response_type("text_classification")        
         response.add(labels)
-        response.set_metadata(metadata)
-        
         return response

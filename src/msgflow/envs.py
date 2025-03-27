@@ -73,7 +73,10 @@ class EnvironmentVariables(BaseSettings):
     telemetry_capture_platform: bool = False
 
     # Capture tool call responses
-    telemetry_capture_tool_call_responses: bool = True    
+    telemetry_capture_tool_call_responses: bool = True
+
+    # Capture agent state, system prompt and tool schemas
+    telemetry_capture_agent_prepare_model_execution: bool = False
 
     # State checkpoint, if True, if a module output is in message, skip process
     # if False, reprocess

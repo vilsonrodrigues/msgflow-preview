@@ -7,11 +7,10 @@ except:
                       "using `pip install msgflow[timm]`")
 
 from msgflow.models.local.base import BaseVision, BaseVisionClassifier
-from msgflow.models.response import Response
+from msgflow.models.response import ModelResponse
 from msgflow.models.base import BaseClient
 from msgflow.models.types import ImageClassifierModel, ImageEmbedderModel
 from msgflow.utils.torch import TORCH_DTYPE_MAP
-from msgflow.telemetry.events.timing import EventsTiming
 
 
 class _BaseTimm(BaseClient, BaseVision):
@@ -54,25 +53,11 @@ class _BaseTimm(BaseClient, BaseVision):
 class TimmImageEmbedder(_BaseTimm, ImageEmbedderModel):
 
     def _generate(self, images):       
-        response = Response()
-        metadata = {}        
-        events_timing = EventsTiming()
-        
-        events_timing.start("model_execution")
-        events_timing.start("model_generation")
+        response = ModelResponse()
         model_output = self._execute_model(images)
-        events_timing.end("model_generation")
-
         model_output_list = model_output.tolist()
-        events_timing.end("model_execution")
-        
-        metadata["timing"] = events_timing.get_events()
-        metadata["model_info"] = self.get_model_info()
-                
         response.set_response_type("image_embedding")
-        response.add(model_output_list)
-        response.set_metadata(metadata)
-        
+        response.add(model_output_list)        
         return response
 
 class TimmImageClassifier(_BaseTimm, ImageClassifierModel, BaseVisionClassifier):  

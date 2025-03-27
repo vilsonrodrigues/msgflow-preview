@@ -6,7 +6,7 @@ try:
 except:
     raise ImportError("`torchaudio` not detected, please install"
                       "using `pip install msgflow[torchaudio]`")
-from msgflow.models.response import Response
+from msgflow.models.response import ModelResponse
 from msgflow.models.base import BaseClient
 from msgflow.models.types import AudioEmbedderModel
 from msgflow.utils.pooling import apply_pooling
@@ -46,7 +46,7 @@ class _BaseTorchAudio(BaseClient):
         data: Union[
             np.ndarray, List[np.ndarray]
         ],
-    ) -> Response:
+    ) -> ModelResponse:
         if not isinstance(data, list):
             data = [data]
         response = self._generate(data=data)
@@ -64,7 +64,7 @@ class TorchAudioAudioEmbedder(_BaseTorchAudio, AudioEmbedderModel):
         return model_output
     
     def _generate(self, data):
-        response = Response()
+        response = ModelResponse()
         model_output = self._execute_model(data)
         last_hidden_state = model_output[-1]
         embeddings = apply_pooling(last_hidden_state.numpy(), self.pooling_strategy)

@@ -10,7 +10,7 @@ from msgflow.models.local.base import (
     BaseVideoClassifier,
     BaseVision,     
 )    
-from msgflow.models.response import Response
+from msgflow.models.response import ModelResponse
 from msgflow.models.base import BaseClient
 from msgflow.models.types import (
     ImageClassifierModel, 
@@ -19,8 +19,7 @@ from msgflow.models.types import (
     VideoClassifierModel
 )
 from msgflow.utils.torch import TORCH_DTYPE_MAP
-from msgflow.telemetry.events.timing import EventsTiming
-
+# TODO span
 
 class _BaseTorchVision(BaseClient, BaseVision):
 
@@ -105,25 +104,11 @@ class TorchVisionObjectDetector(_BaseTorchVision, BaseVision, ObjectDetectorMode
         return batch_predictions
 
     def _generate(self, data):
-        response = Response()
-        metadata = {}
-        events_timing = EventsTiming()
-
-        events_timing.start("model_execution")
-        events_timing.start("model_generation")                
+        response = ModelResponse()
         model_output = self._execute_model(data)
-        events_timing.end("model_generation")
-
         predictions = self._process_det_output(model_output)
-        events_timing.end("model_execution")
-
-        metadata["timing"] = events_timing.get_events()
-        metadata["model_info"] = self.get_model_info()
-                
         response.set_response_type("object_detection")
         response.add(predictions)
-        response.set_metadata(metadata)
-
         return response    
 
 # TODO: key point detection

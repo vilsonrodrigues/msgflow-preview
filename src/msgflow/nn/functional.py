@@ -8,7 +8,7 @@ from msgflow.utils.common import get_callable_name
 from msgflow.telemetry.span import trace
 
 
-@trace
+@trace("msgflow.nn.F.bcast_gather")
 def bcast_gather(
     message: Message,
     to_send: List[Callable],
@@ -65,7 +65,7 @@ def bcast_gather(
 
     return message
 
-@trace
+@trace("msgflow.nn.F.scatter_gather")
 def scatter_gather(
     messages: List[Message],
     to_send: List[Callable],

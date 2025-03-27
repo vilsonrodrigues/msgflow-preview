@@ -24,7 +24,7 @@ import msgflow
 from msgflow.envs import envs
 from msgflow.message import Message
 from msgflow.models.model import Model
-from msgflow.models.response import Response, StreamResponse
+from msgflow.models.response import ModelResponse, ModelStreamResponse
 from msgflow.nn.parameter import Buffer, Parameter
 from msgflow.utils.convert import convert_camel_snake_to_title
 from msgflow.utils.hooks import RemovableHandle
@@ -476,9 +476,9 @@ class Module:
             raise TypeError(f"`response_mode` requires a `str` given `{type(response_mode)}`")
 
     def _extract_raw_response(self, model_response):
-        if isinstance(model_response, Response):
+        if isinstance(model_response, ModelResponse):
             raw_response = model_response.consume()
-        elif isinstance(model_response, StreamResponse):
+        elif isinstance(model_response, ModelStreamResponse):
             raw_response = model_response
         else:
             raise ValueError(f"Unsupported `model_response={type(model_response)}`")

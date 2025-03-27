@@ -1,10 +1,9 @@
-from typing import Dict, Literal
+from typing import Literal
 from gevent.event import Event
 from gevent.queue import Queue
 
 
-class _BaseResponse:    
-    metadata: Dict = None
+class _BaseResponse:
 
     def set_response_type(self, response_type: str):
         if isinstance(response_type, str):
@@ -13,13 +12,8 @@ class _BaseResponse:
             raise TypeError("`response_type` requires str"
                             f"given `{type(response_type)}`")
 
-    def set_metadata(self, metadata: Dict):
-        if isinstance(metadata, Dict):        
-            self.metadata = metadata
-        else:
-            raise TypeError(f"`metadata` dict given `{type(metadata)}`") 
 
-class Response(_BaseResponse):
+class ModelResponse(_BaseResponse):
     response_type: Literal[
         "audio_embedding",
         "audio_generation",
@@ -44,7 +38,7 @@ class Response(_BaseResponse):
         return self.data
 
 
-class StreamResponse(_BaseResponse):
+class ModelStreamResponse(_BaseResponse):
     response_type: Literal[
         "audio_generation", "structured", "text_generation", "tool_call"
     ] = None

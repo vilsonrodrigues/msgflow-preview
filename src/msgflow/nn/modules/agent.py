@@ -26,6 +26,8 @@ from msgflow.utils.chat import (
 )
 from msgflow.utils.encode import encode_base64_from_url, encode_local_file_in_base64
 from msgflow.utils.validation import is_base64, is_subclass_of
+from msgflow.telemetry.span import trace_agent_prepare_model_execution
+
 
 # Context Manager function that will manage the processing of assembling the context
 # new features: context_cache fixed message in the model, in the retrieval
@@ -202,6 +204,7 @@ class Agent(Module):
 
         return model_response
 
+    @trace_agent_prepare_model_execution
     def _prepare_model_execution(self, model_state):
         agent_state = []
 

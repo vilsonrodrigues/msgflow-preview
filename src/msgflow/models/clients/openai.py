@@ -18,7 +18,7 @@ except:
 from msgflow.logger import logger
 from msgflow.exceptions import KeyExhaustedError
 from msgflow.models.base import BaseModel
-from msgflow.models.response import Response, StreamResponse
+from msgflow.models.response import ModelResponse, ModelStreamResponse
 from msgflow.models.tool_call_agg import ToolCallAggregator
 from msgflow.models.types import (
     ASRModel,
@@ -174,7 +174,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         return model_output
 
     def _generate(self, **kwargs):
-        response = Response()
+        response = ModelResponse()
         
         generation_schema = kwargs.pop("generation_schema")
         if generation_schema:
@@ -272,14 +272,14 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         generation_schema: Optional[msgspec.Struct] = None,
         tool_schemas: Optional[Dict] = None,
         tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
-    ) -> Union[Response, StreamResponse]:
+    ) -> Union[ModelResponse, ModelStreamResponse]:
         if isinstance(messages, str):
             messages = [{"role": "user", "content": messages}]
         if isinstance(system_prompt, str):
             messages.insert(0, {"role": "system", "content": system_prompt})
         
         if stream:
-            stream_response = StreamResponse()
+            stream_response = ModelStreamResponse()
             gevent.spawn(
                 self._stream_generate,
                 messages=messages,
@@ -364,7 +364,7 @@ class OpenAITTS(_BaseOpenAI, TTSModel):
             yield model_output
 
     def _generate(self, **kwargs):
-        response = Response()
+        response = ModelResponse()
 
         model_output = self._execute_model(**kwargs)
 
@@ -393,9 +393,9 @@ class OpenAITTS(_BaseOpenAI, TTSModel):
 
     def __call__(
         self, message: str, *, stream: Optional[bool] = False
-    ) -> Union[Response, StreamResponse]:
+    ) -> Union[ModelResponse, ModelStreamResponse]:
         if stream:
-            stream_response = StreamResponse()
+            stream_response = ModelStreamResponse()
             gevent.spawn(
                 self._stream_generate, input=message, stream_response=stream_response
             )
@@ -436,7 +436,7 @@ class OpenAIImageTextToImage(_BaseOpenAI, ImageTextToImageModel):
         return model_output
 
     def _generate(self, **kwargs):
-        response = Response()
+        response = ModelResponse()
 
         model_output = self._execute_model(**kwargs)
 
@@ -495,7 +495,7 @@ class OpenAIASR(_BaseOpenAI, ASRModel):
         return model_output
 
     def _generate(self, **kwargs):
-        response = Response()
+        response = ModelResponse()
 
         model_output = self._execute_model(**kwargs)
 
@@ -577,7 +577,7 @@ class OpenAITextEmbedder(_BaseOpenAI, TextEmbedderModel):
         return model_output
 
     def _generate(self, **kwargs):
-        response = Response()
+        response = ModelResponse()
         response.set_response_type("text_embedding")
         model_output = self._execute_model(**kwargs)
         embedding = model_output.data[0].embedding
