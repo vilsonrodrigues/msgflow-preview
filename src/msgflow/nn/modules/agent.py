@@ -150,7 +150,7 @@ class Agent(Module):
 
         if stream and response_template:
             raise ValueError("`response_template` is not `stream=True` compatible")
-        if stream and is_subclass_of(generation_schema, ReAct):
+        if stream and is_subclass_of(generation_schema, ReAct): # TODO nenhum deles deve ser
             raise ValueError(
                 "`generation_schema=ReAct` is not `stream=True` compatible"
             )
@@ -190,11 +190,11 @@ class Agent(Module):
         return response
 
     def _execute_model(self, model_state, prefilling=None):
-        agent_state, system_message, tool_schemas = self._prepare_model_execution(model_state)
+        agent_state, system_prompt, tool_schemas = self._prepare_model_execution(model_state)
 
         model_response = self.model(
             messages=agent_state,
-            system_prompt=system_message,
+            system_prompt=system_prompt,
             prefilling=prefilling,
             stream=self.stream,
             tool_schemas=tool_schemas,
