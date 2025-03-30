@@ -472,13 +472,14 @@ class Agent(Module):
                     audio_format = Path(audio_data).suffix
                     if not audio_data.startswith("http") and not is_base64(audio_data):
                         base64_audio = encode_local_file_in_base64(audio_data)
-                    if self.audio_input_format == "standard":  # vLLM style
+                    # TODO manter um so estilo. alterar isso dentro das classes de inf
+                    if self.audio_input_format.data == "standard":  # vLLM style
                         if not is_base64(audio_data):
                             audio_data = f"data:audio/{audio_format};base64,{base64_audio}"
                         content.append(
                             {"type": "audio_url", "audio_url": {"url": audio_data}}
                         )
-                    elif self.audio_input_format == "generation":  # OpenAI style
+                    elif self.audio_input_format.data == "generation":  # OpenAI style
                         # OpenAI requires a base64 file as input
                         if audio_data.startswith("http"):
                             audio_data = encode_base64_from_url(audio_data)
