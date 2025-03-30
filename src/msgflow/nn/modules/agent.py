@@ -192,14 +192,14 @@ class Agent(Module):
     def _execute_model(self, model_state, prefilling=None):
         agent_state, system_prompt, tool_schemas = self._prepare_model_execution(model_state)
 
-        model_response = self.model(
+        model_response = self.model.data(
             messages=agent_state,
             system_prompt=system_prompt,
             prefilling=prefilling,
-            stream=self.stream,
+            stream=self.stream.data,
             tool_schemas=tool_schemas,
-            tool_choice=self.tool_choice,
-            generation_schema=self.generation_schema,
+            tool_choice=self.tool_choice.data,
+            generation_schema=self.generation_schema.data,
         )        
 
         return model_response
@@ -228,6 +228,8 @@ class Agent(Module):
             # Disable tool_schemas to react controlflow preference
             tool_schemas = None
         
+        system_prompt = system_prompt or None
+
         return agent_state, system_prompt, tool_schemas
 
     def _process_model_response(self, model_response, model_state, message):
@@ -309,7 +311,7 @@ class Agent(Module):
             model_response = self._execute_model(model_state)
 
     def _process_tool_call(self, tool_callings):        
-        tool_responses = self.tool_library(tool_callings)
+        tool_responses = self.tool_library.data(tool_callings)
         return tool_responses
 
     def _prepare_response(self, raw_response, response_type, model_state, message):
@@ -324,13 +326,13 @@ class Agent(Module):
         return self._define_response_mode(response, model_state, message)
 
     def _define_response_mode(self, response, model_state, message):
-        if self.response_mode == "plain_response":
+        if self.response_mode.data == "plain_response":
             return response
-        elif self.response_mode == "steps":
+        elif self.response_mode.data == "steps":
             return self._apply_steps_format(model_state, response)
         elif isinstance(message, Message):
-            if self.response_mode.startswith(("context", "outputs", "response")):
-                message.set(f"{self.response_mode}.{self.name}", response)
+            if self.response_mode.data.startswith(("context", "outputs", "response")):
+                message.set(f"{self.response_mode.data}.{self.name.data}", response)
             return message
         else:
             raise ValueError(

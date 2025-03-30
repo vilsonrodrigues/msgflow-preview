@@ -224,8 +224,6 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         return response
 
     def _stream_generate(self, **kwargs):
-        metadata = {}
-
         aggregator = ToolCallAggregator()
         stream_response = kwargs.pop("stream_response")
         generation_schema = kwargs.pop("generation_schema")
