@@ -2,6 +2,7 @@ import platform
 import os
 from contextlib import contextmanager
 from functools import wraps
+from typing import Dict, Optional
 
 import msgspec
 from opentelemetry.trace import SpanKind
@@ -105,8 +106,9 @@ def trace_tool_library_call(forward):
 
 def trace_agent_prepare_model_execution(_prepare_model_execution):
     def wrapper(self, model_state):
+        prefix_span = "msgflow.nn.agent"
         attributes = {}
-        attributes["msgflow.nn.agent.method.name"] = "_prepare_model_execution"
+        attributes[f"{prefix_span}.method.name"] = "_prepare_model_execution"
         with self._spans.custom_span("Prepare Model Execution", attributes) as span:            
             agent_state, system_prompt, tool_schemas = _prepare_model_execution(self, model_state)
             if envs.telemetry_capture_agent_prepare_model_execution:
