@@ -11,7 +11,7 @@ from msgflow.data.retrievers.types import (
     LexicalRetriever,
     SemanticRetriever,
 )
-from msgflow.models.gateway import ModelRouter
+from msgflow.models.gateway import ModelGateway
 from msgflow.nn.modules.module import Module
 from msgflow.utils.encode import to_io_object
 
@@ -31,7 +31,7 @@ class Retriever(Module):
         *,        
         model: Optional[
             Union[
-                AudioEmbedderModel, ImageEmbedderModel, TextEmbedderModel, ModelRouter
+                AudioEmbedderModel, ImageEmbedderModel, TextEmbedderModel, ModelGateway
             ]
         ] = None,
         task_inputs: Optional[Union[str, Dict[str, str]]] = None,
@@ -189,7 +189,7 @@ class Retriever(Module):
     def _set_model(
         self,
         model: Union[
-            AudioEmbedderModel, ImageEmbedderModel, TextEmbedderModel, ModelRouter
+            AudioEmbedderModel, ImageEmbedderModel, TextEmbedderModel, ModelGateway
         ],
     ):
         if (
@@ -199,7 +199,7 @@ class Retriever(Module):
                     AudioEmbedderModel,
                     ImageEmbedderModel,
                     TextEmbedderModel,
-                    ModelRouter,
+                    ModelGateway,
                 ),
             )
             or model is None
@@ -208,7 +208,7 @@ class Retriever(Module):
         else:
             raise TypeError("`model` requires be `AudioEmbedderModel` "
                             "`ImageEmbedderModel`, `TextEmbedderModel, `"
-                            f"`ModelRouter` or None given `{type(model)}`")
+                            f"`ModelGateway` or None given `{type(model)}`")
 
     def _set_threshold(self, threshold: Optional[float] = 0.0):
         if isinstance(threshold, float):
