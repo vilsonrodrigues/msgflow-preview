@@ -311,7 +311,7 @@ class Agent(Module):
             model_response = self._execute_model(model_state)
 
     def _process_tool_call(self, tool_callings):        
-        tool_responses = self.tool_library.data(tool_callings)
+        tool_responses = self.tool_library(tool_callings)
         return tool_responses
 
     def _prepare_response(self, raw_response, response_type, model_state, message):
