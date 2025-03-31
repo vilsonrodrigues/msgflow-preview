@@ -185,7 +185,7 @@ class Agent(Module):
 
     def forward(self, message: Union[str, Dict[str, Any], Message]):
         model_state = self._prepare_task(message)
-        model_response = self._execute_model(model_state, self.prefilling)
+        model_response = self._execute_model(model_state, self.prefilling.data)
         response = self._process_model_response(model_response, model_state, message)
         return response
 
