@@ -5,7 +5,8 @@ import msgspec
 
 class ToolCallAggregator:
     
-    tool_calls = OrderedDict()
+    def __init__(self):
+        self.tool_calls = OrderedDict()
 
     def process(self, call_index: int, id: str, name: str, arguments: str):
         """Add tool call.
