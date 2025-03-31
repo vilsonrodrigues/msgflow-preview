@@ -38,7 +38,7 @@ class ToolCallAggregator:
     def get_calls(self) -> Dict[str, str]:
         """Returns the function name and arguments in a dict format."""
         tool_callings = []
-        for call in self.function_calls.values():
+        for call in self.tool_calls.values():
             arguments = call["arguments"].strip()
             if arguments:
                 arguments = msgspec.json.decode(arguments.encode())
@@ -53,7 +53,7 @@ class ToolCallAggregator:
                 Dictionary where the key is the tool id and the value is the result.
         """
         for id, result in tool_results.items():
-            for call in self.function_calls.values():
+            for call in self.tool_calls.values():
                 if call["id"] == id:
                     call["result"] = result
 
