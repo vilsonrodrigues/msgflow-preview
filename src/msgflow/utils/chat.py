@@ -184,7 +184,7 @@ def parse_docstring_args(docstring: str) -> Dict[str, str]:
     return param_descriptions
 
 
-def generate_json_schema(cls: type) -> Dict:
+def generate_json_schema(cls: type) -> Dict[str, Any]:
     """
     Generates a JSON schema for a class based on its characteristics.
 
@@ -231,10 +231,20 @@ def generate_json_schema(cls: type) -> Dict:
             "type": "object",
             "properties": properties,
             "required": required,
+            'additionalProperties': False,
         },
+        "strict": True,
     }
 
     return json_schema
+
+def generate_tool_json_schema(cls: type) -> Dict[str, Any]:
+    tool = generate_json_schema(cls)
+    tool_json_schema = {
+        "type": "function",
+        "function": tool
+    }
+    return tool_json_schema
 
 # TODO: needs improvement to write encoded json
 def get_react_tools_prompt_format(tool_schemas):
