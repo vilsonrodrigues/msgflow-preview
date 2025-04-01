@@ -85,7 +85,7 @@ def chatml_to_steps_format(model_state, response):
                     "id": tool_call["id"],
                     "name": tool_call["function"]["name"],
                     "arguments": tool_call["function"]["arguments"],
-                    "resuls": None, # To be updated when the answer is found
+                    "results": None, # To be updated when the answer is found
                 }
                 # Add each function call separately
                 steps.append({"tool_call": fn_call_entry})
