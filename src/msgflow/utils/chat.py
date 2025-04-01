@@ -99,7 +99,7 @@ def chatml_to_steps_format(model_state, response):
                 pending_tool_calls[tool_call_id]["result"] = message.get("content", "")
 
     if response:
-        steps["assistant"] = response
+        steps.append({"assistant": response})
 
     return steps
 
