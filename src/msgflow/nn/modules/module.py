@@ -475,6 +475,18 @@ class Module:
         else:
             raise TypeError(f"`response_mode` requires a `str` given `{type(response_mode)}`")
 
+    def _set_prompt(self, prompt: Optional[str] = None):
+        if isinstance(prompt, str) or prompt is None:
+            self.register_buffer("prompt", prompt)
+        else:
+            raise TypeError(f"`prompt` need be a str or None given `{type(prompt)}`")
+
+    def _set_stream(self, stream: bool):
+        if isinstance(stream, bool):
+             self.register_buffer("stream", stream)
+        else:
+            raise TypeError(f"`stream` need be a bool given `{type(stream)}`")
+
     def _extract_raw_response(self, model_response):
         if isinstance(model_response, ModelResponse):
             raw_response = model_response.consume()
@@ -493,11 +505,11 @@ class Module:
         return self._define_response_mode(response, message)
 
     def _define_response_mode(self, response, message):        
-        if self.response_mode == "plain_response":
+        if self.response_mode.data == "plain_response":
             return response
         elif isinstance(message, Message):
-            if self.response_mode.startswith(("context", "outputs", "response")):
-                message.set(f"{self.response_mode}.{self.name}", response)
+            if self.response_mode.data.startswith(("context", "outputs", "response")):
+                message.set(f"{self.response_mode.data}.{self.name.data}", response)
             return message
         else:
             raise ValueError(

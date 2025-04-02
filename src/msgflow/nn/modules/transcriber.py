@@ -3,7 +3,7 @@ from msgflow.message import Message
 from msgflow.models.gateway import ModelGateway
 from msgflow.models.types import ASRModel
 from msgflow.nn.modules.module import Module
-from msgflow.utils.encode import to_bytes
+from msgflow.utils.encode import encode_data_to_bytes
 
 
 class Transcriber(Module):
@@ -39,8 +39,9 @@ class Transcriber(Module):
         self,
         name: str,
         model: Union[ASRModel, ModelGateway],
-        *,        
-        task_inputs: Union[str, Dict[str, str]] = None,
+        *,      
+        stream: Optional[bool] = False,
+        task_multimodal_inputs: Optional[Dict[str, str]] = None,
         response_mode: Optional[str] = "plain_response",
         response_template: Optional[str] = None,
         language: Optional[str] = None,
@@ -50,14 +51,15 @@ class Transcriber(Module):
     ):
         super().__init__()
         self.set_name(name)
+        self._set_language(language)        
         self._set_model(model)
-        self._set_task_inputs(task_inputs)
-        self._set_response_mode(response_mode)
-        self._set_language(language)
-        self._set_response_format(response_format)
-        self._set_timestamp_granularities(timestamp_granularities)
         self._set_prompt(prompt)
-        self._set_response_template(response_template)
+        self._set_response_format(response_format)        
+        self._set_response_mode(response_mode)
+        self._set_response_template(response_template)        
+        self._set_stream(stream)
+        self._set_task_multimodal_inputs(task_multimodal_inputs)
+        self._set_timestamp_granularities(timestamp_granularities)
 
     def forward(self, message: Union[str, Message]):
         audio = self._prepare_task(message)
@@ -68,16 +70,17 @@ class Transcriber(Module):
     def _execute_model(self, audio):
         model_response = self.model(
             audio=audio,
-            language=self.language,
-            response_format=self.response_format,
-            timestamp_granularities=self.timestamp_granularities,
-            prompt=self.prompt,
+            language=self.language.data,
+            response_format=self.response_format.data,
+            timestamp_granularities=self.timestamp_granularities.data,
+            prompt=self.prompt.data,
+            stream=self.stream.data            
         )
         return model_response
 
     def _process_model_response(self, model_response, message):
         if model_response.response_type == "transcript":
-            raw_response = model_response.consume()
+            raw_response = self._extract_raw_response(model_response) # TODO validar stream
             response = self._prepare_response(raw_response, message)
             return response
         else:
@@ -93,19 +96,28 @@ class Transcriber(Module):
         else:
             raise ValueError(f"Unsupported message type: `{type(message)}`")
         
-        audio = to_bytes(audio_data)
+        audio = encode_data_to_bytes(audio_data)
         
         return audio
 
-    def _process_message_task(self, message: Message):
-        if isinstance(self.task_inputs, tuple):
-            content = self._get_content_from_or_input(self.task_inputs, message)
-        else:
-            content = message.get(self.task_inputs)
+    def _process_message_task(self, message: Message):         
+        content = self._process_multimodal_inputs(message)
+        return content
+
+    def _process_multimodal_inputs(self, message: Message) -> bytes:
+        content = None
+
+        if isinstance(self.task_multimodal_inputs.data, dict):
+            for audio_path in self.task_multimodal_inputs.data.get("audios", []):
+                if isinstance(audio_path, tuple):
+                    audio_data = self._get_content_from_or_input(audio_path, message)
+                else:
+                    audio_data = message.get(audio_path)
+                if audio_data:
+                    content = audio_data
 
         if content is None:
-            raise ValueError(f"No audio found in paths: `{self.task_inputs}`")
-
+            raise ValueError(f"No audio found in paths: `{self.task_inputs.data}`")            
         return content
 
     def _set_model(self, model: Union[ASRModel, ModelGateway]):
@@ -150,9 +162,3 @@ class Transcriber(Module):
                 )    
         else:
             raise TypeError(f"`response_format` need be a str or given `{type(response_format)}")               
-
-    def _set_prompt(self, prompt: Optional[str] = None):
-        if isinstance(prompt, str) or prompt is None:
-            self.register_buffer("prompt", prompt)
-        else:
-            raise TypeError(f"`prompt` need be a str or None given `{type(prompt)}`")            

@@ -303,17 +303,26 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
 
 
 class OpenAITTS(_BaseOpenAI, TTSModel):
-    r"""OpenAI Text-to-Speech"""
+    r"""OpenAI Text-to-Speech
+    
+        alloy
+        ash
+        ballad
+        coral
+        echo
+        fable
+        onyx
+        nova
+        sage
+        shimmer    
+    """
 
     def __init__(
         self,
-        model_id: Optional[str] = "tts-1",
+        model_id: Optional[str] = "gpt-4o-mini-tts",
         voice: Optional[
             Literal["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
         ] = "alloy",
-        response_format: Optional[
-            Literal["mp3", "opus", "aac", "flac", "wav", "pcm"]
-        ] = "wav",
         speed: Optional[float] = 1.0,
         organization: Optional[str] = None,
         project: Optional[str] = None,
@@ -338,7 +347,7 @@ class OpenAITTS(_BaseOpenAI, TTSModel):
                     yield result
                 break
             except (openai.RateLimitError, openai.APIError) as e:
-                print(e)
+                print(e) # TODO
                 self._set_next_api_key()
             except Exception as e:
                 raise e
@@ -379,7 +388,7 @@ class OpenAITTS(_BaseOpenAI, TTSModel):
 
     def _stream_generate(self, **kwargs):
         stream_response = kwargs.pop("stream_response")
-        stream_response.response_type = "audio_generation"
+        stream_response.set_response_type("audio_generation")
 
         with self._execute_model(**kwargs) as model_output:
             for chunk in model_output.iter_bytes(chunk_size=1024):
@@ -390,17 +399,24 @@ class OpenAITTS(_BaseOpenAI, TTSModel):
         stream_response.add(None)
 
     def __call__(
-        self, message: str, *, stream: Optional[bool] = False
+        self, 
+        text: str, 
+        *, 
+        stream: Optional[bool] = False, 
+        prompt: Optional[str] = None,
+        response_format: Optional[Literal["mp3", "opus", "aac", "flac", "wav", "pcm"]] = "opus",
     ) -> Union[ModelResponse, ModelStreamResponse]:
+        params = {"input": text, "response_format": response_format}
+        if prompt:
+            params["instructions"] = prompt
         if stream:
             stream_response = ModelStreamResponse()
-            gevent.spawn(
-                self._stream_generate, input=message, stream_response=stream_response
-            )
+            params["stream_response"] = stream_response
+            gevent.spawn(self._stream_generate, **params)
             stream_response.first_chunk_event.wait()
             return stream_response
         else:
-            response = self._generate(input=message)
+            response = self._generate(**params)
             return response
 
 
@@ -473,7 +489,7 @@ class OpenAIASR(_BaseOpenAI, ASRModel):
     def __init__(
         self,
         *,
-        model_id: Optional[str] = "whisper-1",
+        model_id: Optional[str] = "gpt-4o-transcribe",
         temperature: Optional[float] = 0.0,
         organization: Optional[str] = None,
         project: Optional[str] = None,
@@ -498,8 +514,6 @@ class OpenAIASR(_BaseOpenAI, ASRModel):
         model_output = self._execute_model(**kwargs)
 
         response.set_response_type("transcript")
-
-        # TODO: log duration?
 
         transcript = {}
 
@@ -530,10 +544,28 @@ class OpenAIASR(_BaseOpenAI, ASRModel):
 
         return response
 
+    def _stream_generate(self, **kwargs):
+        stream_response = kwargs.pop("stream_response")
+        stream_response.set_response_type("transcript")
+
+        model_output = self._execute_model(**kwargs)
+
+        for event in model_output:
+            chunk = event.transcript.text.delta
+            if chunk:
+                stream_response.add(chunk)
+                if not stream_response.first_chunk_event.is_set():
+                    stream_response.first_chunk_event.set()
+            elif event.transcript.text.done:
+                stream_response.add(None)
+                
+        return stream_response
+
     def __call__(
         self,
         audio: bytes,
         *,
+        stream: Optional[bool] = False,
         language: Optional[str] = None,
         response_format: Optional[
             Literal["json", "text", "srt", "verbose_json", "vtt"]
@@ -541,14 +573,23 @@ class OpenAIASR(_BaseOpenAI, ASRModel):
         timestamp_granularities: Optional[List[str]] = None,
         prompt: Optional[str] = None,
     ):
-        response = self._generate(
-            file=audio,
-            language=language,
-            response_format=response_format,
-            timestamp_granularities=timestamp_granularities,
-            prompt=prompt,
-        )
-        return response
+        params = {
+            "file": audio,
+            "language": language,
+            "response_format": response_format,
+            "timestamp_granularities": timestamp_granularities,
+            "prompt": prompt,
+        }
+        if stream:
+            stream_response = ModelStreamResponse()
+            params["stream_response"] = stream_response
+            params["stream"] = stream
+            gevent.spawn(self._stream_generate, **params)
+            stream_response.first_chunk_event.wait()
+            return stream_response
+        else:                
+            response = self._generate(**params)
+            return response
 
 
 class OpenAITextEmbedder(_BaseOpenAI, TextEmbedderModel): 

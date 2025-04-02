@@ -2,6 +2,7 @@ from msgflow.nn.modules.agent import Agent
 from msgflow.nn.modules.container import ModuleList, ModuleDict, Sequential
 from msgflow.nn.modules.module import Module
 from msgflow.nn.modules.retriever import Retriever
+from msgflow.nn.modules.speaker import Speaker
 from msgflow.nn.modules.tool import ToolBase, ToolLibrary
 from msgflow.nn.modules.transcriber import Transcriber
 
@@ -11,6 +12,7 @@ __all__ = [
     "ModuleDict",    
     "ModuleList",
     "Retriever",
+    "Speaker",
     "Sequential",
     "ToolBase",
     "ToolLibrary",

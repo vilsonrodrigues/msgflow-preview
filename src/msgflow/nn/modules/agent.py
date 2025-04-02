@@ -465,7 +465,7 @@ class Agent(Module):
 
             for audio_path in self.task_multimodal_inputs.data.get("audios", []):
                 if isinstance(audio_path, tuple):
-                    image_data = self._get_content_from_or_input(audio_path, message)
+                    audio_data = self._get_content_from_or_input(audio_path, message)
                 else:
                     audio_data = message.get(audio_path)
                 if audio_data:
@@ -578,13 +578,7 @@ class Agent(Module):
             self.tool_library = ToolLibrary(self.get_module_name(), tools or [])
         else:
             raise TypeError("`tools` need be a list of callables or None"
-                            f"given `{type(tools)}`")
-
-    def _set_stream(self, stream: bool):
-        if isinstance(stream, bool):
-             self.register_buffer("stream", stream)
-        else:
-            raise TypeError(f"`stream` need be a bool given `{type(stream)}`")            
+                            f"given `{type(tools)}`")        
 
     def _set_fixed_messages(self, fixed_messages: Optional[List[Dict[str, Any]]] = None):
         if (
