@@ -91,7 +91,7 @@ class Speaker(Module):
         if isinstance(self.task_inputs.data, str):
             content = message.get(self.task_inputs.data)
         elif isinstance(self.task_inputs.data, tuple): # OR inputs
-            content self._get_content_from_or_input(self.task_inputs.data, message)
+            content = self._get_content_from_or_input(self.task_inputs.data, message)
 
         if content is None:
             raise ValueError(f"No text found in paths: `{self.task_inputs.data}`")
