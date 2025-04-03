@@ -87,7 +87,7 @@ class Speaker(Module):
         content = self._process_text_inputs(message)
         return content
 
-    def _process_text_inputs(self, message: Message) -> Union[str, Dict[str, Any]]:
+    def _process_text_inputs(self, message: Message):
         if isinstance(self.task_inputs.data, str):
             content = message.get(self.task_inputs.data)
         elif isinstance(self.task_inputs.data, tuple): # OR inputs
