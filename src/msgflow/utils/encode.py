@@ -54,7 +54,7 @@ def to_io_object(input_data: Union[bytes, str]) -> io.IOBase:
         f"Invalid input: must be a URL, Base64, file path, or bytes. Given: {type(input_data)}"
     )
 
-def to_bytes(input_data: Union[bytes, str]) -> io.BufferedReader:
+def encode_data_to_bytes(input_data: Union[bytes, str]) -> io.BufferedReader:
     """
     Converts an input to a BufferedReader, ensuring consistency in the returned type.
 
