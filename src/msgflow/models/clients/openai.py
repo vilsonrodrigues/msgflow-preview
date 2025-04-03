@@ -74,16 +74,16 @@ class _BaseOpenAI(BaseModel):
             raise ValueError(
                 "The OpenAI key is not available. Please set `OPENAI_API_KEY`"
             )
-        self.__api_key = [key.strip() for key in keys.split(",")]
-        if not self.__api_key:
+        self._api_key = [key.strip() for key in keys.split(",")]
+        if not self._api_key:
             raise ValueError("No valid API keys found")
 
     def _set_next_api_key(self):
         """Set the next API key in the rotation."""
-        if self.current_key_index >= len(self.__api_key) - 1:
+        if self.current_key_index >= len(self._api_key) - 1:
             raise KeyExhaustedError("All API keys have been exhausted")
         self.current_key_index += 1
-        self.client.api_key = self.__api_key[self.current_key_index]
+        self.client.api_key = self._api_key[self.current_key_index]
 
     def _execute_with_retry(self, **kwargs):
         """Execute the model with the current API key and handle retries."""
@@ -353,7 +353,7 @@ class OpenAITTS(_BaseOpenAI, TTSModel):
 
     @contextmanager
     def _execute_model(self, **kwargs):
-        self.client.api_key = self.__api_key[self.current_key_index]
+        self.client.api_key = self._api_key[self.current_key_index]
         try:
             with self._execute_with_retry(**kwargs) as result:
                 yield result

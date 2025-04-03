@@ -6,7 +6,7 @@ from msgflow._private.core import BaseClient
 class BaseModel(BaseClient):
 
     msgflow_type = "model"   
-    to_ignore = ["__api_key", "model", "processor", "client"]
+    to_ignore = ["_api_key", "model", "processor", "client"]
 
     def instance_type(self) -> Dict[str, str]:
          return {"model_type": self.model_type}  
