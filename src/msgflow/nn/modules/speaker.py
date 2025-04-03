@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Union
+from typing import Dict, Literal, Optional, Union
 from msgflow.message import Message
 from msgflow.models.gateway import ModelGateway
 from msgflow.models.types import TTSModel
