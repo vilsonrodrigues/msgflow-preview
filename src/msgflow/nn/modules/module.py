@@ -1351,7 +1351,7 @@ class Module:
 
         # Save buffers (handle different data types)
         for name, buf in self._buffers.items():
-            if buf is not None and buf.persistent:
+            if buf.persistent:
                 destination[prefix + name] = self._get_serializable_value(buf.data)
 
     def state_dict(
@@ -1464,7 +1464,7 @@ class Module:
 
         # Load buffers
         for name, buf in self._buffers.items():
-            if buf is not None and buf.persistent:
+            if buf.persistent:
                 key = prefix + name
                 if key in state_dict:
                     data = state_dict[key]
