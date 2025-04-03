@@ -13,7 +13,7 @@ from msgflow.data.retrievers.types import (
 )
 from msgflow.models.gateway import ModelGateway
 from msgflow.nn.modules.module import Module
-from msgflow.utils.encode import to_io_object
+from msgflow.utils.encode import encode_to_io_object
 
 
 class Retriever(Module):
@@ -165,7 +165,7 @@ class Retriever(Module):
             else:
                 image_data = message.get(image_path)
             if image_data:
-                image_bytes_io = to_io_object(image_data)
+                image_bytes_io = encode_to_io_object(image_data)
                 content.append(image_bytes_io)
         # TODO: another multimodal inputs is not supported yet
         return content

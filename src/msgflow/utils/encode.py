@@ -16,7 +16,7 @@ def encode_local_file_in_base64(path: str) -> str:
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode("utf-8")
 
-def to_io_object(input_data: Union[bytes, str]) -> io.IOBase:
+def encode_to_io_object(input_data: Union[bytes, str]) -> io.IOBase:
     """
     Converts an input to a file IO object (such as io.BytesIO or a file opened in binary mode).
 
