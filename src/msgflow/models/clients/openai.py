@@ -566,12 +566,12 @@ class OpenAIASR(_BaseOpenAI, ASRModel):
         audio: bytes,
         *,
         stream: Optional[bool] = False,
-        language: Optional[str] = None,
         response_format: Optional[
             Literal["json", "text", "srt", "verbose_json", "vtt"]
         ] = "text",
         timestamp_granularities: Optional[List[str]] = None,
         prompt: Optional[str] = None,
+        language: Optional[str] = None,        
     ):
         params = {
             "file": audio,
