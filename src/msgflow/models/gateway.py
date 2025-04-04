@@ -23,7 +23,7 @@ class ModelGateway:
             raise TypeError("`models` requires that it all be of the same type "
                             f"given {model_types}")
         self.models = models
-        self.model_types = model_types[0]
+        self.model_type = model_types[0]
 
     def _rotate_model(self):
         self.current_model_index = (self.current_model_index + 1) % len(self.models)

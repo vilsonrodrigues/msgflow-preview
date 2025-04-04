@@ -67,27 +67,20 @@ class Retriever(Module):
         response = self._prepare_response(retriever_response, message)
         return response
 
-    def _execute_retriever(self, queries) -> List[Dict[str, Any]]:
-        if len(queries) == 0:
-            raise ValueError("No data was found for the given input settings")
-                
+    def _execute_retriever(self, queries) -> List[Dict[str, Any]]:            
         queries_embed = None
-        if self.model:
+        if self.model.data:
             queries_embed = self._execute_model(queries)
     
-        retriever_response = self.retriever(
-            queries=queries_embed or queries,
-            top_k=self.top_k,
-            threshold=self.threshold,
-            return_score=self.return_score,
-        )
+        retriever_execution_params = self._prepare_retriever_execution(queries_embed or queries)
+        retriever_response = self.retriever(**retriever_execution_params)
 
         results = []
 
         for query, query_results in zip(queries, retriever_response):
             formatted_result = {
                 "results": [
-                    {"data": item.get("data"), "score": item.get("score")}
+                    {"data": item.get("data", None), "score": item.get("score", None)}
                     for item in query_results
                 ],
             }
@@ -96,12 +89,34 @@ class Retriever(Module):
             results.append(formatted_result)
 
         return results
-    
+
+    def _prepare_retriever_execution(self, queries):
+        retriever_execution_params = {
+            "queries": queries,
+            "top_k": self.top_k.data,
+            "threshold": self.threshold.data,
+            "return_score": self.return_score.data,
+        }
+        return retriever_execution_params
+
     def _execute_model(self, queries):
-        model_response = self.model(queries)
-        queries_embed = self._extract_raw_response(model_response)
-        # TODO: trace metadata
+        if "bached" in self.model.data.model_type or len(queries) == 1:
+            model_execution_params = self._prepare_model_execution(queries)
+            model_response = self.model.data(**model_execution_params)
+            queries_embed = self._extract_raw_response(model_response)
+            if not isinstance(queries_embed, list):
+                queries_embed = [queries_embed]
+        else:
+            distributed_params = [self._prepare_model_execution(query) for query in queries]
+            queries_embed = self._distributed_execute_model(distributed_params)
+
         return queries_embed
+
+    def _prepare_model_execution(self, queries):
+        if len(queries) == 1:
+            queries = queries[0]        
+        model_execution_params = {"data": queries}
+        return model_execution_params
 
     def _prepare_task(
         self, message: Union[str, List[str], List[Dict[str, Any]], Message]
@@ -124,8 +139,8 @@ class Retriever(Module):
         [{'name': 'vilsin'}]
         dict_key='name'
         """
-        if isinstance(self.dict_key, str):
-            queries = [data[self.dict_key] for data in message]
+        if self.dict_key.data:
+            queries = [data[self.dict_key.data] for data in message]
             return queries
         else:
             raise AttributeError(
@@ -134,9 +149,9 @@ class Retriever(Module):
             )
 
     def _process_message_task(self, message: Message) -> List[Union[str, ]]:
-        if self.task_inputs:
+        if self.task_inputs.data:
             content = self._process_text_inputs(message)
-        elif self.task_multimodal_inputs:
+        elif self.task_multimodal_inputs.data:
             content = self._process_multimodal_inputs(message)
         else:
             raise AttributeError(
@@ -147,19 +162,19 @@ class Retriever(Module):
         return queries
 
     def _process_text_inputs(self, message):        
-        if isinstance(self.task_inputs, tuple): # OR inputs
-            content = self._get_content_from_or_input(self.task_inputs, message)
+        if isinstance(self.task_inputs.data, tuple): # OR inputs
+            content = self._get_content_from_or_input(self.task_inputs.data, message)
         else:
-            content = message.get(self.task_inputs)
+            content = message.get(self.task_inputs.data)
 
         if content is None:
-            raise ValueError(f"No content found in paths: {self.task_inputs}")
+            raise ValueError(f"No content found in paths: {self.task_inputs.data}")
 
         return content
 
     def _process_multimodal_inputs(self, message: Message) -> List[Dict[str, Any]]:
         content = []
-        for image_path in self.task_multimodal_inputs.get("images", []):
+        for image_path in self.task_multimodal_inputs.data.get("images", []):
             if isinstance(image_path, tuple):
                 image_data = self._get_content_from_or_input(image_path, message)
             else:
@@ -188,27 +203,14 @@ class Retriever(Module):
 
     def _set_model(
         self,
-        model: Union[
+        model: Optional[Union[
             AudioEmbedderModel, ImageEmbedderModel, TextEmbedderModel, ModelGateway
-        ],
+        ]] = None,
     ):
-        if (
-            isinstance(
-                model,
-                (
-                    AudioEmbedderModel,
-                    ImageEmbedderModel,
-                    TextEmbedderModel,
-                    ModelGateway,
-                ),
-            )
-            or model is None
-        ):
+        if "embedder" in model.model_type or model == None:
             self.register_buffer("model", model)
         else:
-            raise TypeError("`model` requires be `AudioEmbedderModel` "
-                            "`ImageEmbedderModel`, `TextEmbedderModel, `"
-                            f"`ModelGateway` or None given `{type(model)}`")
+            raise TypeError(f"`model` requires be `embedder` model, given `{type(model)}`")
 
     def _set_threshold(self, threshold: Optional[float] = 0.0):
         if isinstance(threshold, float):
@@ -222,7 +224,8 @@ class Retriever(Module):
         if isinstance(return_score, bool):
             self.register_buffer("return_score", return_score)
         else:
-            raise TypeError(f"`threshold` requires a `bool` given `{type(return_score)}`")
+            raise TypeError("`threshold` requires a `bool` or None"
+                            f" given `{type(return_score)}`")
 
     def _set_top_k(self, top_k: Optional[int] = 4):
         if isinstance(top_k, int):
@@ -232,8 +235,9 @@ class Retriever(Module):
         else:
             raise TypeError(f"`top_k` requires a int given `{type(top_k)}`")            
 
-    def _set_dict_key(self, dict_key: str):
-        if isinstance(dict_key, str):
+    def _set_dict_key(self, dict_key: Optional[str] = None):
+        if isinstance(dict_key, str) or dict_key is None:
             self.register_buffer("dict_key", dict_key)
         else:
-            raise TypeError(f"`dict_key` need be a string given `{type(dict_key)}`")
+            raise TypeError("`dict_key` need be a `str` or None"
+                            f" given `{type(dict_key)}`")

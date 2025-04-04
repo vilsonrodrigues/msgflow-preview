@@ -52,13 +52,18 @@ class Speaker(Module):
         return response
 
     def _execute_model(self, text):
-        model_response = self.model(
-            text=text,
-            response_format=self.response_format.data,
-            prompt=self.prompt.data,
-            stream=self.stream.data            
-        )
+        model_execution_params = self._prepare_model_execution(text)
+        model_response = self.model.data(**model_execution_params)
         return model_response
+
+    def _prepare_model_execution(self, text):
+        model_execution_params = {
+            "text": text,
+            "response_format": self.response_format.data,
+            "prompt": self.prompt.data,
+            "stream": self.stream.data,
+        }
+        return model_execution_params        
 
     def _process_model_response(self, model_response, message):
         if model_response.response_type == "audio_generation":
@@ -69,9 +74,6 @@ class Speaker(Module):
             raise ValueError(
                 f"Unsupported model response type `{model_response.response_type}`"
             )
-
-    def _prepare_response(self, raw_response, message):
-        return self._define_response_mode(raw_response, message)
 
     def _prepare_task(self, message):
         if isinstance(message, str):
@@ -98,15 +100,10 @@ class Speaker(Module):
         return content
 
     def _set_model(self, model: Union[TTSModel, ModelGateway]):
-        if (
-            isinstance(model, TTSModel) 
-            or 
-            (isinstance(model, ModelGateway) and model.model_types == "tts")
-        ):
+        if model.model_type == "tts":
             self.register_buffer("model", model)
         else:
-            raise TypeError("`model` need be a `TTSModel` or `ModelGateway` "
-                             f"given `{type(model)}")
+            raise TypeError(f"`model` need be a `tts` model, given `{type(model)}`")
 
     def _set_response_format(self, response_format: str):
         supported_formats = ["mp3", "opus", "aac", "flac", "wav", "pcm"]

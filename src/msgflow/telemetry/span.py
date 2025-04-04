@@ -110,12 +110,13 @@ def trace_agent_prepare_model_execution(_prepare_model_execution):
         attributes = {}
         attributes[f"{prefix_span}.method.name"] = "_prepare_model_execution"
         with self._spans.custom_span("Prepare Model Execution", attributes) as span:            
-            agent_state, system_prompt, tool_schemas = _prepare_model_execution(self, model_state)
+            model_execution_params = _prepare_model_execution(self, model_state)
             if envs.telemetry_capture_agent_prepare_model_execution:
-                encoded_state = msgspec.json.encode(agent_state)
-                encoded_tool_schemas = msgspec.json.encode(tool_schemas)                
+                encoded_state = msgspec.json.encode(model_execution_params["messages"])
+                encoded_tool_schemas = msgspec.json.encode(model_execution_params["tool_schemas"])
+                system_prompt = model_execution_params["system_prompt"] or ""
                 span.set_attribute(f"{prefix_span}.agent_state", encoded_state)
-                span.set_attribute(f"{prefix_span}.system_prompt", system_prompt or "")
+                span.set_attribute(f"{prefix_span}.system_prompt", system_prompt)
                 span.set_attribute(f"{prefix_span}.tool_schemas", encoded_tool_schemas)                              
-            return agent_state, system_prompt, tool_schemas
+            return model_execution_params
     return wrapper

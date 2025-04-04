@@ -624,7 +624,7 @@ class OpenAITextEmbedder(_BaseOpenAI, TextEmbedderModel):
 
     def __call__(
         self,
-        text: str,
+        data: str,
     ):
-        response = self._generate(text=text)
+        response = self._generate(text=data)
         return response

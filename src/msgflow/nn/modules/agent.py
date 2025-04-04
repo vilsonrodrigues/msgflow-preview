@@ -190,22 +190,12 @@ class Agent(Module):
         return response
 
     def _execute_model(self, model_state, prefilling=None):
-        agent_state, system_prompt, tool_schemas = self._prepare_model_execution(model_state)
-
-        model_response = self.model.data(
-            messages=agent_state,
-            system_prompt=system_prompt,
-            prefilling=prefilling,
-            stream=self.stream.data,
-            tool_schemas=tool_schemas,
-            tool_choice=self.tool_choice.data,
-            generation_schema=self.generation_schema.data,
-        )        
-
+        model_execution_params = self._prepare_model_execution(model_state, prefilling)
+        model_response = self.model.data(**model_execution_params)
         return model_response
 
     @trace_agent_prepare_model_execution
-    def _prepare_model_execution(self, model_state):
+    def _prepare_model_execution(self, model_state, prefilling=None):
         agent_state = []
 
         if self.fixed_messages.data:
@@ -227,10 +217,18 @@ class Agent(Module):
                 system_prompt = react_tools
             # Disable tool_schemas to react controlflow preference
             tool_schemas = None
-        
-        system_prompt = system_prompt or None
 
-        return agent_state, system_prompt, tool_schemas
+        model_execution_params = {
+            "messages": agent_state,
+            "system_prompt": system_prompt or None,
+            "prefilling": prefilling,
+            "stream": self.stream.data,
+            "tool_schemas": tool_schemas,
+            "tool_choice": self.tool_choice.data,
+            "generation_schema": self.generation_schema.data,
+        }
+
+        return model_execution_params
 
     def _process_model_response(self, model_response, model_state, message):
         if model_response.response_type == "tool_call":
@@ -599,15 +597,10 @@ class Agent(Module):
                             f"given `{type(generation_schema)}`")
 
     def _set_model(self, model: Union[ChatCompletionModel, ModelGateway]):
-        if (
-            isinstance(model, ChatCompletionModel) 
-            or
-            (isinstance(model, ModelGateway) and model.model_types == "chat_completion")
-        ):
+        if model.model_type == "chat_completion":
             self.register_buffer("model", model)
         else:
-            raise TypeError("`model` need be a `ChatCompletionModel` "
-                            f"or `ModelGateway` given `{type(model)}`")
+            raise TypeError(f"`model` need be a `chat completion` model, given `{type(model)}`")
 
     # TODO 
     #def _set_predicted_outputs(self, predicted_outputs: bool):

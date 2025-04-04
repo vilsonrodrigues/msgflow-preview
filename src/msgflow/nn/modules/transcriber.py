@@ -68,15 +68,20 @@ class Transcriber(Module):
         return response
 
     def _execute_model(self, audio):
-        model_response = self.model(
-            audio=audio,
-            language=self.language.data,
-            response_format=self.response_format.data,
-            timestamp_granularities=self.timestamp_granularities.data,
-            prompt=self.prompt.data,
-            stream=self.stream.data            
-        )
+        model_execution_params = self._prepare_model_execution(audio)
+        model_response = self.model(**model_execution_params)
         return model_response
+
+    def _prepare_model_execution(self, audio):
+        model_execution_params = {
+            "audio": audio,
+            "language": self.language.data,
+            "response_format": self.response_format.data,
+            "timestamp_granularities": self.timestamp_granularities.data,
+            "prompt": self.prompt.data,
+            "stream": self.stream.data,
+        }
+        return model_execution_params
 
     def _process_model_response(self, model_response, message):
         if model_response.response_type == "transcript":
@@ -121,15 +126,10 @@ class Transcriber(Module):
         return content
 
     def _set_model(self, model: Union[ASRModel, ModelGateway]):
-        if (
-            isinstance(model, ASRModel) 
-            or 
-            (isinstance(model, ModelGateway) and model.model_types == "asr")
-        ):
+        if model.model_type == "asr":
             self.register_buffer("model", model)
         else:
-            raise TypeError("`model` need be a `ASRModel` or `ModelGateway` "
-                             f"given `{type(model)}")
+            raise TypeError(f"`model` need be a `asr` model, given `{type(model)}`")
 
     def _set_language(self, language: Optional[str] = None):
         if isinstance(language, str) or language is None:
