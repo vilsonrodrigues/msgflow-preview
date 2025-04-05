@@ -411,6 +411,13 @@ class Module:
                 break
         return content
 
+    def _get_content_from_message(self, path, message):
+        if isinstance(path, tuple): # OR inputs
+            content = self._get_content_from_or_input(path, message)
+        else:
+            content = message.get(path)        
+        return content
+
     def _format_task_template(self, content: Union[str, Dict[str, Any]]) -> str:
         return self._format_template(content, self.task_template.data)
 
@@ -488,6 +495,12 @@ class Module:
         else:
             raise TypeError(f"`stream` need be a bool given `{type(stream)}`")
 
+    def _set_execution_kwargs(self, execution_kwargs: Optional[Dict] = None):
+        if isinstance(execution_kwargs, dict) or execution_kwargs is None:
+             self.register_buffer("execution_kwargs", execution_kwargs)
+        else:
+            raise TypeError(f"`execution_kwargs` need be a dict or None given `{type(stream)}`")
+        
     def _extract_raw_response(self, model_response):
         if isinstance(model_response, ModelResponse):
             raw_response = model_response.consume()

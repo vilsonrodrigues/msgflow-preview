@@ -150,7 +150,7 @@ class Retriever(Module):
 
     def _process_message_task(self, message: Message) -> List[Union[str, ]]:
         if self.task_inputs.data:
-            content = self._process_text_inputs(message)
+            content = self._process_inputs(message)
         elif self.task_multimodal_inputs.data:
             content = self._process_multimodal_inputs(message)
         else:
@@ -161,24 +161,16 @@ class Retriever(Module):
         queries = self._prepare_task(content)
         return queries
 
-    def _process_text_inputs(self, message):        
-        if isinstance(self.task_inputs.data, tuple): # OR inputs
-            content = self._get_content_from_or_input(self.task_inputs.data, message)
-        else:
-            content = message.get(self.task_inputs.data)
-
+    def _process_inputs(self, message):
+        content = self._get_content_from_message(self.task_inputs.data, message)        
         if content is None:
             raise ValueError(f"No content found in paths: {self.task_inputs.data}")
-
         return content
 
     def _process_multimodal_inputs(self, message: Message) -> List[Dict[str, Any]]:
         content = []
-        for image_path in self.task_multimodal_inputs.data.get("images", []):
-            if isinstance(image_path, tuple):
-                image_data = self._get_content_from_or_input(image_path, message)
-            else:
-                image_data = message.get(image_path)
+        for image_path in self.task_multimodal_inputs.data.get("image", []):
+            image_data = self._get_content_from_message(image_path, message)        
             if image_data:
                 image_bytes_io = encode_to_io_object(image_data)
                 content.append(image_bytes_io)

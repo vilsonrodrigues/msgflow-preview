@@ -56,25 +56,25 @@ class Transcriber(Module):
         self._set_prompt(prompt)
         self._set_response_format(response_format)        
         self._set_response_mode(response_mode)
-        self._set_response_template(response_template)        
+        self._set_response_template(response_template)     
         self._set_stream(stream)
         self._set_task_multimodal_inputs(task_multimodal_inputs)
         self._set_timestamp_granularities(timestamp_granularities)
 
     def forward(self, message: Union[str, Message]):
-        audio = self._prepare_task(message)
-        model_response = self._execute_model(audio)
+        data = self._prepare_task(message)
+        model_response = self._execute_model(data)
         response = self._process_model_response(model_response, message)
         return response
 
-    def _execute_model(self, audio):
-        model_execution_params = self._prepare_model_execution(audio)
+    def _execute_model(self, data):
+        model_execution_params = self._prepare_model_execution(data)
         model_response = self.model(**model_execution_params)
         return model_response
 
-    def _prepare_model_execution(self, audio):
+    def _prepare_model_execution(self, data):
         model_execution_params = {
-            "audio": audio,
+            "data": data,
             "language": self.language.data,
             "response_format": self.response_format.data,
             "timestamp_granularities": self.timestamp_granularities.data,
@@ -101,26 +101,26 @@ class Transcriber(Module):
         else:
             raise ValueError(f"Unsupported message type: `{type(message)}`")
         
-        audio = encode_data_to_bytes(audio_data)
-        
-        return audio
+        data = encode_data_to_bytes(audio_data)        
+        return data
 
-    def _process_message_task(self, message: Message):         
-        content = self._process_multimodal_inputs(message)
-        return content
+    def _process_message_task(self, message: Message):
+        if self.task_multimodal_inputs.data:
+            content = self._process_multimodal_inputs(message)
+        else:
+            raise AttributeError(
+                "A message object was passed but neither `multimodal_task_inputs` "
+                "were defined"
+            )            
+        return content        
 
     def _process_multimodal_inputs(self, message: Message) -> bytes:
         content = None
+        audio_path = self.task_multimodal_inputs.data.get("audio", None)
 
-        if isinstance(self.task_multimodal_inputs.data, dict):
-            for audio_path in self.task_multimodal_inputs.data.get("audios", []):
-                if isinstance(audio_path, tuple):
-                    audio_data = self._get_content_from_or_input(audio_path, message)
-                else:
-                    audio_data = message.get(audio_path)
-                if audio_data:
-                    content = audio_data
-
+        if audio_path:
+            content = self._get_content_from_message(audio_path, message)
+            
         if content is None:
             raise ValueError(f"No audio found in paths: `{self.task_inputs.data}`")            
         return content

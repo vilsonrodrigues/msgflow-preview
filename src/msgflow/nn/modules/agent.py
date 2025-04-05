@@ -376,7 +376,7 @@ class Agent(Module):
 
         # Process text content
         if self.task_inputs.data:
-            text_content = self._process_text_inputs(message)
+            text_content = self._process_inputs(message)
             if self.task_template.data:
                 text_content = self._format_task_template(text_content)
             content += f"# Task:\n{text_content}\n\n"
@@ -397,23 +397,22 @@ class Agent(Module):
         else:
             return content
 
-    def _process_text_inputs(self, message: Message) -> Union[str, Dict[str, Any]]:
+    def _process_inputs(self, message: Message) -> Union[str, Dict[str, Any]]:
         # TODO allow other fields besides outputs?
+        content = None
+        
         if self.task_inputs == "outputs":  # Consume all values in outputs
-            return "\n\n".join(str(v) for v in message.get("outputs").values())
+            content = "\n\n".join(str(v) for v in message.get("outputs").values())
         elif isinstance(self.task_inputs.data, str):
-            return message.get(self.task_inputs.data)
+            content = self._get_content_from_message(self.task_inputs.data, message)
         elif isinstance(self.task_inputs.data, dict):
             text_inputs = {}
-            for k, v in self.task_inputs.data.items():                
-                if isinstance(v, tuple): # OR inputs
-                    text_inputs[k] = self._get_content_from_or_input(v, message)
-                else:
-                    text_inputs[k] = message.get(v)
-            return text_inputs
-        else:
-            return None
-
+            for k, v in self.task_inputs.data.items():
+                text_inputs[k] = self._get_content_from_message(v, message)
+            content = text_inputs
+            
+        return content
+    
     def _context_manager(self, message: Message): # TODO support to list, dict, str
         """ Manager agent context """
         content = ""
@@ -450,22 +449,16 @@ class Agent(Module):
         content = []
         
         if isinstance(self.task_multimodal_inputs.data, dict):
-            for image_path in self.task_multimodal_inputs.data.get("images", []):
-                if isinstance(image_path, tuple):
-                    image_data = self._get_content_from_or_input(image_path, message)
-                else:
-                    image_data = message.get(image_path)
+            for image_path in self.task_multimodal_inputs.data.get("image", []):
+                image_data = self._get_content_from_message(image_path, message)
                 if image_data:
                     if not image_data.startswith("http") and not is_base64(image_data):
                         base64_image = encode_local_file_in_base64(image_data)
                         image_data = f"data:image/jpeg;base64,{base64_image}"
                     content.append({"type": "image_url", "image_url": {"url": image_data}})
 
-            for audio_path in self.task_multimodal_inputs.data.get("audios", []):
-                if isinstance(audio_path, tuple):
-                    audio_data = self._get_content_from_or_input(audio_path, message)
-                else:
-                    audio_data = message.get(audio_path)
+            for audio_path in self.task_multimodal_inputs.data.get("audio", []):
+                audio_data = self._get_content_from_message(audio_path, message)
                 if audio_data:
                     audio_format = Path(audio_data).suffix
                     if not audio_data.startswith("http") and not is_base64(audio_data):
@@ -488,21 +481,17 @@ class Agent(Module):
                             }
                         )
 
-            for pdf_path in self.task_multimodal_inputs.data.get("pdfs", []):
-                if isinstance(pdf_path, tuple):
-                    pdf_data = self._get_content_from_or_input(pdf_path, message)
-                else:
-                    pdf_data = message.get(pdf_path)
-                
-                if pdf_data:
-                    filename = get_filename(pdf_data)
-                    if pdf_data.startswith("http"):
-                        pdf_data = download_file(pdf_data)                        
-                    if pdf_data is not is_base64(pdf_data):
-                        base64_pdf = encode_local_file_in_base64(pdf_data)
-                    pdf_data = f"data:application/pdf;base64,{base64_pdf}"                    
+            for file_path in self.task_multimodal_inputs.data.get("file", []):
+                file_data = self._get_content_from_message(file_path, message)                
+                if file_data:
+                    filename = get_filename(file_data)
+                    if file_data.startswith("http"):
+                        file_data = download_file(file_data)                        
+                    if file_data is not is_base64(file_data):
+                        base64_pdf = encode_local_file_in_base64(file_data)
+                    file_data = f"data:application/pdf;base64,{base64_pdf}"                    
                     content.append(
-                        {"type": "file", "file": {"filename": filename, "file_data": pdf_data}}
+                        {"type": "file", "file": {"filename": filename, "file_data": file_data}}
                     )
 
         return content
@@ -601,14 +590,6 @@ class Agent(Module):
             self.register_buffer("model", model)
         else:
             raise TypeError(f"`model` need be a `chat completion` model, given `{type(model)}`")
-
-    # TODO 
-    #def _set_predicted_outputs(self, predicted_outputs: bool):
-    #    if isinstance(predicted_outputs, bool):
-    #        self.register_buffer("predicted_outputs", predicted_outputs)
-    #    else:
-    #        raise TypeError("`predicted_outputs` requires bool "
-    #                        f"given `{type(predicted_outputs)}`")
 
     def _set_tool_choice(self, tool_choice: Optional[str] = None):
         if isinstance(tool_choice, str) or tool_choice is None:

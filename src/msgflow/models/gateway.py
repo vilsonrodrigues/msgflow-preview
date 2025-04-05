@@ -5,13 +5,13 @@ from msgflow.models.base import BaseModel
 
 class ModelGateway:
     
-    msgflow_type = "model_gateway"   
-    current_model_index = 0
+    msgflow_type = "model_gateway"    
     model_types = None
 
     def __init__(self, models: List[BaseModel], max_model_failures: Optional[int] = 3):
         self._set_models(models)
         self.max_model_failures = max_model_failures
+        self.current_model_index = 0
 
     def _set_models(self, models):
         if not all(isinstance(model, BaseModel) for model in models):    

@@ -1,4 +1,4 @@
-from typing import Dict, Literal, Optional, Union
+from typing import Literal, Optional, Union
 from msgflow.message import Message
 from msgflow.models.gateway import ModelGateway
 from msgflow.models.types import TTSModel
@@ -46,19 +46,19 @@ class Speaker(Module):
         self._set_task_inputs(task_inputs)
 
     def forward(self, message: Union[str, Message]):
-        text = self._prepare_task(message)
-        model_response = self._execute_model(text)
+        data = self._prepare_task(message)
+        model_response = self._execute_model(data)
         response = self._process_model_response(model_response, message)
         return response
 
-    def _execute_model(self, text):
-        model_execution_params = self._prepare_model_execution(text)
+    def _execute_model(self, data):
+        model_execution_params = self._prepare_model_execution(data)
         model_response = self.model.data(**model_execution_params)
         return model_response
 
-    def _prepare_model_execution(self, text):
+    def _prepare_model_execution(self, data):
         model_execution_params = {
-            "text": text,
+            "data": data,
             "response_format": self.response_format.data,
             "prompt": self.prompt.data,
             "stream": self.stream.data,
@@ -77,24 +77,20 @@ class Speaker(Module):
 
     def _prepare_task(self, message):
         if isinstance(message, str):
-            text = message
+            data = message
         elif isinstance(message, Message):
-            text = self._process_message_task(message)
+            data = self._process_message_task(message)
         else:
             raise ValueError(f"Unsupported message type: `{type(message)}`")
                 
-        return text
+        return data
 
     def _process_message_task(self, message: Message):         
-        content = self._process_text_inputs(message)
+        content = self._process_inputs(message)
         return content
 
-    def _process_text_inputs(self, message: Message):
-        if isinstance(self.task_inputs.data, str):
-            content = message.get(self.task_inputs.data)
-        elif isinstance(self.task_inputs.data, tuple): # OR inputs
-            content = self._get_content_from_or_input(self.task_inputs.data, message)
-
+    def _process_inputs(self, message: Message):
+        content = self._get_content_from_message(self.task_inputs.data, message)
         if content is None:
             raise ValueError(f"No text found in paths: `{self.task_inputs.data}`")
         return content

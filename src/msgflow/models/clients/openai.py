@@ -34,22 +34,15 @@ from msgflow.utils.tenacity import model_retry
 
 OpenAIInstrumentor().instrument()
 
-# TODO: from response to modelresponse IF you want to add more types of output like this
-# what may be necessary for greater tracing coverage
-
-# log token usage
 # support continuing generation by validating the reason
-
-# TODO split sampling params into 2, normal and run
-
 
 class _BaseOpenAI(BaseModel):
 
-    provider: str = "openai"
-    current_key_index: int = 0
+    provider: str = "openai"    
 
     def _initialize_client(self):
         """Initialize the OpenAI client with empty API key."""
+        self.current_key_index = 0
         max_retries = getenv("OPENAI_MAX_RETRIES", openai.DEFAULT_MAX_RETRIES)
         timeout = getenv("OPENAI_TIMEOUT", None)
         base_url = self._get_base_url()
@@ -399,13 +392,13 @@ class OpenAITTS(_BaseOpenAI, TTSModel):
 
     def __call__(
         self, 
-        text: str, 
+        data: str, 
         *, 
         stream: Optional[bool] = False, 
         prompt: Optional[str] = None,
         response_format: Optional[Literal["mp3", "opus", "aac", "flac", "wav", "pcm"]] = "opus",
     ) -> Union[ModelResponse, ModelStreamResponse]:
-        params = {"input": text, "response_format": response_format}
+        params = {"input": data, "response_format": response_format}
         if prompt:
             params["instructions"] = prompt
         if stream:
@@ -562,7 +555,7 @@ class OpenAIASR(_BaseOpenAI, ASRModel):
 
     def __call__(
         self,
-        audio: bytes,
+        data: bytes,
         *,
         stream: Optional[bool] = False,
         response_format: Optional[
@@ -573,7 +566,7 @@ class OpenAIASR(_BaseOpenAI, ASRModel):
         language: Optional[str] = None,        
     ):
         params = {
-            "file": audio,
+            "file": data,
             "language": language,
             "response_format": response_format,
             "timestamp_granularities": timestamp_granularities,
