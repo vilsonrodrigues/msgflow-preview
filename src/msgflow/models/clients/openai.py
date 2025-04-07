@@ -482,7 +482,7 @@ class OpenAIASR(_BaseOpenAI, ASRModel):
     def __init__(
         self,
         *,
-        model_id: Optional[str] = "gpt-4o-transcribe",
+        model_id: Optional[str] = "gpt-4o-mini-transcribe",
         temperature: Optional[float] = 0.0,
         organization: Optional[str] = None,
         project: Optional[str] = None,
