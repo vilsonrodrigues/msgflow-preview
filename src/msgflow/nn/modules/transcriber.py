@@ -69,7 +69,7 @@ class Transcriber(Module):
 
     def _execute_model(self, data):
         model_execution_params = self._prepare_model_execution(data)
-        model_response = self.model(**model_execution_params)
+        model_response = self.model.data(**model_execution_params)
         return model_response
 
     def _prepare_model_execution(self, data):
