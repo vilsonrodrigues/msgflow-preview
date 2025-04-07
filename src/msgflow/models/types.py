@@ -15,12 +15,16 @@ class ImageClassifierModel:
     model_type = "image_classifier"
 
 
-class TextClassifierModel:
-    model_type = "text_classifier"
-
-
 class VideoClassifierModel:
     model_type = "video_classifier"
+
+
+class TabularClassifierModel:
+    model_type = "tabular_classifier"
+
+
+class TextClassifierModel:
+    model_type = "text_classifier"
 
 
 class ZeroShotImageClassifierModel:
@@ -159,9 +163,13 @@ class ObjectDetectorModel:
     model_type = "object_detector"
 
 
-class TextRerankerModel:
-    model_type = "text_reranker"
-
-
 class VADModel:
     model_type = "vad"
+
+
+class TabularRegressorModel:
+    model_type = "tabular_regressor"
+
+
+class TextRerankerModel:
+    model_type = "text_reranker"
