@@ -28,6 +28,7 @@ from msgflow.models.types import (
     TTSModel,
 )
 from msgflow.utils.chat import adapt_struct_schema_to_json_schema
+from msgflow.utils.encode import encode_data_to_bytes
 from msgflow.utils.msgspec import struct_to_dict
 from msgflow.utils.tenacity import model_retry
 
@@ -459,9 +460,9 @@ class OpenAIImageTextToImage(_BaseOpenAI, ImageTextToImageModel):
         inputs = {}
         inputs["inputs"] = "b64_json" if response_format else response_format
         if image:
-            inputs["image"] = open(image, "rb")
+            inputs["image"] = encode_data_to_bytes(image) # TODO: validate
         if mask:
-            inputs["mask"] = open(mask, "rb")
+            inputs["mask"] = encode_data_to_bytes(mask)
         return inputs
 
     def __call__(
