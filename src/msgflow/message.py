@@ -5,13 +5,13 @@ from msgflow.accessor import Accessor
 
 
 class _CoreMessage(Accessor):
-    _route = []
 
     def __init__(self, user_id: str, chat_id: str):
         super().__init__()
         self.execution_id = str(uuid4())
         self.user_id = user_id
         self.chat_id = chat_id
+        self._route = []
         
     def get_route(self):
         return " -> ".join(self._route)
@@ -19,9 +19,6 @@ class _CoreMessage(Accessor):
 
 class Message(_CoreMessage):
     r"""TODO class description"""
-
-    outputs = OrderedDict()
-    response = OrderedDict()
 
     def __init__(
         self,
@@ -44,6 +41,8 @@ class Message(_CoreMessage):
         self.images = images
         self.videos = videos
         self.extra = extra
+        self.outputs = OrderedDict()
+        self.response = OrderedDict()    
 
     def get_response(self):
         if self.get("response"):
