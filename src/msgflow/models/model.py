@@ -84,11 +84,17 @@ class Model:
         if provider not in providers:
             raise ValueError(f"Provider `{provider}` is not supported for {model_type}")
 
-        provider_class_name = f"{_MODEL_NAMESPACE_TRANSLATOR[provider]}{model_type.title().replace('_', '')}"
+        if len(model_type) <= 3:
+            model_type = model_type.upper()
+        else:
+            model_type = model_type.title().replace("_", "")
+
+        provider_class_name = f"{_MODEL_NAMESPACE_TRANSLATOR[provider]}{model_type}"
                 
         module_base = "local" if provider in cls.local_providers else "clients"
         
         # Solve cases as "local-vllm" to "vllm" to py files
+        # TODO: its is solved using new 'batched' definition
         provider = provider.replace("local_", "")
         module_name = f"msgflow.models.{module_base}.{provider}"
                 
