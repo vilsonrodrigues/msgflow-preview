@@ -102,7 +102,7 @@ class DataBase:
         
         Args:
             provider: The db provider (e.g., "faiss", "cachetools")
-            db_type: The type of model (e.g., "vector", "kv")
+            db_type: The type of db (e.g., "vector", "kv")
             params: Dictionary containing the serialized db parameters
             
         Returns:
