@@ -1,5 +1,5 @@
 from typing import Any, Dict, Type
-from msgflow.models.base import BaseClient
+from msgflow.models.base import BaseModel
 from msgflow.models.types import (
     ASRModel,
     ChatCompletionModel,
@@ -76,7 +76,7 @@ class Model:
         return provider, model_id
 
     @classmethod
-    def _get_model_class(cls, model_type: str, provider: str) -> Type[BaseClient]:
+    def _get_model_class(cls, model_type: str, provider: str) -> Type[BaseModel]:
         if model_type not in cls.supported_model_types:
             raise ValueError(f"Model type `{model_type}` is not supported")
             
@@ -101,13 +101,13 @@ class Model:
         return import_module_from_lib(provider_class_name, module_name)
 
     @classmethod
-    def _create_model(cls, model_type: str, model_path: str, **kwargs) -> BaseClient:
+    def _create_model(cls, model_type: str, model_path: str, **kwargs) -> Type[BaseModel]:
         provider, model_id = cls._model_path_parser(model_path)
         model_cls = cls._get_model_class(model_type, provider)
         return model_cls(model_id=model_id, **kwargs)
 
     @classmethod
-    def from_serialized(cls, provider: str, model_type: str, params: Dict[str, Any]) -> BaseClient:
+    def from_serialized(cls, provider: str, model_type: str, params: Dict[str, Any]) -> Type[BaseModel]:
         """
         Creates a model instance from serialized parameters without calling __init__.
         
@@ -127,29 +127,29 @@ class Model:
         return instance
 
     @classmethod
-    def chat_completion(cls, model_path: str, **kwargs) -> ChatCompletionModel:
+    def chat_completion(cls, model_path: str, **kwargs) -> Type[ChatCompletionModel]:
         return cls._create_model("chat_completion", model_path, **kwargs)
 
     @classmethod
-    def image_text_to_image(cls, model_path: str, **kwargs) -> ImageTextToImageModel:
+    def image_text_to_image(cls, model_path: str, **kwargs) -> Type[ImageTextToImageModel]:
         return cls._create_model("image_gen", model_path, **kwargs)
 
     @classmethod
-    def tts(cls, model_path: str, **kwargs) -> TTSModel:
+    def tts(cls, model_path: str, **kwargs) -> Type[TTSModel]:
         return cls._create_model("tts", model_path, **kwargs)
 
     @classmethod
-    def asr(cls, model_path: str, **kwargs) -> ASRModel:
+    def asr(cls, model_path: str, **kwargs) -> Type[ASRModel]:
         return cls._create_model("asr", model_path, **kwargs)
 
     @classmethod
-    def text_embedder(cls, model_path: str, **kwargs) -> TextEmbedderModel:
+    def text_embedder(cls, model_path: str, **kwargs) -> Type[TextEmbedderModel]:
         return cls._create_model("text_embedder", model_path, **kwargs)
 
     @classmethod
-    def image_embedder(cls, model_path: str, **kwargs) -> ImageEmbedderModel:
+    def image_embedder(cls, model_path: str, **kwargs) -> Type[ImageEmbedderModel]:
         return cls._create_model("image_embedder", model_path, **kwargs)
 
     @classmethod
-    def text_reranker(cls, model_path: str, **kwargs) -> TextRerankerModel:
+    def text_reranker(cls, model_path: str, **kwargs) -> Type[TextRerankerModel]:
         return cls._create_model("text_reranker", model_path, **kwargs)
