@@ -18,7 +18,7 @@ class GeoDB:
     db_type = "geo_db"
 
 
-class KvDB:
+class KVDB:
     db_type = "kv_db"
 
 

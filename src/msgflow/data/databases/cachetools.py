@@ -2,13 +2,13 @@ from cachetools import TTLCache
 from typing import Any, Dict, List, Optional, Union
 import msgspec
 from msgflow.data.databases.base import BaseDB
-from msgflow.data.databases.types import KvDB
+from msgflow.data.databases.types import KVDB
 from msgflow.utils.convert import convert_str_to_hash
 
 
-class CacheToolsKvDB(BaseDB, KvDB):
+class CacheToolsKVDB(BaseDB, KVDB):
 
-    provider: cachetools
+    provider = "cachetools"
 
     def __init__(
         self, 
