@@ -8,4 +8,4 @@ class BaseRetriever(BaseClient):
     to_ignore = ["client"]
 
     def instance_type(self) -> Dict[str, str]:
-        return {"parser_type": self.retriever_type}
+        return {"retriever_type": self.retriever_type}
