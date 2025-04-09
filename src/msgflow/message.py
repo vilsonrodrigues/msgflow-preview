@@ -53,7 +53,7 @@ class Message(_CoreMessage):
     def __repr__(self):
         to_ignore = ["_route"]
         attrs = [
-            (k, v) for k, v in self._attributes.items() 
+            (k, v) for k, v in self._attributes.items()
             if k not in to_ignore
         ]
         attrs_str = "\n".join(f"   {k}={repr(v)}" for k, v in attrs)

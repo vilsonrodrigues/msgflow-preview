@@ -29,7 +29,9 @@ class ModelResponse(_BaseResponse):
         "text_embedding",
         "text_generation",
     ] = None
-    data = None
+
+    def __init__(self):
+        self.data = None    
 
     def add(self, data):
         self.data = data
@@ -42,8 +44,10 @@ class ModelStreamResponse(_BaseResponse):
     response_type: Literal[
         "audio_generation", "structured", "text_generation", "tool_call"
     ] = None
-    first_chunk_event = Event()
-    queue = Queue()
+
+    def __init__(self):        
+        self.first_chunk_event = Event()
+        self.queue = Queue()
 
     def add(self, data):
         self.queue.put_nowait(data)
