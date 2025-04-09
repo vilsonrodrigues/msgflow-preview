@@ -68,7 +68,7 @@ _PROVIDERS_BY_DB_TYPE = {
 }
 
 
-class Model:
+class DataBase:
     supported_db_types = _SUPPORTED_DB_TYPES
     providers_by_db_type = _PROVIDERS_BY_DB_TYPE
 
