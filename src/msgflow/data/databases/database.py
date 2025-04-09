@@ -92,7 +92,7 @@ class DataBase:
 
     @classmethod
     def _create_db(cls, db_type: str, provider: str, **kwargs) -> Type[BaseDB]:
-        db_cls = cls._get_model_class(db_type, provider)
+        db_cls = cls._get_db_class(db_type, provider)
         return db_cls(**kwargs)
 
     @classmethod
