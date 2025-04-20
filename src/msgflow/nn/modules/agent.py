@@ -85,9 +85,6 @@ class Agent(Module):
             ...
         context_cache:
             ...
-        chat_history:
-            ...
-        chat_history_mode:
             ...
         fixed_messages:
             ...
@@ -180,7 +177,6 @@ class Agent(Module):
         self._set_task_template(task_template)
         self._set_stream(stream)
         self._set_tool_choice(tool_choice)
-        #self._set_predicted_outputs(predicted_outputs)
         self._set_annotations(_annotations or {"message": str, "return": str})
 
     def forward(self, message: Union[str, Dict[str, Any], Message]):
@@ -379,12 +375,12 @@ class Agent(Module):
             text_content = self._process_inputs(message)
             if self.task_template.data:
                 text_content = self._format_task_template(text_content)
-            content += f"# Task:\n{text_content}\n\n"
+            content += f"<task>\n{text_content}\n</task>\n"
         # It's possible to use `task_template` as the default task message
         # if no `task_inputs` is selected. This can be useful for multimodal
         # models that require a text message to be sent along with the data
         elif self.task_template.data:
-            content += f"# Task:\n{self.task_template.data}\n\n"
+            content += f"<task>\n{self.task_template.data}\n</task>\n"
 
         # Remove whitespace
         content = content.strip()
@@ -425,6 +421,7 @@ class Agent(Module):
         elif isinstance(self.context_inputs.data, list): # ["context.1", "context.2"]
             context_values = []
             for path in self.context_inputs.data:
+                # TODO: rever usando a nova funcao de extracao
                 if isinstance(path, tuple): # OR inputs
                     context_value = self._get_content_from_or_input(path, message)
                     if context_value is not None:
@@ -439,7 +436,7 @@ class Agent(Module):
             content += f"{msg_context}\n\n"                        
 
         if content:
-            context_content = f"# Context:\n{content}\n\n"
+            context_content = f"<context>\n{content}\n</context>\n"
             return context_content
         else:
             return None
@@ -631,11 +628,11 @@ class Agent(Module):
             system_prompt += f"{self.system_message.data}\n\n"
 
         if self.instructions.data:
-            system_prompt += f"# Instructions:\n{self.instructions.data}\n\n"
+            system_prompt += f"<instructions>\n{self.instructions.data}\n</instructions>\n"
 
         if self.expected_output.data:
             system_prompt += (
-                f"# Expected Output:\n{self.expected_output.data}\n\n"
+                f"<expected_output>\n{self.expected_output.data}\n</expected_output>\n"
             )
 
         return system_prompt

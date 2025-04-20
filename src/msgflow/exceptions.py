@@ -1,3 +1,5 @@
+from typing import List, Optional, Tuple
+
 # Temporary
 class KeyExhaustedError(Exception):
     """Exception raised when all API keys have been tried and failed."""
@@ -7,10 +9,17 @@ class ToolCallTimeOutError(Exception):
     pass
 
 class ModelRouterError(Exception):
-    def __init__(self, exceptions, model_info):
+    def __init__(
+        self, 
+        exceptions: List[Exception], 
+        model_info: List[Tuple[str, str, Exception]], 
+        message: Optional[str] = "Model routing failed"
+    ): 
         self.exceptions = exceptions
         self.model_info = model_info
-        message = "All model calls failed. Details:\n"
-        for i, (model_id, provider, exc) in enumerate(model_info):
-            message += f"Model {i + 1}: ID={model_id}, Provider={provider}, Error={str(exc)}\n"
-        super().__init__(message)
+        self.message = message        
+        super().__init__(self.message)
+
+    def __str__(self): 
+        details = "\n".join([f"  - Model: {m_id} ({prov}): {type(exc).__name__}: {exc}" for m_id, prov, exc in self.model_info])
+        return f"{self.message}\nCaptured Exceptions:\n{details}"

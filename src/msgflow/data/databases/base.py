@@ -6,7 +6,7 @@ from msgflow._private.core import BaseClient
 class BaseDB(BaseClient):
 
     msgflow_type = "db"
-    to_ignore = ["client"]
+    to_ignore = ["client", "documents"]
 
     def instance_type(self) -> Dict[str, str]:
          return {"db_type": self.db_type}  
@@ -16,4 +16,17 @@ class BaseDB(BaseClient):
         """
         Insert data on database
         """
-        raise NotImplementedError    
+        raise NotImplementedError
+
+    @abstractmethod
+    def _initialize(self):
+        """
+        Initialize the class. This method must be implemented by subclasses.
+
+        This method is called during the deserialization process to ensure that the client
+        is properly initialized after its state has been restored.
+
+        Raises:
+            NotImplementedError: If the method is not implemented by the subclass.
+        """
+        raise NotImplementedError

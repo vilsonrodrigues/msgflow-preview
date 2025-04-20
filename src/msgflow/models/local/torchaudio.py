@@ -34,7 +34,7 @@ class _BaseTorchAudio(BaseClient):
         self.compile = compile
         self.pooling_strategy = pooling_strategy
     
-    def _initialize_client(self):
+    def _initialize(self):
         bundle = pipelines.__dict__[self.sampling_params.get("model_id")]
         model = bundle.get_model()
         self.model = model.eval().to(self.dtype).to(self.device)

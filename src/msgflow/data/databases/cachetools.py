@@ -19,9 +19,9 @@ class CacheToolsKVDB(BaseDB, KVDB):
         self.hash_key = hash_key
         self.maxsize = maxsize
         self.ttl = ttl
-        self._initialize_client()
+        self._initialize()
 
-    def _initialize_client(self):
+    def _initialize(self):
         self.client = TTLCache(maxsize=self.maxsize, ttl=self.ttl)
         
     def add(self, documents: Union[List[Dict[str, Any]], Dict[str, Any]]):

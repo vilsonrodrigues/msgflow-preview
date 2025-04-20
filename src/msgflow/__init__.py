@@ -4,6 +4,7 @@ from .data.retrievers.retriever import Retriever
 from .envs import set_envs
 from .generation.signature import InputField, OutputField, Signature
 from .message import Message
+from .models.gateway import ModelGateway
 from .models.model import Model
 from .utils.inspect import get_fn_name
 from .utils.msgspec import load, save
@@ -12,8 +13,9 @@ from .utils.msgspec import load, save
 __all__ = [
     "DataBase",  
     "InputField",
-    "Message", 
+    "Message",
     "Model",
+    "ModelGateway",
     "OutputField",
     "Retriever",    
     "Signature",

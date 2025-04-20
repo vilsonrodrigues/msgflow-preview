@@ -41,7 +41,7 @@ class _BaseOpenAI(BaseModel):
 
     provider: str = "openai"    
 
-    def _initialize_client(self):
+    def _initialize(self):
         """Initialize the OpenAI client with empty API key."""
         self.current_key_index = 0
         max_retries = getenv("OPENAI_MAX_RETRIES", openai.DEFAULT_MAX_RETRIES)
@@ -142,14 +142,13 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         self.model_id = model_id
         self.sampling_params = {"organization": organization, "project": project}
         self.sampling_run_params = {
-            "model": self.model_id,
             "max_tokens": max_tokens,
             "temperature": temperature,
             "top_p": top_p,
             "modalities": modalities,
             "audio": audio,
         }
-        self._initialize_client()
+        self._initialize()
         self._get_api_key()
 
     @model_retry
@@ -162,7 +161,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                 {"role": "assistant", "content": prefilling}
             )
         model_output = self.client.chat.completions.create(
-            **kwargs, **self.sampling_run_params
+            model=self.model_id, **kwargs, **self.sampling_run_params,
         )
         return model_output
 
@@ -324,12 +323,10 @@ class OpenAITTS(_BaseOpenAI, TTSModel):
         self.model_id = model_id
         self.sampling_params = {"organization": organization, "project": project}
         self.sampling_run_params = {
-            "model": model_id,
             "voice": voice,
-            "response_format": response_format,
             "speed": speed,
         }
-        self._initialize_client()        
+        self._initialize()        
         self._get_api_key()
 
     @contextmanager
@@ -359,7 +356,7 @@ class OpenAITTS(_BaseOpenAI, TTSModel):
     @model_retry
     def _execute(self, **kwargs):
         with self.client.audio.speech.with_streaming_response.create(
-            **kwargs, **self.sampling_run_params
+            model=self.model_id, **kwargs, **self.sampling_run_params
         ) as model_output:
             yield model_output
 
@@ -430,16 +427,20 @@ class OpenAIImageTextToImage(_BaseOpenAI, ImageTextToImageModel):
         super().__init__()
         self.model_id = model_id
         self.sampling_params = {"organization": organization, "project": project}        
-        self.sampling_run_params = {"model": model_id, "size": size, "quality": quality}
-        self._initialize_client()        
+        self.sampling_run_params = {"size": size, "quality": quality}
+        self._initialize()
         self._get_api_key()
 
     @model_retry
     def _execute(self, **kwargs):
         if kwargs.get("image"):
-            model_output = self.client.images.edit(**kwargs, **self.sampling_run_params)
+            model_output = self.client.images.edit(
+                model=self.model_id, **kwargs, **self.sampling_run_params
+            )
         else:
-            model_output = self.client.images.generate(**kwargs, **self.sampling_run_params)
+            model_output = self.client.images.generate(
+                model=self.model_id, **kwargs, **self.sampling_run_params
+            )
         return model_output
 
     def _generate(self, **kwargs):
@@ -490,14 +491,14 @@ class OpenAIASR(_BaseOpenAI, ASRModel):
         super().__init__()        
         self.model_id = model_id
         self.sampling_params = {"organization": organization, "project": project}        
-        self.sampling_run_params = {"model": model_id, "temperature": temperature}
-        self._initialize_client()        
+        self.sampling_run_params = {"temperature": temperature}
+        self._initialize()        
         self._get_api_key()
 
     @model_retry
     def _execute(self, **kwargs):
         model_output = self.client.audio.transcriptions.create(
-            **kwargs, **self.sampling_run_params
+            model=self.model_id, **kwargs, **self.sampling_run_params
         )
         return model_output
 
@@ -596,15 +597,14 @@ class OpenAITextEmbedder(_BaseOpenAI, TextEmbedderModel):
     ):
         super().__init__()        
         self.model_id = model_id
-        self.sampling_params = {"organization": organization, "project": project}        
-        self.sampling_run_params = {"model": model_id}
-        self._initialize_client()        
+        self.sampling_params = {"organization": organization, "project": project}
+        self._initialize()        
         self._get_api_key()
 
     @model_retry
     def _execute(self, **kwargs):
         model_output = self.client.embeddings.create(
-            **kwargs, **self.sampling_run_params
+            model=self.model_id, **kwargs,
         )
         return model_output
 

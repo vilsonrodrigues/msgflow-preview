@@ -5,7 +5,8 @@ from msgflow._private.core import BaseClient
 class BaseRetriever(BaseClient):
 
     msgflow_type = "retriever"
-    to_ignore = ["client"]
+    to_ignore = ["client", "documents"]
 
     def instance_type(self) -> Dict[str, str]:
         return {"retriever_type": self.retriever_type}
+    

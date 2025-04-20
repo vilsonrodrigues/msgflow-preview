@@ -54,9 +54,9 @@ class _BaseCTranslate2(BaseClient):
         }
         self.model_id = model_id
         self.pooling_strategy = pooling_strategy
-        self._initialize_client()
+        self._initialize()
 
-    def _initialize_client(self):
+    def _initialize(self):
         self._init_processor()
         self._convert_to_ct2()
         self._init_model()

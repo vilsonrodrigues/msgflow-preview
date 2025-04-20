@@ -2,12 +2,16 @@ import math
 from collections import Counter
 from typing import Dict, List, Optional, Union
 from gevent.pool import Pool
+try:
+    from rank_bm25 import BM25Okapi
+except:
+    ImportError("pip install rank_bm25") # TODO
 from msgflow.data.retrievers.base import BaseRetriever
 from msgflow.data.retrievers.types import LexicalRetriever
 
 
-class BM25LexicalRetriever(BaseRetriever, LexicalRetriever):
-    """ Okapi BM25 - Best Matching 25
+class RankBM25LexicalRetriever(BaseRetriever, LexicalRetriever):
+    """ Rank Okapi BM25 - Best Matching 25
     
     Args:
         k1: Tuning parameter for term frequency (default 1.5)

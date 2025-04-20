@@ -33,9 +33,11 @@ class FAISSVectorDB(BaseDB, VectorDB):
     """
 
     def __init__(
-        self, dimension: int, metric_type: str = "cosine", index_type: str = "flat"
+        self, 
+        dimension: int, 
+        metric_type: Optional[str] = "cosine", 
+        index_type: Optional[str] = "flat"
     ):
-        # Validate metric type
         valid_metrics = {
             "cosine": faiss.METRIC_INNER_PRODUCT,
             "l2": faiss.METRIC_L2,
@@ -46,24 +48,24 @@ class FAISSVectorDB(BaseDB, VectorDB):
                 f"Invalid metric type. Choose from {list(valid_metrics.keys())}"
             )
 
-        # Create the appropriate index based on type and metric
-        if index_type == "flat":
-            if metric_type == "cosine":
+        self.dimension = dimension
+        self.index_type = index_type
+        self.metric_type = metric_type
+        self._initialize()
+
+    def _initialize(self):
+        if self.index_type == "flat":
+            if self.metric_type == "cosine":
                 # For cosine similarity, use IndexFlatIP with normalized vectors
-                self.index = faiss.IndexFlatIP(dimension)
-            elif metric_type == "l2":
-                self.index = faiss.IndexFlatL2(dimension)
+                self.index = faiss.IndexFlatIP(self.dimension)
+            elif self.metric_type == "l2":
+                self.index = faiss.IndexFlatL2(self.dimension)
             else:  # inner product
-                self.index = faiss.IndexFlatIP(dimension)
+                self.index = faiss.IndexFlatIP(self.dimension)
         else:
             raise ValueError("Currently only 'flat' index type is supported")
-
-        # Store parameters
-        self.dimension = dimension
-        self.metric_type = metric_type
-
-        # Metadata storage
         self.documents = []
+        # TODO: support to restore data
 
     def add(
         self,

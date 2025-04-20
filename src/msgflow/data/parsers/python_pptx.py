@@ -11,7 +11,7 @@ except:
 from msgflow.data.parsers.base import BaseParser
 from msgflow.data.parsers.types import PptxParser
 
-
+# TODO: convert image ot base64
 class PythonPPTXPptxParser(BaseParser, PptxParser):
 
     """ Python-PPTX Pptx Parser is a module to convert 

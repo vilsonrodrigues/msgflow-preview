@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Any, Dict, Literal, Optional, Union
 from msgflow.message import Message
 from msgflow.models.base import BaseModel
 from msgflow.models.gateway import ModelGateway
@@ -53,13 +53,19 @@ class Designer(Module):
         task_inputs: Optional[str] = None,
         task_multimodal_inputs: Optional[Dict[str, str]] = None,
         response_format: Optional[Literal["base64", "url"]] = None,
-        response_mode: Optional[str] = "plain_response",        
-        execution_kwargs: Optional[Dict] = None,
+        response_mode: Optional[str] = "plain_response",
+        negative_prompt: Optional[str] = None,
+        fps: Optional[int] = None,
+        duration_seconds: Optional[int] = None,
+        execution_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__()
         self.set_name(name)
         self._set_model(model)
+        self._set_duration_seconds(duration_seconds)
         self._set_execution_kwargs(execution_kwargs)
+        self._set_fps(fps)
+        self._set_negative_prompt(negative_prompt)
         self._set_response_mode(response_mode)
         self._set_response_format(response_format)        
         self._set_task_inputs(task_inputs)
@@ -79,7 +85,13 @@ class Designer(Module):
     def _prepare_model_execution(self, params):        
         model_execution_params = self.execution_kwargs.data or {}
         model_execution_params.update(params)
-        return model_execution_params        
+        if self.negative_prompt.data:
+            model_execution_params["negative_prompt"] = self.negative_prompt.data
+        if self.fps.data:
+            model_execution_params["fps"] = self.fps.data
+        if self.duration_seconds.data:
+            model_execution_params["duration_seconds"] = self.duration_seconds.data        
+        return model_execution_params
 
     def _process_model_response(self, model_response, message):
         if model_response.response_type == "audio_generation":
@@ -148,3 +160,22 @@ class Designer(Module):
             self.register_buffer("response_format", response_format)
         else:
             raise TypeError(f"`response_format` need be a str or given `{type(response_format)}")               
+
+    def _set_negative_prompt(self, negative_prompt: Optional[str] = None):
+        if isinstance(negative_prompt, str) or negative_prompt is None:
+            self.register_buffer("negative_prompt", negative_prompt)
+        else:
+            raise TypeError(f"`negative_prompt` need be a str or None given `{type(negative_prompt)}`")
+
+    def _set_fps(self, fps: Optional[int] = None):
+        if isinstance(fps, int) or fps is None:
+            self.register_buffer("fps", fps)
+        else:
+            raise TypeError(f"`fps` need be an int or None given `{type(fps)}`")
+
+    def _set_duration_seconds(self, duration_seconds: Optional[int] = None):
+        if isinstance(duration_seconds, int) or duration_seconds is None:
+            self.register_buffer("duration_seconds", duration_seconds)
+        else:
+            raise TypeError(f"`duration_seconds` need be an int or None given `{type(duration_seconds)}`")        
+  

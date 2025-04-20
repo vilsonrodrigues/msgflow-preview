@@ -44,9 +44,9 @@ class _BaseTorchVision(BaseClient, BaseVision):
         self.sampling_params = {"name": model_id}        
         if self.model_type == "object_detector":
             self.sampling_params["box_score_thresh"] = box_score_thresh
-        self._initialize_client()
+        self._initialize()
     
-    def _initialize_client(self):
+    def _initialize(self):
         weight_enum = get_model_weights(**self.sampling_params)
         weights = weight_enum.DEFAULT        
         model = get_model(**self.sampling_params, weights=weights)

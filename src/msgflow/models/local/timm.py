@@ -40,9 +40,9 @@ class _BaseTimm(BaseClient, BaseVision):
         self.compile = compile
         self.return_score = return_score
         self.id2label = id2label
-        self._initialize_client()
+        self._initialize()
 
-    def _initialize_client(self):
+    def _initialize(self):
         model = timm.create_model(**self.sampling_params)
         self.model = model.eval().to(self.dtype).to(self.device)
         if self.compile:

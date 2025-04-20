@@ -17,9 +17,9 @@ class DiskCacheKVDB(BaseDB, KVDB):
     def __init__(self, ttl: Optional[int] = 3600, hash_key: Optional[bool] = True):
         self.hash_key = hash_key
         self.ttl = ttl
-        self._initialize_client()
+        self._initialize()
 
-    def _initialize_client(self):
+    def _initialize(self):
         self.client = Cache(timeout=1)
         
     def add(self, documents: Union[List[Dict[str, Any]], Dict[str, Any]]):

@@ -2,6 +2,7 @@ from typing import Any, Dict, Type
 from msgflow.models.base import BaseModel
 from msgflow.models.types import (
     ASRModel,
+    BatchedChatCompletionModel,
     ChatCompletionModel,
     ImageTextToImageModel,
     ImageEmbedderModel,
@@ -15,6 +16,7 @@ from msgflow.utils.imports import import_module_from_lib
 _SUPPORTED_MODEL_TYPES = [
     "asr",    
     "chat_completion",
+    "batched_chat_completion",
     #"audio_classifier",
     #"audio_embedder",
     #"mask_gen",
@@ -29,7 +31,7 @@ _SUPPORTED_MODEL_TYPES = [
     "tts",
     #"text_classifier",
     "text_embedder",
-    #"text_reranker",
+    "text_reranker",
     #"video_classifier",
     #"video_gen",    
 ]
@@ -46,7 +48,8 @@ _MODEL_NAMESPACE_TRANSLATOR = {
     "together": "Together"
 } 
 
-_CHAT_COMPLETION_PROVIDERS = ["openai", "local_vllm", "vllm", "together"] 
+_CHAT_COMPLETION_PROVIDERS = ["openai", "vllm", "vllm", "together"] 
+_BATCHED_CHAT_COMPLETION_PROVIDERS = ["vllm"]
 _IMAGE_EMBEDDER_PROVIDERS = ["timm"]
 _IMAGE_TEXT_TO_IMAGE_PROVIDERS = ["openai"]
 _TTS_PROVIDERS = ["openai"]
@@ -56,6 +59,7 @@ _TEXT_EMBEDDER_PROVIDERS = ["openai"]
 
 _PROVIDERS_BY_MODEL_TYPE = {
     "chat_completion": _CHAT_COMPLETION_PROVIDERS,
+    "batched_chat_completion": _BATCHED_CHAT_COMPLETION_PROVIDERS,
     "asr": _ASR_PROVIDERS,
     "image_embedder": _IMAGE_EMBEDDER_PROVIDERS,
     "image_text_to_image": _IMAGE_TEXT_TO_IMAGE_PROVIDERS,
@@ -63,12 +67,12 @@ _PROVIDERS_BY_MODEL_TYPE = {
     "text_embedder": _TEXT_EMBEDDER_PROVIDERS,    
 }
 
-_LOCAL_PROVIDERS = ["local_vllm"]
+#_LOCAL_PROVIDERS = ["local_vllm"]
 
 class Model:
     supported_model_types = _SUPPORTED_MODEL_TYPES
     providers_by_model_type = _PROVIDERS_BY_MODEL_TYPE
-    local_providers = _LOCAL_PROVIDERS
+    #local_providers = _LOCAL_PROVIDERS
 
     @classmethod
     def _model_path_parser(cls, model_id: str) -> tuple[str, str]:
@@ -91,12 +95,12 @@ class Model:
 
         provider_class_name = f"{_MODEL_NAMESPACE_TRANSLATOR[provider]}{model_type}"
                 
-        module_base = "local" if provider in cls.local_providers else "clients"
+        #module_base = "local" if provider in cls.local_providers else "clients"
         
         # Solve cases as "local-vllm" to "vllm" to py files
         # TODO: its is solved using new 'batched' definition
-        provider = provider.replace("local_", "")
-        module_name = f"msgflow.models.{module_base}.{provider}"
+        #provider = provider.replace("local_", "")
+        module_name = f"msgflow.models.clients.{provider}"
                 
         return import_module_from_lib(provider_class_name, module_name)
 
@@ -107,14 +111,14 @@ class Model:
         return model_cls(model_id=model_id, **kwargs)
 
     @classmethod
-    def from_serialized(cls, provider: str, model_type: str, params: Dict[str, Any]) -> Type[BaseModel]:
+    def from_serialized(cls, provider: str, model_type: str, state: Dict[str, Any]) -> Type[BaseModel]:
         """
         Creates a model instance from serialized parameters without calling __init__.
         
         Args:
             provider: The model provider (e.g., "openai", "google")
             model_type: The type of model (e.g., "chat_completation", "text_embedder")
-            params: Dictionary containing the serialized model parameters
+            state: Dictionary containing the serialized model parameters
             
         Returns:
             An instance of the appropriate model class with restored state
@@ -123,11 +127,15 @@ class Model:
         # Create instance without calling __init__
         instance = object.__new__(model_cls)
         # Restore the instance state
-        instance.from_serialized(params)
+        instance.from_serialized(state)
         return instance
 
     @classmethod
     def chat_completion(cls, model_path: str, **kwargs) -> Type[ChatCompletionModel]:
+        return cls._create_model("chat_completion", model_path, **kwargs)
+
+    @classmethod
+    def batched_chat_completion(cls, model_path: str, **kwargs) -> Type[BatchedChatCompletionModel]:
         return cls._create_model("chat_completion", model_path, **kwargs)
 
     @classmethod

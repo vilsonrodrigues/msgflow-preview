@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Any, Dict, Optional, Union
 from msgflow.message import Message
 from msgflow.models.base import BaseModel
 from msgflow.models.gateway import ModelGateway

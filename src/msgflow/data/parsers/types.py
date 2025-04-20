@@ -10,6 +10,9 @@ class EmailParser:
 class MediaParser:
     parser_type = "media"
 
+class PdfParser:
+    parser_type = "pdf"
+
 class PptxParser:
     parser_type = "pptx"
 

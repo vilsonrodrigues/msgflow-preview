@@ -1,7 +1,40 @@
+import pathlib
+from io import BytesIO
+from typing import Dict, Union
+try:
+    from openpyxl import load_workbook
+except:
+    raise ImportError("`openpyxl` not detected, please install"
+                      "using `pip install msgflow[openpyxl]`")
 from msgflow.data.parsers.base import BaseParser
 from msgflow.data.parsers.types import XlsxParser
 
-from openpyxl import load_workbook
+# TODO: convert image ot base64
+class OpenPyxlXlsxParser(BaseParser, XlsxParser):
+    """ OpenPyxl Xlsx Parser is a module to convert 
+    .xlsx in markdown. 
+
+    This module is able to extract images and return them
+    as BytesIO (BufferReader).
+    """
+    
+    provider = "python_pptx"
+
+    def __init__(self):
+        pass
+
+    def __call__(self, path: str) -> Dict[str, Union[str, Dict[str, BytesIO]]]:
+        if pathlib.Path(path).suffix.lower() == ".pptx":
+            return self._convert(path)
+        else:
+            ValueError("`Python-PPTX` requires a path that "
+                       f"ends with `.pptx`, given `{path}`")
+
+    def _convert(self, path):
+        # TODO
+        ...
+
+
 
 def find_tables(sheet):
     tables = []

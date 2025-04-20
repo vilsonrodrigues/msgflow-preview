@@ -27,7 +27,7 @@ class BaseClient(ABC, Core):
     to implement certain methods, ensuring a consistent interface across different client
     implementations.
 
-    Subclasses must implement the `_initialize_client` and `__call__` methods, which are
+    Subclasses must implement the `_initialize` and `__call__` methods, which are
     essential for client initialization and operation, respectively. Additionally, this
     class provides methods for serialization and deserialization, allowing client instances
     to be easily saved and restored.
@@ -92,7 +92,10 @@ class BaseClient(ABC, Core):
         Returns:
             BaseClient: A new instance of the client with its state restored.
         """
+        if "msgflow_type" in state:
+            state.pop("msgflow_type")
         instance = cls()
         instance.__setstate__(state)
-        instance._initialize_client()
+        # TODO: validar se tem _initialize, se sim, chama
+        instance._initialize()
         return instance
