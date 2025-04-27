@@ -48,7 +48,7 @@ _MODEL_NAMESPACE_TRANSLATOR = {
     "together": "Together"
 } 
 
-_CHAT_COMPLETION_PROVIDERS = ["openai", "vllm", "vllm", "together"] 
+_CHAT_COMPLETION_PROVIDERS = ["openai", "vllm", "vllm", "together"]
 _BATCHED_CHAT_COMPLETION_PROVIDERS = ["vllm"]
 _IMAGE_EMBEDDER_PROVIDERS = ["timm"]
 _IMAGE_TEXT_TO_IMAGE_PROVIDERS = ["openai"]
@@ -56,23 +56,23 @@ _TTS_PROVIDERS = ["openai"]
 _ASR_PROVIDERS = ["openai"]
 _TEXT_EMBEDDER_PROVIDERS = ["openai"]
 #_TEXT_RERANKER_PROVIDERS = ["openai", "sbert"]
+_MODERATION_PROVIDERS = ["openai"]
 
 _PROVIDERS_BY_MODEL_TYPE = {
+    "asr": _ASR_PROVIDERS,    
     "chat_completion": _CHAT_COMPLETION_PROVIDERS,
     "batched_chat_completion": _BATCHED_CHAT_COMPLETION_PROVIDERS,
-    "asr": _ASR_PROVIDERS,
+    "moderation":_MODERATION_PROVIDERS,
     "image_embedder": _IMAGE_EMBEDDER_PROVIDERS,
     "image_text_to_image": _IMAGE_TEXT_TO_IMAGE_PROVIDERS,
     "tts": _TTS_PROVIDERS,
-    "text_embedder": _TEXT_EMBEDDER_PROVIDERS,    
+    "text_embedder": _TEXT_EMBEDDER_PROVIDERS,
 }
 
-#_LOCAL_PROVIDERS = ["local_vllm"]
 
 class Model:
     supported_model_types = _SUPPORTED_MODEL_TYPES
     providers_by_model_type = _PROVIDERS_BY_MODEL_TYPE
-    #local_providers = _LOCAL_PROVIDERS
 
     @classmethod
     def _model_path_parser(cls, model_id: str) -> tuple[str, str]:
@@ -94,14 +94,7 @@ class Model:
             model_type = model_type.title().replace("_", "")
 
         provider_class_name = f"{_MODEL_NAMESPACE_TRANSLATOR[provider]}{model_type}"
-                
-        #module_base = "local" if provider in cls.local_providers else "clients"
-        
-        # Solve cases as "local-vllm" to "vllm" to py files
-        # TODO: its is solved using new 'batched' definition
-        #provider = provider.replace("local_", "")
-        module_name = f"msgflow.models.clients.{provider}"
-                
+        module_name = f"msgflow.models.providers.{provider}"
         return import_module_from_lib(provider_class_name, module_name)
 
     @classmethod

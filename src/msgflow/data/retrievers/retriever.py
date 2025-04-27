@@ -1,6 +1,6 @@
 from typing import Any, Dict, Type
 from msgflow.data.retrievers.base import BaseRetriever
-from msgflow.data.retrievers.types import HybridRetriever, LexicalRetriever, SemanticRetriever
+from msgflow.data.retrievers.types import LexicalRetriever, SemanticRetriever, WebRetriever
 from msgflow.utils.imports import import_module_from_lib
 
 
@@ -12,7 +12,7 @@ _SUPPORTED_RETRIEVER_TYPES = [
 
 _LEXICAL_RETRIEVER_PROVIDERS = ["bm25"]
 _SEMANTIC_RETRIEVER_PROVIDERS = []
-_HYBRID_RETRIEVER_PROVIDERS = []
+_WEB_RETRIEVER_PROVIDERS = []
 
 _RETRIEVER_NAMESPACE_TRANSLATOR = {
     "bm25": "BM25",
@@ -42,7 +42,7 @@ class Retriever:
             db_type = db_type.title().replace("_", "")
 
         provider_class_name = f"{_RETRIEVER_NAMESPACE_TRANSLATOR[provider]}{retriever_type}"                
-        module_name = f"msgflow.data.retrievers.{provider}"                
+        module_name = f"msgflow.data.retrievers.providers.{provider}"                
         return import_module_from_lib(provider_class_name, module_name)
 
     @classmethod

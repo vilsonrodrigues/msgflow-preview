@@ -55,7 +55,7 @@ class Parser:
             db_type = db_type.title().replace("_", "")
 
         provider_class_name = f"{_RETRIEVER_NAMESPACE_TRANSLATOR[provider]}{retriever_type}"                
-        module_name = f"msgflow.data.retrievers.{provider}"                
+        module_name = f"msgflow.data.parsers.providers.{provider}"                
         return import_module_from_lib(provider_class_name, module_name)
 
     @classmethod

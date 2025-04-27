@@ -23,7 +23,9 @@ from opentelemetry import trace
 
 import msgflow
 from msgflow.envs import envs
+from msgflow.exceptions import UnsafeUserInput
 from msgflow.message import Message
+from msgflow.models.gateway import ModelGateway
 from msgflow.models.model import Model
 from msgflow.models.response import ModelResponse, ModelStreamResponse
 from msgflow.nn.parameter import Buffer, Parameter
@@ -495,7 +497,7 @@ class Module:
         else:
             raise TypeError(f"`stream` need be a bool given `{type(stream)}`")
 
-    def _set_execution_kwargs(self, execution_kwargs: Optional[Dict] = None):
+    def _set_execution_kwargs(self, execution_kwargs: Optional[Dict[str, Any]] = None):
         if isinstance(execution_kwargs, dict) or execution_kwargs is None:
              self.register_buffer("execution_kwargs", execution_kwargs)
         else:
@@ -573,6 +575,60 @@ class Module:
             raise TypeError("`task_multimodal_inputs` requires a dict "
                             f"given `{type(task_multimodal_inputs)}`")
 
+    def _set_model_preference(self, model_preference: Optional[str] = None):
+        if isinstance(model_preference, str) or model_preference is None:
+            self.register_buffer("model_preference", model_preference)
+        else:
+            raise TypeError("`model_preference` need be a string or None, "
+                            f"given `{type(model_preference)}`")
+
+    def _set_guardrail(self, guardrail: Optional[Callable] = None):
+        if isinstance(guardrail, Callable) or guardrail is None:
+            if ((inspect.isclass(guardrail) and hasattr(guardrail, "serialize"))
+                or
+                None
+            ):
+                self.register_buffer("guardrail", guardrail)
+            elif isinstance(guardrail, self.__class__):
+                self.guardrail = guardrail
+            else:
+                super().__setattr__("guardrail", guardrail)
+        else:
+            raise TypeError("`guardrail` need be a callable or None, "
+                            f"given `{type(guardrail)}`")
+
+    def _execute_guardrail(self, model_execution_params):
+        guardrail_params = self._prepare_guardrail_execution(model_execution_params)
+        if isinstance(self.guardrail, Buffer):
+            guardrail_response = self.guardrail.data(guardrail_params)
+        else:
+            guardrail_response = self.guardrail(guardrail_params)
+
+        if isinstance(guardrail_response, ModelResponse):
+            guardrail_response = self._extract_raw_response(guardrail_response)
+
+        if not guardrail_response["safe"]:
+            raise UnsafeUserInput()
+        return
+
+    def attr_is_valid(self, attr: str) -> bool:
+        if isinstance(attr, Buffer):
+            return attr.data is not None
+        else:
+            return attr is not None
+
+    def get_model_preference(self, message: Message):                
+        if (
+            isinstance(message, Message) 
+            and 
+            self.model_preference.data
+            and
+            isinstance(self.model.data, ModelGateway)
+        ):
+            return message.get(self.model_preference.data)
+        else:
+            return None
+
     # TODO ambos os casos eu devo poder por em tool library pra acessar esse buffer
     # por meio de um get_annotation ou get description
     def set_description(self, description: Optional[str] = None):
@@ -586,7 +642,6 @@ class Module:
         if module_name is None:
             module_name = self.__class__.__name__
         else:
-            # Buffer
             module_name = module_name.data
         return module_name
 
@@ -595,7 +650,6 @@ class Module:
         if module_description is None:
             module_description = self.__class__.__doc__
         else:
-            # Buffer
             module_description = module_description.data
         return module_description
 
@@ -604,7 +658,6 @@ class Module:
         if module_annotations is None:
             module_annotations = self.__class__.__annotations__
         else:
-            # Buffer
             module_annotations = module_annotations.data
         return module_annotations    
 

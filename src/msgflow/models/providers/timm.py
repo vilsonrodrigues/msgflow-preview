@@ -6,7 +6,7 @@ except:
     raise ImportError("`timm` is not detected, please install"
                       "using `pip install msgflow[timm]`")
 
-from msgflow.models.local.base import BaseVision, BaseVisionClassifier
+from msgflow.models.providers.base import BaseVision, BaseVisionClassifier
 from msgflow.models.response import ModelResponse
 from msgflow.models.base import BaseClient
 from msgflow.models.types import ImageClassifierModel, ImageEmbedderModel

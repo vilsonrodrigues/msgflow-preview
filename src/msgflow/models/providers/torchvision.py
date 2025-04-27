@@ -5,7 +5,7 @@ try:
 except:
     raise ImportError("`torchvision` not detected, please install"
                       "using `pip install msgflow[torchvision]`")
-from msgflow.models.local.base import (
+from msgflow.models.providers.base import (
     BaseImageClassifier,
     BaseVideoClassifier,
     BaseVision,     

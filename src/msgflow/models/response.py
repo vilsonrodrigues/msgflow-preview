@@ -21,6 +21,7 @@ class ModelResponse(_BaseResponse):
         "image_embedding",        
         "image_generation",       
         "image_text_generation",
+        "moderation",
         "structured",        
         "tool_call",
         "transcript",

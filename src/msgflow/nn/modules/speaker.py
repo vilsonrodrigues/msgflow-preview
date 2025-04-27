@@ -1,4 +1,4 @@
-from typing import Literal, Optional, Union
+from typing import Callable, Literal, Optional, Union
 from msgflow.message import Message
 from msgflow.models.gateway import ModelGateway
 from msgflow.models.types import TTSModel
@@ -29,7 +29,8 @@ class Speaker(Module):
         self,
         name: str,
         model: Union[TTSModel, ModelGateway],
-        *,      
+        *,
+        guardrail: Optional[Union[Callable]] = None,        
         stream: Optional[bool] = False,
         task_inputs: Optional[str] = None,
         response_mode: Optional[str] = "plain_response",
@@ -37,7 +38,8 @@ class Speaker(Module):
         prompt: Optional[str] = None,
     ):
         super().__init__()
-        self.set_name(name)    
+        self.set_name(name)
+        self._set_guardrail(guardrail)
         self._set_model(model)
         self._set_prompt(prompt)
         self._set_response_format(response_format)
@@ -46,24 +48,33 @@ class Speaker(Module):
         self._set_task_inputs(task_inputs)
 
     def forward(self, message: Union[str, Message]):
+        model_preference = self.get_model_preference(message)
         data = self._prepare_task(message)
-        model_response = self._execute_model(data)
+        model_response = self._execute_model(data, model_preference)
         response = self._process_model_response(model_response, message)
         return response
 
-    def _execute_model(self, data):
-        model_execution_params = self._prepare_model_execution(data)
+    def _execute_model(self, data, model_preference=None):
+        model_execution_params = self._prepare_model_execution(data, model_preference)
+        if self.attr_is_valid(self.guardrail):
+            self._execute_guardrail(model_execution_params)        
         model_response = self.model.data(**model_execution_params)
         return model_response
 
-    def _prepare_model_execution(self, data):
+    def _prepare_model_execution(self, data, model_preference=None):
         model_execution_params = {
             "data": data,
             "response_format": self.response_format.data,
             "prompt": self.prompt.data,
             "stream": self.stream.data,
         }
+        if model_preference:
+            model_execution_params["model_preference"] = model_preference
         return model_execution_params        
+
+    def _prepare_guardrail_execution(self, model_execution_params):
+        guardrail_params = {"data": model_execution_params.get("data")}
+        return guardrail_params
 
     def _process_model_response(self, model_response, message):
         if model_response.response_type == "audio_generation":

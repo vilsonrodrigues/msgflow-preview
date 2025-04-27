@@ -24,6 +24,7 @@ from msgflow.models.types import (
     ASRModel,
     ChatCompletionModel,
     ImageTextToImageModel,
+    ModerationModel,
     TextEmbedderModel,
     TTSModel,
 )
@@ -411,7 +412,7 @@ class OpenAITTS(_BaseOpenAI, TTSModel):
 
 
 class OpenAIImageTextToImage(_BaseOpenAI, ImageTextToImageModel):
-    r"""OpenAI Image Generation"""
+    """OpenAI Image Generation"""
 
     def __init__(
         self,
@@ -621,4 +622,43 @@ class OpenAITextEmbedder(_BaseOpenAI, TextEmbedderModel):
         data: str,
     ):
         response = self._generate(text=data)
+        return response
+
+
+class OpenAIModeration(_BaseOpenAI, ModerationModel): 
+
+    def __init__(
+        self,
+        *,
+        model_id: Optional[str] = "omni-moderation-latest",
+        organization: Optional[str] = None,
+        project: Optional[str] = None,
+    ):
+        super().__init__()        
+        self.model_id = model_id
+        self.sampling_params = {"organization": organization, "project": project}
+        self._initialize()        
+        self._get_api_key()
+
+    @model_retry
+    def _execute(self, **kwargs):
+        model_output = self.client.moderations.create(
+            model=self.model_id, **kwargs,
+        )
+        return model_output
+
+    def _generate(self, **kwargs):
+        response = ModelResponse()
+        response.set_response_type("moderation")
+        model_output = self._execute_model(**kwargs)
+        moderation = model_output.results
+        moderation["safe"] = moderation["flagged"]
+        response.add(moderation)
+        return response
+
+    def __call__(
+        self,
+        data: Union[str, List[Dict[str, Any]]],
+    ):
+        response = self._generate(input=data)
         return response

@@ -46,7 +46,7 @@ from msgflow.telemetry.span import trace_agent_prepare_model_execution
 class PromptSpec:
     SYSTEM_MESSAGE = "Who are you"
     INSTRUCTIONS = "How you should do"
-    # FEW_SHOT = 'Samples of what to do'
+    EXAMPLES = 'Samples of what to do'
     EXPECTED_OUTPUT = "Describes what the response should be like"
 
 
@@ -121,22 +121,24 @@ class Agent(Module):
         system_message: Optional[str] = None,
         instructions: Optional[str] = None,
         expected_output: Optional[str] = None,
+        examples: Optional[str] = None,
         stream: Optional[bool] = False,
+        guardrail: Optional[Union[Callable]] = None,
         task_inputs: Optional[Union[str, Dict[str, str]]] = None,
         task_template: Optional[str] = None,
         task_multimodal_inputs: Optional[Dict[str, List[str]]] = None,
         context_inputs: Optional[Union[str, List[str]]] = None,
-        prefilling: Optional[str] = None, # NEW
-        context_cache: Optional[str] = None, # NEW
+        model_preference: Optional[str] = None,
+        prefilling: Optional[str] = None,
+        context_cache: Optional[str] = None,
         generation_schema: Optional[msgspec.Struct] = None,
         response_mode: Optional[str] = "plain_response",
         tools: Optional[List[Callable]] = None,
         tool_choice: Optional[str] = None,
-        response_template: Optional[str] = None,
+        response_template: Optional[str] = None,        
         # chat_history: Optional[Union[ChatHistory, MultiChatHistory]] = None, #TODO: requires reason here
         # chat_history_mode: Literal["relevant", "recent", "full"] = "relevant",
         fixed_messages: Optional[List[Dict[str, Any]]] = None,
-        #predicted_outputs: Optional[bool] = False,
         #signature: Optional[str] = None,
         audio_input_format: Optional[Literal["standard", "generation"]] = "generation",
         #verbose: Optional[bool] = False,
@@ -158,40 +160,46 @@ class Agent(Module):
 
         self.set_name(name)
         self.set_description(description)
-        self._set_model(model)
-        self._set_expected_output(expected_output)
-        self._set_instructions(instructions)
-        self._set_system_message(system_message)
-        self._set_generation_schema(generation_schema)
-        self._set_audio_input_format(audio_input_format)
-        self._set_fixed_messages(fixed_messages)
+        self._set_annotations(_annotations or {"message": str, "return": str})
+        self._set_audio_input_format(audio_input_format) # TODO: depreciar, mudar no cliente
         # self._set_chat_history(chat_history)
-        self._set_context_inputs(context_inputs)
         self._set_context_cache(context_cache)
+        self._set_context_inputs(context_inputs)
+        self._set_examples(examples)
+        self._set_expected_output(expected_output)
+        self._set_fixed_messages(fixed_messages)
+        self._set_generation_schema(generation_schema)
+        self._set_guardrail(guardrail)
+        self._set_instructions(instructions)
+        self._set_model(model)        
+        self._set_model_preference(model_preference)
         self._set_prefilling(prefilling)
-        self._set_tools(tools)
+        self._set_system_message(system_message)
         self._set_response_mode(response_mode)
+        self._set_stream(stream)
         self._set_response_template(response_template)
         self._set_task_multimodal_inputs(task_multimodal_inputs)
         self._set_task_inputs(task_inputs)
         self._set_task_template(task_template)
-        self._set_stream(stream)
-        self._set_tool_choice(tool_choice)
-        self._set_annotations(_annotations or {"message": str, "return": str})
+        self._set_tool_choice(tool_choice)        
+        self._set_tools(tools)
 
     def forward(self, message: Union[str, Dict[str, Any], Message]):
+        model_preference = self.get_model_preference(message)
         model_state = self._prepare_task(message)
-        model_response = self._execute_model(model_state, self.prefilling.data)
-        response = self._process_model_response(model_response, model_state, message)
+        model_response = self._execute_model(model_state, self.prefilling.data, model_preference)
+        response = self._process_model_response(model_response, model_state, message, model_preference)
         return response
 
-    def _execute_model(self, model_state, prefilling=None):
-        model_execution_params = self._prepare_model_execution(model_state, prefilling)
+    def _execute_model(self, model_state, prefilling=None, model_preference=None):
+        model_execution_params = self._prepare_model_execution(model_state, prefilling, model_preference)
+        if self.attr_is_valid(self.guardrail):
+            self._execute_guardrail(model_execution_params)
         model_response = self.model.data(**model_execution_params)
         return model_response
 
     @trace_agent_prepare_model_execution
-    def _prepare_model_execution(self, model_state, prefilling=None):
+    def _prepare_model_execution(self, model_state, prefilling=None, model_preference=None):
         agent_state = []
 
         if self.fixed_messages.data:
@@ -224,16 +232,32 @@ class Agent(Module):
             "generation_schema": self.generation_schema.data,
         }
 
+        if model_preference:
+            model_execution_params["model_preference"] = model_preference
+
         return model_execution_params
 
-    def _process_model_response(self, model_response, model_state, message):
+    def _prepare_guardrail_execution(self, model_execution_params):
+        model_state = model_execution_params.get("model_state")
+        last_message = model_state[-1]
+        if isinstance(last_message.get("content"), list):
+            if last_message.get("content")[0]["type"] == "image_url":
+                data = [last_message]
+            else: # audio, file
+                data = last_message.get("content")[-1] # text input
+        else:
+            data = last_message.get("content")
+        guardrail_params = {"data": data}
+        return guardrail_params
+
+    def _process_model_response(self, model_response, model_state, message, model_preference):
         if model_response.response_type == "tool_call":
             model_response, model_state = (
-                self._process_tool_call_response(model_response, model_state)
+                self._process_tool_call_response(model_response, model_state, model_preference)
             )
         elif is_subclass_of(self.generation_schema, ReAct):
             model_response, model_state = self._process_react_response(
-                model_response, model_state
+                model_response, model_state, model_preference
             )
         
         raw_response = self._extract_raw_response(model_response)
@@ -251,7 +275,7 @@ class Agent(Module):
         else:
             raise ValueError(f"Unsupported `response_type={response_type}`")
 
-    def _process_react_response(self, model_response, model_state):
+    def _process_react_response(self, model_response, model_state, model_preference=None):
         while True:            
             raw_response = self._extract_raw_response(model_response)
 
@@ -282,9 +306,9 @@ class Agent(Module):
             elif raw_response.get("final_answer"):
                 return model_response, model_state
 
-            model_response = self._execute_model(model_state)
+            model_response = self._execute_model(model_state, model_preference=model_preference)
 
-    def _process_tool_call_response(self, model_response, model_state):
+    def _process_tool_call_response(self, model_response, model_state, model_preference=None):
         """
         Mensagens: [{'role': 'assistant', 'tool_calls': [{'id': 'call_1YLHAVwHwDPjEBuMpWQfSktO',
         'type': 'function', 'function': {'arguments': '{"order_id":"order_12345"}',
@@ -302,7 +326,7 @@ class Agent(Module):
             else:
                 return model_response, model_state
 
-            model_response = self._execute_model(model_state)
+            model_response = self._execute_model(model_state, model_preference=model_preference)
 
     def _process_tool_call(self, tool_callings):        
         tool_responses = self.tool_library(tool_callings)
@@ -621,6 +645,13 @@ class Agent(Module):
             raise TypeError("`expected_output` requires a string or None "
                             f"given `{type(expected_output)}`")
 
+    def _set_examples(self, examples: Optional[str] = None):
+        if isinstance(examples, str) or examples is None:
+            self.examples = Parameter(examples, PromptSpec.EXAMPLES)
+        else:
+            raise TypeError("`examples` requires a string or None "
+                            f"given `{type(examples)}`")
+
     def _get_system_prompt(self):    
         system_prompt = ""
 
@@ -634,5 +665,8 @@ class Agent(Module):
             system_prompt += (
                 f"<expected_output>\n{self.expected_output.data}\n</expected_output>\n"
             )
+
+        if self.examples.data:
+            system_prompt += f"<examples>\n{self.examples.data}\n</examples>\n"
 
         return system_prompt

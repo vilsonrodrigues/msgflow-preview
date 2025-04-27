@@ -1,4 +1,4 @@
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Callable, Dict, Literal, Optional, Union
 from msgflow.message import Message
 from msgflow.models.base import BaseModel
 from msgflow.models.gateway import ModelGateway
@@ -50,6 +50,7 @@ class Designer(Module):
         name: str,
         model: VISION_GEN_MODEL_TYPES,
         *,
+        guardrail: Optional[Union[Callable]] = None,
         task_inputs: Optional[str] = None,
         task_multimodal_inputs: Optional[Dict[str, str]] = None,
         response_format: Optional[Literal["base64", "url"]] = None,
@@ -57,14 +58,17 @@ class Designer(Module):
         negative_prompt: Optional[str] = None,
         fps: Optional[int] = None,
         duration_seconds: Optional[int] = None,
+        aspect_ratio: Optional[str] = None, # TODO
+        n: Optional[int] = None, # TODO
         execution_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__()
         self.set_name(name)
-        self._set_model(model)
         self._set_duration_seconds(duration_seconds)
         self._set_execution_kwargs(execution_kwargs)
         self._set_fps(fps)
+        self._set_guardrail(guardrail)
+        self._set_model(model)
         self._set_negative_prompt(negative_prompt)
         self._set_response_mode(response_mode)
         self._set_response_format(response_format)        
@@ -72,17 +76,20 @@ class Designer(Module):
         self._set_task_multimodal_inputs(task_multimodal_inputs)        
 
     def forward(self, message: Union[str, Message]):
+        model_preference = self.get_model_preference(message)
         params = self._prepare_task(message)
-        model_response = self._execute_model(params)
+        model_response = self._execute_model(params, model_preference)
         response = self._process_model_response(model_response, message)
         return response
 
-    def _execute_model(self, params):
-        model_execution_params = self._prepare_model_execution(params)
+    def _execute_model(self, params, model_preference=None):
+        model_execution_params = self._prepare_model_execution(params, model_preference)
+        if self.attr_is_valid(self.guardrail):
+            self._execute_guardrail(model_execution_params)
         model_response = self.model.data(**model_execution_params)
         return model_response
 
-    def _prepare_model_execution(self, params):        
+    def _prepare_model_execution(self, params, model_preference=None):        
         model_execution_params = self.execution_kwargs.data or {}
         model_execution_params.update(params)
         if self.negative_prompt.data:
@@ -90,8 +97,24 @@ class Designer(Module):
         if self.fps.data:
             model_execution_params["fps"] = self.fps.data
         if self.duration_seconds.data:
-            model_execution_params["duration_seconds"] = self.duration_seconds.data        
+            model_execution_params["duration_seconds"] = self.duration_seconds.data
+        if model_preference:
+            model_execution_params["model_preference"] = model_preference
         return model_execution_params
+
+    def _prepare_guardrail_execution(self, model_execution_params):
+        prompt = model_execution_params.get("prompt")
+        image = model_execution_params.get("image", None)
+        if image is not None:
+            messages = [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image}"}}
+            ]
+            data = {"data": messages}
+        else:
+            data = {"data": prompt}
+        guardrail_params = data
+        return guardrail_params
 
     def _process_model_response(self, model_response, message):
         if model_response.response_type == "audio_generation":

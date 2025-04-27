@@ -1,5 +1,5 @@
 from os import getenv
-from msgflow.models.clients.openai import OpenAIChatCompletation
+from msgflow.models.providers.openai import OpenAIChatCompletation
 
 
 class TogetherChatCompletation(OpenAIChatCompletation):

@@ -169,24 +169,24 @@ class ModelGateway:
         logger.debug(f"Rotating model from index `{original_index}` to `{self.current_model_index}`")
         return self.current_model_index
 
-    def _select_start_model(self, start_model_id: Optional[str] = None) -> int:
-        """Sets the starting index based on the start_model_id or keeps the current one"""
-        if start_model_id:
-            if start_model_id in self._model_id_to_index:
-                start_index = self._model_id_to_index[start_model_id]
+    def _select_start_model(self, model_preference: Optional[str] = None) -> int:
+        """Sets the starting index based on the model_preference or keeps the current one"""
+        if model_preference:
+            if model_preference in self._model_id_to_index:
+                start_index = self._model_id_to_index[model_preference]
                 # We don't set self.current_model_index here yet,
                 # because _execute_model may need to iterate before reaching it
                 # We return the index to _execute_model to decide the actual starting point
-                logger.debug(f"Attempt to start with specified model: `{start_model_id}` (index `{start_index}`)")
+                logger.debug(f"Attempt to start with specified model: `{model_preference}` (index `{start_index}`)")
                 return start_index
             else:
-                logger.warning(f"The model_id `{start_model_id}` specified for starting was not found. Using current/default model (index `{self.current_model_index}`)")
+                logger.warning(f"The model_id `{model_preference}` specified for starting was not found. Using current/default model (index `{self.current_model_index}`)")
                 return self.current_model_index
         else:
              logger.debug(f"No initial model specified. Using current index: `{self.current_model_index}`")
              return self.current_model_index
 
-    def _execute_model(self, start_model_id: Optional[str] = None, **kwargs: Any) -> Any:
+    def _execute_model(self, model_preference: Optional[str] = None, **kwargs: Any) -> Any:
         """
         Attempts to execute the call on the configured models, respecting
         time constraints and failure limits
@@ -194,7 +194,7 @@ class ModelGateway:
         if not self.models:
              raise ModelRouterError([], [], message="No model configured on gateway")
 
-        start_index = self._select_start_model(start_model_id)
+        start_index = self._select_start_model(model_preference)
         self.current_model_index = start_index
 
         failures = 0
@@ -262,12 +262,12 @@ class ModelGateway:
         logger.error(error_message)
         raise ModelRouterError(exceptions_encountered, model_info_on_failure, message=error_message)
 
-    def __call__(self, *, start_model_id: Optional[str] = None, **kwargs: Any) -> Any:
+    def __call__(self, *, model_preference: Optional[str] = None, **kwargs: Any) -> Any:
         """
         Executes the call on the gateway.
 
         Args:
-            start_model_id: The ID of the model that should be tried first.
+            model_preference: The ID of the model that should be tried first.
             If None, starts from the last model used or the first one.
                 **kwargs: Arguments to pass to the __call__ method of the selected model.
 
@@ -278,7 +278,7 @@ class ModelGateway:
             ModelRouterError: If all models fail consecutively up to the `max_model_failures` 
                 limit, or if no models are available/functional.
         """
-        return self._execute_model(start_model_id=start_model_id, **kwargs)
+        return self._execute_model(model_preference=model_preference, **kwargs)
 
     def serialize(self) -> Dict[str, Any]:
         """Serializes the gateway state including time constraints as strings."""

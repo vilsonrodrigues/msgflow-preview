@@ -10,6 +10,6 @@ class SemanticRetriever:
     retriever_type = "semantic"
 
 
-class HybridRetriever:
-    # TODO
-    retriever_type = "hybrid"
+class WebRetriever:
+    """Retriever web content based-on queries"""
+    retriever_type = "web"

@@ -31,7 +31,7 @@ class Predictor(Module):
         task_multimodal_inputs: Optional[Dict[str, str]] = None,        
         response_mode: Optional[str] = "plain_response",
         response_template: Optional[str] = None,
-        execution_kwargs: Optional[Dict] = None,
+        execution_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__()
         self.set_name(name)    
@@ -43,19 +43,22 @@ class Predictor(Module):
         self._set_task_multimodal_inputs(task_multimodal_inputs)        
 
     def forward(self, message: Union[Any, Message]):
+        model_preference = self.get_model_preference(message)
         data = self._prepare_task(message)
-        model_response = self._execute_model(data)
+        model_response = self._execute_model(data, model_preference)
         response = self._process_model_response(model_response, message)
         return response
 
-    def _execute_model(self, data):
-        model_execution_params = self._prepare_model_execution(data)
+    def _execute_model(self, data, model_preference=None):
+        model_execution_params = self._prepare_model_execution(data, model_preference)
         model_response = self.model.data(**model_execution_params)
         return model_response
 
-    def _prepare_model_execution(self, data):
+    def _prepare_model_execution(self, data, model_preference=None):
         model_execution_params = self.execution_kwargs.data or {}
         model_execution_params["data"] = data
+        if model_preference:
+            model_execution_params["model_preference"] = model_preference        
         return model_execution_params        
 
     def _process_model_response(self, model_response, message):

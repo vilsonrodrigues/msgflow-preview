@@ -5,6 +5,11 @@ class ChatCompletionModel:
 class BatchedChatCompletionModel:
     model_type = "batched_chat_completion"
 
+
+class ModerationModel:
+    model_type = "moderation"
+
+
 # Classifiers
 
 class AudioClassifierModel:

@@ -87,7 +87,7 @@ class DataBase:
             db_type = db_type.title().replace("_", "")
 
         provider_class_name = f"{_DB_NAMESPACE_TRANSLATOR[provider]}{db_type}"                
-        module_name = f"msgflow.data.databases.{provider}"                
+        module_name = f"msgflow.data.databases.providers.{provider}"                
         return import_module_from_lib(provider_class_name, module_name)
 
     @classmethod
@@ -116,10 +116,10 @@ class DataBase:
         return instance
 
     @classmethod
-    def kv(cls, provider: str, **kwargs) -> Type[KVDB]:
+    def kv(cls, provider: str, **kwargs) -> KVDB:
         return cls._create_db("kv", provider, **kwargs)
 
     @classmethod
-    def vector(cls, provider: str, **kwargs) -> Type[VectorDB]:
+    def vector(cls, provider: str, **kwargs) -> VectorDB:
         return cls._create_db("vector", provider, **kwargs)
  

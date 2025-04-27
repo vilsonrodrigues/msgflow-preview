@@ -23,3 +23,6 @@ class ModelRouterError(Exception):
     def __str__(self): 
         details = "\n".join([f"  - Model: {m_id} ({prov}): {type(exc).__name__}: {exc}" for m_id, prov, exc in self.model_info])
         return f"{self.message}\nCaptured Exceptions:\n{details}"
+
+class UnsafeUserInput(Exception):
+    """"""
