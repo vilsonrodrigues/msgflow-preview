@@ -12,6 +12,7 @@ from typing import (
 import msgspec
 
 from msgflow.generation.plan.react import ReAct
+from msgflow.logger import logger
 from msgflow.models.gateway import ModelGateway
 from msgflow.message import Message
 from msgflow.models.types import ChatCompletionModel
@@ -24,7 +25,8 @@ from msgflow.utils.chat import (
     get_filename, 
     get_react_tools_prompt_format
 )
-from msgflow.utils.encode import encode_base64_from_url, encode_local_file_in_base64
+from msgflow.utils.encode import encode_data_to_base64
+from msgflow.utils.encode import get_mime_type
 from msgflow.utils.validation import is_base64, is_subclass_of
 from msgflow.telemetry.span import trace_agent_prepare_model_execution
 
@@ -88,8 +90,6 @@ class Agent(Module):
             ...
         fixed_messages:
             ...
-        audio_input_format
-            ...
         description:
             The Agent description (docstring). It's useful when using an agent-as-a-function.
         _annotations
@@ -109,8 +109,8 @@ class Agent(Module):
     _supported_outputs: List[str] = [
         "structured",
         "text_generation",
-        "b64_audio_generation",
-        "b64_audio_text_generation",
+        "audio_generation",
+        "audio_text_generation",
     ]
 
     def __init__(
@@ -123,7 +123,8 @@ class Agent(Module):
         expected_output: Optional[str] = None,
         examples: Optional[str] = None,
         stream: Optional[bool] = False,
-        guardrail: Optional[Union[Callable]] = None,
+        input_guardrail: Optional[Callable] = None,
+        output_guardrail: Optional[Callable] = None,
         task_inputs: Optional[Union[str, Dict[str, str]]] = None,
         task_template: Optional[str] = None,
         task_multimodal_inputs: Optional[Dict[str, List[str]]] = None,
@@ -135,12 +136,11 @@ class Agent(Module):
         response_mode: Optional[str] = "plain_response",
         tools: Optional[List[Callable]] = None,
         tool_choice: Optional[str] = None,
-        response_template: Optional[str] = None,        
-        # chat_history: Optional[Union[ChatHistory, MultiChatHistory]] = None, #TODO: requires reason here
-        # chat_history_mode: Literal["relevant", "recent", "full"] = "relevant",
+        response_template: Optional[str] = None,
+        message_history: Optional[str] = None,                
+        # message_history_mode: Literal["relevant", "recent", "full"] = "relevant",
         fixed_messages: Optional[List[Dict[str, Any]]] = None,
         #signature: Optional[str] = None,
-        audio_input_format: Optional[Literal["standard", "generation"]] = "generation",
         #verbose: Optional[bool] = False,
         description: Optional[str] = "",
         _annotations: Optional[Dict[str, type]] = None,
@@ -153,24 +153,22 @@ class Agent(Module):
             raise ValueError(
                 "`generation_schema=ReAct` is not `stream=True` compatible"
             )
-        #if tools and predicted_outputs:
-        #    raise ValueError("`tools` is not `predicted_outputs=True` compatible")
-        #if task_template is None and predicted_outputs:
-        #    raise ValueError("`predicted_outputs=True` requires a `task_template`")
+        if stream and output_guardrail:
+            raise ValueError("`output_guardrail` is not `stream=True` compatible")
 
         self.set_name(name)
         self.set_description(description)
         self._set_annotations(_annotations or {"message": str, "return": str})
-        self._set_audio_input_format(audio_input_format) # TODO: depreciar, mudar no cliente
-        # self._set_chat_history(chat_history)
         self._set_context_cache(context_cache)
         self._set_context_inputs(context_inputs)
         self._set_examples(examples)
         self._set_expected_output(expected_output)
         self._set_fixed_messages(fixed_messages)
         self._set_generation_schema(generation_schema)
-        self._set_guardrail(guardrail)
+        self._set_input_guardrail(input_guardrail)
+        self._set_output_guardrail(output_guardrail)
         self._set_instructions(instructions)
+        self._set_message_history(message_history)
         self._set_model(model)        
         self._set_model_preference(model_preference)
         self._set_prefilling(prefilling)
@@ -193,8 +191,8 @@ class Agent(Module):
 
     def _execute_model(self, model_state, prefilling=None, model_preference=None):
         model_execution_params = self._prepare_model_execution(model_state, prefilling, model_preference)
-        if self.attr_is_valid(self.guardrail):
-            self._execute_guardrail(model_execution_params)
+        if self.attr_is_valid(self.input_guardrail):
+            self._execute_input_guardrail(model_execution_params)
         model_response = self.model.data(**model_execution_params)
         return model_response
 
@@ -237,7 +235,7 @@ class Agent(Module):
 
         return model_execution_params
 
-    def _prepare_guardrail_execution(self, model_execution_params):
+    def _prepare_input_guardrail_execution(self, model_execution_params):
         model_state = model_execution_params.get("model_state")
         last_message = model_state[-1]
         if isinstance(last_message.get("content"), list):
@@ -333,15 +331,23 @@ class Agent(Module):
         return tool_responses
 
     def _prepare_response(self, raw_response, response_type, model_state, message):
-        if self.response_template.data and response_type in [
-            "text_generation",
-            "structured",
-        ]:
-            response = self._format_response_template(raw_response)
+        if response_type in ["text_generation", "structured"]:
+            if self.attr_is_valid(self.output_guardrail):
+                self._execute_output_guardrail(raw_response)        
+            if self.response_template.data:
+                response = self._format_response_template(raw_response)
         else:
             response = raw_response
 
         return self._define_response_mode(response, model_state, message)
+
+    def _prepare_output_guardrail_execution(self, model_response):
+        if isinstance(model_response, str):
+            data = model_response
+        else:
+            data = str(model_response)
+        guardrail_params = {"data": data}
+        return guardrail_params
 
     def _define_response_mode(self, response, model_state, message):
         if self.response_mode.data == "plain_response":
@@ -364,17 +370,30 @@ class Agent(Module):
 
     def _prepare_task(
         self, message: Union[str, Dict[str, Any], Message]
-    ) -> List[Dict[str, Any]]:
+    ) -> List[Dict[str, Any]]:        
+        """Prepare model input in ChatML format"""
+        message_history = None
+        
         if isinstance(message, (str, dict)):
             content = self._process_str_dict_task(message)
         elif isinstance(message, Message):
             content = self._process_message_task(message)
+            message_history = self._get_message_history(message)
         else:
             raise ValueError("Unsupported message type")
         
-        if content is None:
+        if content is None and message_history is None:
             raise ValueError("No data was detected to make the model input")
-        return [{"role": "user", "content": content}]
+
+        if content is not None:
+            chat_content = [{"role": "user", "content": content}]
+            if message_history is None:
+                return chat_content
+            else:
+                message_history.extend(chat_content)
+                return message_history
+        else:
+            return message_history
 
     def _process_str_dict_task(self, message: Union[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
         if self.task_template.data:
@@ -385,7 +404,14 @@ class Agent(Module):
                 raise AttributeError("message is a dict that requires a `task_template`")
             return message
 
-    def _process_message_task(self, message: Message) -> List[Dict[str, Any]]:
+    def _get_message_history(self, message: Message) -> Optional[List[Dict[str, Any]]]:
+        """Returns a message history (ChatML format) from message"""        
+        messages_history = None
+        if self.message_history.data:
+            messages_history = self._get_content_from_message(self.message_history.data, message)        
+        return messages_history
+
+    def _process_message_task(self, message: Message) -> Optional[Union[str, List[Dict[str, Any]]]]:
         content = ""
 
         # Process context
@@ -445,13 +471,11 @@ class Agent(Module):
         elif isinstance(self.context_inputs.data, list): # ["context.1", "context.2"]
             context_values = []
             for path in self.context_inputs.data:
-                # TODO: rever usando a nova funcao de extracao
-                if isinstance(path, tuple): # OR inputs
-                    context_value = self._get_content_from_or_input(path, message)
-                    if context_value is not None:
-                        context_values.append(str(context_value))
-                else:
-                    context_values.append(str(message.get(path)))
+
+                context_value = self._get_content_from_message(path, message)
+                if context_value is not None:
+                    context_values.append(context_value)
+
             msg_context = " ".join(context_values)
         else:
             msg_context = None
@@ -465,7 +489,7 @@ class Agent(Module):
         else:
             return None
 
-    def _process_multimodal_inputs(self, message: Message) -> List[Dict[str, Any]]:
+    def _process_multimodal_inputs_old(self, message: Message) -> List[Dict[str, Any]]:
         # TODO: suporte para consumir todas as entradas de images or outro
         content = []
         
@@ -482,25 +506,20 @@ class Agent(Module):
                 audio_data = self._get_content_from_message(audio_path, message)
                 if audio_data:
                     audio_format = Path(audio_data).suffix
+
                     if not audio_data.startswith("http") and not is_base64(audio_data):
                         base64_audio = encode_local_file_in_base64(audio_data)
-                    # TODO manter um so estilo. alterar isso dentro das classes de inf
-                    if self.audio_input_format.data == "standard":  # vLLM style
-                        if not is_base64(audio_data):
-                            audio_data = f"data:audio/{audio_format};base64,{base64_audio}"
-                        content.append(
-                            {"type": "audio_url", "audio_url": {"url": audio_data}}
-                        )
-                    elif self.audio_input_format.data == "generation":  # OpenAI style
-                        # OpenAI requires a base64 file as input
-                        if audio_data.startswith("http"):
-                            audio_data = encode_base64_from_url(audio_data)
-                        content.append(
-                            {
-                                "type": "input_audio",
-                                "input_audio": {"data": audio_data, "format": audio_format},
-                            }
-                        )
+                    elif audio_data.startswith("http"):
+                        base64_audio = encode_base64_from_url(audio_data)
+                    else:
+                        base64_audio = audio_data
+
+                    content.append(
+                        {
+                            "type": "input_audio",
+                            "input_audio": {"data": base64_audio, "format": audio_format},
+                        }
+                    )
 
             for file_path in self.task_multimodal_inputs.data.get("file", []):
                 file_data = self._get_content_from_message(file_path, message)                
@@ -517,17 +536,120 @@ class Agent(Module):
 
         return content
 
-    def _set_audio_input_format(self, audio_input_format: str):
-        if isinstance(audio_input_format, str):
-            if audio_input_format not in ["standard", "generation"]:
-                raise ValueError(
-                    "`audio_input_format` must be either `standard` or `generation`"
-                    f"given `{audio_input_format}`"
-                )
-            self.register_buffer("audio_input_format", audio_input_format)
-        else:
-            raise TypeError("`audio_input_format` requires a string"
-                            f"given `{type(audio_input_format)}`")
+    def _prepare_data_uri(self, source: str, force_encode: bool = False) -> str:
+        """
+        Prepares a data string (URL or Data URI base64).
+        If force_encode=True, always tries to download and encode URL.
+        Otherwise, keeps the URL if it is HTTP and not base64.
+        Returns None in case of encoding/download error.
+        """
+        if not source:
+            return None
+
+        if is_base64(source):
+            # If it is already base64, assume it is ready (no prefix)
+            # Prefix will be added by formatter if needed
+            return source
+
+        is_url = source.startswith("http")
+
+        if is_url and not force_encode:
+             # Keep the URL as is if you don't force the encoding
+             return source
+
+        # Need to encode (either local or force_encode=True for URL)
+        try:
+            return encode_data_to_base64(source)
+        except Exception as e:
+            logger.error(f"Failed to encode source {source}: {e}")
+            return None
+
+    def _format_image_input(self, image_source: str) -> Dict[str, Any]:
+        """Formats the image input for the model"""
+        base64_image = self._prepare_data_uri(image_source, force_encode=True)
+
+        if not base64_image:
+            return None
+
+        mime_type = get_mime_type(image_source) # Try to guess from the original source
+        if not mime_type.startswith("image/"): mime_type = "image/jpeg" # Fallback        
+        image_data_url = f"data:{mime_type};base64,{base64_image}"
+        
+        return {"type": "image_url", "image_url": {"url": image_data_url}}
+
+    def _format_audio_input(self, audio_source: str) -> Dict[str, Any]:
+        """Formats the audio input for the model"""
+        base64_audio = self._prepare_data_uri(audio_source, force_encode=True)
+
+        if not base64_audio:
+            return None        
+
+        audio_format_suffix = Path(audio_source).suffix.lstrip(".")
+        mime_type = get_mime_type(audio_source)
+        if not mime_type.startswith("audio/"):
+             # If MIME type is not audio, use suffix or fallback
+             audio_format_for_uri = audio_format_suffix if audio_format_suffix else "mpeg" # fallback
+             mime_type = f"audio/{audio_format_for_uri}"
+
+        # Use suffix like 'format' if available, otherwise extract from mime type
+        format_key = audio_format_suffix if audio_format_suffix else mime_type.split("/")[-1]
+        return {
+            "type": "input_audio",
+            "input_audio": {"data": base64_audio, "format": format_key},
+        }
+
+    def _format_file_input(self, file_source: str) -> Dict[str, Any]:
+        """Formats the file input for the model"""
+        base64_file = self._prepare_data_uri(file_source, force_encode=True)
+
+        if not base64_file:
+            return None
+
+        filename = get_filename(file_source)
+        mime_type = get_mime_type(file_source)
+
+        if mime_type == "application/octet-stream" and filename.lower().endswith(".pdf"):
+            mime_type = "application/pdf"
+
+        file_data_uri = f"data:{mime_type};base64,{base64_file}"
+
+        return {
+            "type": "file",
+            "file": {"filename": filename, "file_data": file_data_uri}
+        }
+
+    def _process_multimodal_inputs(self, message: Message) -> List[Dict[str, Any]]:
+        """
+        Processes multimodal inputs (image, audio, file) from the configuration
+        and the Message object, returning a list of dictionaries formatted for the model.
+        """
+        content = []
+        multimodal_config = self.task_multimodal_inputs.data
+
+        formatters = {
+            "image": self._format_image_input,
+            "audio": self._format_audio_input,
+            "file": self._format_file_input,
+        }
+
+        for media_type, formatter in formatters.items():
+            
+            path_keys = multimodal_config.get(media_type, [])
+            if not isinstance(path_keys, list):
+                 logger.warning("Warning: Expected list for multimodal config key "
+                                f"`{media_type}`, got `{type(path_keys)}`")
+                 continue # Skip this media type if the config is badly formatted
+
+            for path_key in path_keys:
+                media_source = self._get_content_from_message(path_key, message)
+                if media_source:
+                    formatted_input = formatter(media_source)
+                    if formatted_input:
+                        content.append(formatted_input)
+                else:
+                    logger.debug(f"No valid datat to `path_key={path_key}`")
+
+        return content
 
     def _set_context_inputs(self, context_inputs: Optional[Union[str, List[str]]] = None):
         if isinstance(context_inputs, (str, list)) or context_inputs is None:
@@ -651,6 +773,13 @@ class Agent(Module):
         else:
             raise TypeError("`examples` requires a string or None "
                             f"given `{type(examples)}`")
+
+    def _set_message_history(self, message_history: Optional[str] = None):
+        if isinstance(message_history, str) or message_history is None:
+            self.register_buffer("message_history", message_history)
+        else:
+            raise TypeError("`message_history` requires a string or None "
+                            f"given `{type(message_history)}`")
 
     def _get_system_prompt(self):    
         system_prompt = ""

@@ -26,3 +26,6 @@ class ModelRouterError(Exception):
 
 class UnsafeUserInput(Exception):
     """"""
+
+class UnsafeModelResponse(Exception):
+    """"""    

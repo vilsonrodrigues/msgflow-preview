@@ -23,7 +23,7 @@ from opentelemetry import trace
 
 import msgflow
 from msgflow.envs import envs
-from msgflow.exceptions import UnsafeUserInput
+from msgflow.exceptions import UnsafeModelResponse, UnsafeUserInput
 from msgflow.message import Message
 from msgflow.models.gateway import ModelGateway
 from msgflow.models.model import Model
@@ -582,33 +582,62 @@ class Module:
             raise TypeError("`model_preference` need be a string or None, "
                             f"given `{type(model_preference)}`")
 
-    def _set_guardrail(self, guardrail: Optional[Callable] = None):
-        if isinstance(guardrail, Callable) or guardrail is None:
-            if ((inspect.isclass(guardrail) and hasattr(guardrail, "serialize"))
+    def _set_input_guardrail(self, input_guardrail: Optional[Callable] = None):
+        if isinstance(input_guardrail, Callable) or input_guardrail is None:
+            if ((inspect.isclass(input_guardrail) and hasattr(input_guardrail, "serialize"))
                 or
                 None
             ):
-                self.register_buffer("guardrail", guardrail)
-            elif isinstance(guardrail, self.__class__):
-                self.guardrail = guardrail
+                self.register_buffer("input_guardrail", input_guardrail)
+            elif isinstance(input_guardrail, self.__class__):
+                self.input_guardrail = input_guardrail
             else:
-                super().__setattr__("guardrail", guardrail)
+                super().__setattr__("input_guardrail", input_guardrail)
         else:
-            raise TypeError("`guardrail` need be a callable or None, "
-                            f"given `{type(guardrail)}`")
+            raise TypeError("`input_guardrail` need be a callable or None, "
+                            f"given `{type(input_guardrail)}`")
 
-    def _execute_guardrail(self, model_execution_params):
-        guardrail_params = self._prepare_guardrail_execution(model_execution_params)
-        if isinstance(self.guardrail, Buffer):
-            guardrail_response = self.guardrail.data(guardrail_params)
+    def _set_output_guardrail(self, output_guardrail: Optional[Callable] = None):
+        if isinstance(output_guardrail, Callable) or output_guardrail is None:
+            if ((inspect.isclass(output_guardrail) and hasattr(output_guardrail, "serialize"))
+                or
+                None
+            ):
+                self.register_buffer("output_guardrail", output_guardrail)
+            elif isinstance(output_guardrail, self.__class__):
+                self.output_guardrail = output_guardrail
+            else:
+                super().__setattr__("output_guardrail", output_guardrail)
         else:
-            guardrail_response = self.guardrail(guardrail_params)
+            raise TypeError("`output_guardrail` need be a callable or None, "
+                            f"given `{type(output_guardrail)}`")
+
+    def _execute_input_guardrail(self, model_execution_params):
+        guardrail_params = self._prepare_input_guardrail_execution(model_execution_params)
+        if isinstance(self.input_guardrail, Buffer):
+            guardrail_response = self.input_guardrail.data(guardrail_params)
+        else:
+            guardrail_response = self.input_guardrail(guardrail_params)
 
         if isinstance(guardrail_response, ModelResponse):
             guardrail_response = self._extract_raw_response(guardrail_response)
 
         if not guardrail_response["safe"]:
             raise UnsafeUserInput()
+        return
+
+    def _execute_output_guardrail(self, model_response):
+        guardrail_params = self._prepare_output_guardrail_execution(model_response)
+        if isinstance(self.output_guardrail, Buffer):
+            guardrail_response = self.output_guardrail.data(guardrail_params)
+        else:
+            guardrail_response = self.output_guardrail(guardrail_params)
+
+        if isinstance(guardrail_response, ModelResponse):
+            guardrail_response = self._extract_raw_response(guardrail_response)
+
+        if not guardrail_response["safe"]:
+            raise UnsafeModelResponse()
         return
 
     def attr_is_valid(self, attr: str) -> bool:

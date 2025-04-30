@@ -50,7 +50,8 @@ class Designer(Module):
         name: str,
         model: VISION_GEN_MODEL_TYPES,
         *,
-        guardrail: Optional[Union[Callable]] = None,
+        input_guardrail: Optional[Callable] = None,
+        output_guardrail: Optional[Callable] = None,
         task_inputs: Optional[str] = None,
         task_multimodal_inputs: Optional[Dict[str, str]] = None,
         response_format: Optional[Literal["base64", "url"]] = None,
@@ -67,7 +68,8 @@ class Designer(Module):
         self._set_duration_seconds(duration_seconds)
         self._set_execution_kwargs(execution_kwargs)
         self._set_fps(fps)
-        self._set_guardrail(guardrail)
+        self._set_input_guardrail(input_guardrail)
+        self._set_output_guardrail(output_guardrail)
         self._set_model(model)
         self._set_negative_prompt(negative_prompt)
         self._set_response_mode(response_mode)

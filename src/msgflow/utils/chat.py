@@ -1,3 +1,4 @@
+import copy
 import os
 import re
 import requests
@@ -8,12 +9,14 @@ from typing import (
     Callable,
     Dict,
     Literal,
+    List,
     Union,
     get_origin,
 )
 from jinja2 import Template
 from urllib.parse import urlparse
 from msgflow.logger import logger
+from msgflow.utils.inspect import get_mime_type
 
 
 def adapt_struct_schema_to_json_schema(
@@ -297,3 +300,63 @@ def download_file(url: str) -> str:
     except requests.exceptions.RequestException as e:
         logger.error(str(e))
         return None
+
+def adapt_messages_for_vllm_audio(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Adapts a list of messages from ChatML format, converting audio parts of type 
+    'input_audio' (OpenAI style) to type 'audio_url' with Data URI (vLLM style).
+
+    Args:
+        messages: The original list of messages.
+
+    Returns:
+        A new list of messages with the adapted audio parts.
+        The original list is not modified.
+    """
+    adapted_messages = copy.deepcopy(messages)
+
+    for message in adapted_messages:
+        content = message.get("content")
+
+        # Checks if the content is a list (indicating multimodality)
+        if isinstance(content, list):
+            processed_content = []
+            for i, part in enumerate(content):
+                # Check if the part is of type 'input_audio'
+                if isinstance(part, dict) and part.get("type") == "input_audio":
+                    input_audio_data = part.get("input_audio")
+
+                    # Check if internal data exists
+                    if isinstance(input_audio_data, dict):
+                        base64_data = input_audio_data.get("data")
+                        audio_format = input_audio_data.get("format")
+
+                        # If you have the base64 data and format, convert
+                        if base64_data and isinstance(base64_data, str) and audio_format:
+                            mime_type = get_mime_type(audio_format)
+                            data_uri = f"data:{mime_type};base64,{base64_data}"
+
+                            # Create the new structure of the audio part
+                            vllm_audio_part = {
+                                "type": "audio_url",
+                                "audio_url": {"url": data_uri}
+                            }
+                            processed_content.append(vllm_audio_part)
+                        else:
+                            logger.warning("Warning: Skipping malformed 'input_audio' part "
+                                           "at index {i}: {part}")
+                            processed_content.append(part)
+                    else:
+                        # Keep the original part if 'input_audio' is not a dict
+                        logger.warnning("Warning: Skipping malformed 'input_audio' part "
+                              f"(not a dict) at index {i}: {part}")
+                        processed_content.append(part)
+
+                else:
+                    # Keep other parts (text, image, etc.) as is
+                    processed_content.append(part)
+
+            # Update the message content with the processed list
+            message["content"] = processed_content
+        # If the content is not a list (e.g. plain text), do nothing
+    return adapted_messages
