@@ -10,6 +10,7 @@ from typing import (
 )
 
 import msgspec
+from jinja2 import Template
 
 from msgflow.generation.plan.react import ReAct
 from msgflow.logger import logger
@@ -48,8 +49,31 @@ from msgflow.telemetry.span import trace_agent_prepare_model_execution
 class PromptSpec:
     SYSTEM_MESSAGE = "Who are you"
     INSTRUCTIONS = "How you should do"
-    EXAMPLES = 'Samples of what to do'
+    EXAMPLES = "Samples of what to do"
     EXPECTED_OUTPUT = "Describes what the response should be like"
+    SYSTEM_PROMPT_TEMPLATE = "A jinja template to format the system prompt"
+
+
+SYSTEM_PROMPT_TEMPLATE =  """
+{% if system_message or instructions or expected_output or examples %}
+<developer_note>
+{% if system_message %}{{ system_message }}
+{% endif %}
+{% if instructions %}<instructions>
+{{ instructions }}
+</instructions>
+{% endif %}
+{% if expected_output %}<expected_output>
+{{ expected_output }}
+</expected_output>
+{% endif %}
+{% if examples %}<examples>
+{{ examples }}
+</examples>
+{% endif %}
+</developer_note>
+{% endif %}
+"""
 
 
 class Agent(Module):
@@ -137,12 +161,13 @@ class Agent(Module):
         tools: Optional[List[Callable]] = None,
         tool_choice: Optional[str] = None,
         response_template: Optional[str] = None,
-        message_history: Optional[str] = None,                
-        # message_history_mode: Literal["relevant", "recent", "full"] = "relevant",
+        task_messages: Optional[str] = None,                
+        # task_messages_mode: Literal["relevant", "recent", "full"] = "relevant",
         fixed_messages: Optional[List[Dict[str, Any]]] = None,
         #signature: Optional[str] = None,
         #verbose: Optional[bool] = False,
-        description: Optional[str] = "",
+        description: Optional[str] = None,
+        system_prompt_template: Optional[str] = SYSTEM_PROMPT_TEMPLATE,
         _annotations: Optional[Dict[str, type]] = None,
     ):
         super().__init__()
@@ -168,11 +193,12 @@ class Agent(Module):
         self._set_input_guardrail(input_guardrail)
         self._set_output_guardrail(output_guardrail)
         self._set_instructions(instructions)
-        self._set_message_history(message_history)
+        self._set_task_messages(task_messages)
         self._set_model(model)        
         self._set_model_preference(model_preference)
         self._set_prefilling(prefilling)
         self._set_system_message(system_message)
+        self._set_system_prompt_template(system_prompt_template)
         self._set_response_mode(response_mode)
         self._set_stream(stream)
         self._set_response_template(response_template)
@@ -213,7 +239,7 @@ class Agent(Module):
 
         if is_subclass_of(self.generation_schema, ReAct) and tool_schemas:
             react_tools = get_react_tools_prompt_format(tool_schemas)
-            if system_prompt:
+            if system_prompt: # TODO: invert
                 react_tools += f"\n\n {system_prompt}"
             else:
                 system_prompt = react_tools
@@ -372,28 +398,28 @@ class Agent(Module):
         self, message: Union[str, Dict[str, Any], Message]
     ) -> List[Dict[str, Any]]:        
         """Prepare model input in ChatML format"""
-        message_history = None
+        task_messages = None
         
         if isinstance(message, (str, dict)):
             content = self._process_str_dict_task(message)
         elif isinstance(message, Message):
             content = self._process_message_task(message)
-            message_history = self._get_message_history(message)
+            task_messages = self._get_task_messages(message)
         else:
             raise ValueError("Unsupported message type")
         
-        if content is None and message_history is None:
+        if content is None and task_messages is None:
             raise ValueError("No data was detected to make the model input")
 
         if content is not None:
             chat_content = [{"role": "user", "content": content}]
-            if message_history is None:
+            if task_messages is None:
                 return chat_content
             else:
-                message_history.extend(chat_content)
-                return message_history
+                task_messages.extend(chat_content)
+                return task_messages
         else:
-            return message_history
+            return task_messages
 
     def _process_str_dict_task(self, message: Union[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
         if self.task_template.data:
@@ -403,13 +429,6 @@ class Agent(Module):
             if isinstance(message, dict):
                 raise AttributeError("message is a dict that requires a `task_template`")
             return message
-
-    def _get_message_history(self, message: Message) -> Optional[List[Dict[str, Any]]]:
-        """Returns a message history (ChatML format) from message"""        
-        messages_history = None
-        if self.message_history.data:
-            messages_history = self._get_content_from_message(self.message_history.data, message)        
-        return messages_history
 
     def _process_message_task(self, message: Message) -> Optional[Union[str, List[Dict[str, Any]]]]:
         content = ""
@@ -435,13 +454,14 @@ class Agent(Module):
         # Remove whitespace
         content = content.strip()
 
-        # Process multimodal content
+        # Process multimodal content        
         if self.task_multimodal_inputs.data:
             multimodal_content = self._process_multimodal_inputs(message)
-            multimodal_content.append({"type": "text", "text": content})
-            return multimodal_content        
-        else:
-            return content
+            if multimodal_content:
+                multimodal_content.append({"type": "text", "text": content})
+                return multimodal_content
+
+        return content
 
     def _process_inputs(self, message: Message) -> Union[str, Dict[str, Any]]:
         # TODO allow other fields besides outputs?
@@ -651,6 +671,13 @@ class Agent(Module):
 
         return content
 
+    def _get_task_messages(self, message: Message) -> Optional[List[Dict[str, Any]]]:
+        """Returns a message history (ChatML format) from message"""        
+        messages_history = None
+        if self.task_messages.data:
+            messages_history = self._get_content_from_message(self.task_messages.data, message)        
+        return messages_history
+
     def _set_context_inputs(self, context_inputs: Optional[Union[str, List[str]]] = None):
         if isinstance(context_inputs, (str, list)) or context_inputs is None:
             if isinstance(context_inputs, str) and context_inputs == "":
@@ -774,28 +801,30 @@ class Agent(Module):
             raise TypeError("`examples` requires a string or None "
                             f"given `{type(examples)}`")
 
-    def _set_message_history(self, message_history: Optional[str] = None):
-        if isinstance(message_history, str) or message_history is None:
-            self.register_buffer("message_history", message_history)
+    def _set_task_messages(self, task_messages: Optional[str] = None):
+        if isinstance(task_messages, str) or task_messages is None:
+            self.register_buffer("task_messages", task_messages)
         else:
-            raise TypeError("`message_history` requires a string or None "
-                            f"given `{type(message_history)}`")
+            raise TypeError("`task_messages` requires a string or None "
+                            f"given `{type(task_messages)}`")
 
-    def _get_system_prompt(self):    
-        system_prompt = ""
-
-        if self.system_message.data:
-            system_prompt += f"{self.system_message.data}\n\n"
-
-        if self.instructions.data:
-            system_prompt += f"<instructions>\n{self.instructions.data}\n</instructions>\n"
-
-        if self.expected_output.data:
-            system_prompt += (
-                f"<expected_output>\n{self.expected_output.data}\n</expected_output>\n"
-            )
-
-        if self.examples.data:
-            system_prompt += f"<examples>\n{self.examples.data}\n</examples>\n"
-
+    def _set_system_prompt_template(self, system_prompt_template: str = SYSTEM_PROMPT_TEMPLATE):
+        if isinstance(system_prompt_template, str) or system_prompt_template is None:
+            self.examples = Parameter(system_prompt_template, PromptSpec.SYSTEM_PROMPT_TEMPLATE)
+        else:
+            raise TypeError("`system_prompt_template` requires a string given "
+                            f"`{type(system_prompt_template)}`")
+        
+    def _get_system_prompt(self):
+        """
+        Render the system prompt using the Jinja template.
+        Returns an empty string if no segments are provided.
+        """
+        template = Template(self.system_prompt_template.data)
+        system_prompt = template.render(
+            system_message=self.system_message.data,
+            instructions=self.instructions.data,
+            expected_output=self.expected_output.data,
+            examples=self.examples.data,
+        )
         return system_prompt
