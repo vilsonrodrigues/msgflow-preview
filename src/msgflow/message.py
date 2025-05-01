@@ -1,6 +1,8 @@
 from collections import OrderedDict
+from copy import deepcopy
 from uuid import uuid4
 from typing import Any, Optional, Union
+from typing_extensions import Self
 from msgflow.accessor import Accessor
 
 
@@ -16,6 +18,8 @@ class _CoreMessage(Accessor):
     def get_route(self):
         return " -> ".join(self._route)
 
+    def clone(self) -> Self:
+        return deepcopy(self)
 
 class Message(_CoreMessage):
     r"""TODO class description"""
