@@ -18,3 +18,6 @@ class VLLMChatCompletation(OpenAIChatCompletation):
         self._api_key = [key.strip() for key in keys.split(",")]
         if not self._api_key:
             raise ValueError("No valid API keys found")
+
+# TODO: moderation based on ChatCompletion
+# llama guard prompt models

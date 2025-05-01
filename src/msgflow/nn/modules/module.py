@@ -18,7 +18,7 @@ from typing import (
 import gevent
 import msgspec
 from code2mermaid import code_to_mermaid
-from jinja2 import Template  
+from jinja2 import Template
 from opentelemetry import trace
 
 import msgflow

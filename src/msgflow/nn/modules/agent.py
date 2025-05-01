@@ -46,6 +46,8 @@ from msgflow.telemetry.span import trace_agent_prepare_model_execution
 
 # add time/date to the system prompt (this can be bad if you use prompt cache)
 
+# TODO: context inputs precisam de template?
+
 class PromptSpec:
     SYSTEM_MESSAGE = "Who are you"
     INSTRUCTIONS = "How you should do"
@@ -55,7 +57,7 @@ class PromptSpec:
 
 
 SYSTEM_PROMPT_TEMPLATE =  """
-{% if system_message or instructions or expected_output or examples %}
+{% if system_message or instructions or expected_output or examples or system_extra_message %}
 <developer_note>
 {% if system_message %}{{ system_message }}
 {% endif %}
@@ -70,6 +72,9 @@ SYSTEM_PROMPT_TEMPLATE =  """
 {% if examples %}<examples>
 {{ examples }}
 </examples>
+{% endif %}
+{% if system_extra_message %}
+{{ system_extra_message }}
 {% endif %}
 </developer_note>
 {% endif %}
@@ -150,24 +155,25 @@ class Agent(Module):
         input_guardrail: Optional[Callable] = None,
         output_guardrail: Optional[Callable] = None,
         task_inputs: Optional[Union[str, Dict[str, str]]] = None,
-        task_template: Optional[str] = None,
         task_multimodal_inputs: Optional[Dict[str, List[str]]] = None,
+        task_messages: Optional[str] = None,
+        task_template: Optional[str] = None,
         context_inputs: Optional[Union[str, List[str]]] = None,
+        context_cache: Optional[str] = None,
         model_preference: Optional[str] = None,
         prefilling: Optional[str] = None,
-        context_cache: Optional[str] = None,
         generation_schema: Optional[msgspec.Struct] = None,
         response_mode: Optional[str] = "plain_response",
         tools: Optional[List[Callable]] = None,
         tool_choice: Optional[str] = None,
         response_template: Optional[str] = None,
-        task_messages: Optional[str] = None,                
         # task_messages_mode: Literal["relevant", "recent", "full"] = "relevant",
         fixed_messages: Optional[List[Dict[str, Any]]] = None,
         #signature: Optional[str] = None,
         #verbose: Optional[bool] = False,
         description: Optional[str] = None,
         system_prompt_template: Optional[str] = SYSTEM_PROMPT_TEMPLATE,
+        system_extra_message: Optional[str] = None,
         _annotations: Optional[Dict[str, type]] = None,
     ):
         super().__init__()
@@ -197,6 +203,7 @@ class Agent(Module):
         self._set_model(model)        
         self._set_model_preference(model_preference)
         self._set_prefilling(prefilling)
+        self._set_system_extra_message(system_extra_message)        
         self._set_system_message(system_message)
         self._set_system_prompt_template(system_prompt_template)
         self._set_response_mode(response_mode)
@@ -814,7 +821,14 @@ class Agent(Module):
         else:
             raise TypeError("`system_prompt_template` requires a string given "
                             f"`{type(system_prompt_template)}`")
-        
+
+    def _set_system_extra_message(self, system_extra_message: Optional[str] = None):
+        if isinstance(system_extra_message, str) or system_extra_message is None:
+            self.register_buffer("system_extra_message", system_extra_message)
+        else:
+            raise TypeError("`system_extra_message` requires a string or None "
+                            f"given `{type(system_extra_message)}`")
+
     def _get_system_prompt(self):
         """
         Render the system prompt using the Jinja template.
@@ -826,5 +840,6 @@ class Agent(Module):
             instructions=self.instructions.data,
             expected_output=self.expected_output.data,
             examples=self.examples.data,
+            extra_message=self.system_extra_message.data
         )
         return system_prompt

@@ -4,7 +4,7 @@ import gevent
 from gevent import Greenlet
 from msgflow.logger import logger
 from msgflow.message import Message
-from msgflow.utils.common import get_callable_name
+from msgflow.utils.inspect import get_callable_name
 from msgflow.telemetry.span import trace
 
 
