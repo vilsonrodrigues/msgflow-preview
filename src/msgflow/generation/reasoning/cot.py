@@ -43,11 +43,28 @@ class ValidationStep(Struct):
     explanation: str
 
 
-class ChainOfThoughts(Struct, Generic[T]):
+class ChainOfThoughts(Struct, Generic[T], kw_only=True):
     context: Optional[Context]
     assumptions: List[str] = []
     steps: List[Step]
+    validation: Optional[ValidationStep]
     final_answer: T
-    validation: ValidationStep
     confidence_score: float
     alternative_approaches: Optional[List[str]] = []
+
+
+COT_SYSTEM_MESSAGE = """
+You must structure your response using the provided 'ChainOfThoughts' schema.
+
+Define the 'Context' including domain, difficulty, and required knowledge.
+List any 'Assumptions' made.
+Detail each reasoning step in the 'Steps' list, specifying 'step_type', 'explanation', 
+'output', and 'confidence'. Include 'intermediate_results' and 'steps_dependencies_idx' 
+where applicable.
+Provide the 'final_answer' according to the expected type.
+State the overall 'confidence_score'.
+Optionally, list 'alternative_approaches' or include a 'ValidationStep' detailing the 
+validation method, result, and explanation.
+
+Adhere strictly to the defined types and structure.
+"""

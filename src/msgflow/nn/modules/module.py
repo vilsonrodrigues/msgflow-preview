@@ -433,7 +433,7 @@ class Module:
             return template.format(content)
         elif isinstance(content, dict):
             template = Template(raw_template)
-            return template.render(content)
+            return template.render(content).strip()
         else:
             raise ValueError("Unsupported content type for template formatting")    
 

@@ -4,7 +4,7 @@ from typing import (
     Callable, 
     Dict, 
     List, 
-    Literal, 
+    Literal,
     Optional, 
     Union
 )
@@ -12,17 +12,31 @@ from typing import (
 import msgspec
 from jinja2 import Template
 
-from msgflow.generation.plan.react import ReAct
+from msgflow.generation.reasoning.react import ReAct
+from msgflow.generation.signature import (
+    Signature,
+    SIGNATURE_DEFAULT_SYSTEM_MESSAGE,
+    SIGNATURE_SYSTEM_MESSAGES,
+    create_struct_from_str_signature,
+    get_examples_from_signature,
+    get_expected_output_from_signature,
+    get_task_template_from_signature,
+    parse_annotations
+)
 from msgflow.logger import logger
-from msgflow.models.gateway import ModelGateway
 from msgflow.message import Message
+from msgflow.models.gateway import ModelGateway
 from msgflow.models.types import ChatCompletionModel
 from msgflow.nn.modules.module import Module
 from msgflow.nn.modules.tool import ToolLibrary
 from msgflow.nn.parameter import Parameter
 from msgflow.utils.chat import (
+    PromptSpec,
+    SYSTEM_PROMPT_TEMPLATE,
+    apply_xml_tags,
     chatml_to_steps_format, 
-    download_file, 
+    download_file,
+    format_examples,
     get_filename, 
     get_react_tools_prompt_format
 )
@@ -48,37 +62,9 @@ from msgflow.telemetry.span import trace_agent_prepare_model_execution
 
 # TODO: context inputs precisam de template?
 
-class PromptSpec:
-    SYSTEM_MESSAGE = "Who are you"
-    INSTRUCTIONS = "How you should do"
-    EXAMPLES = "Samples of what to do"
-    EXPECTED_OUTPUT = "Describes what the response should be like"
-    SYSTEM_PROMPT_TEMPLATE = "A jinja template to format the system prompt"
 
 
-SYSTEM_PROMPT_TEMPLATE =  """
-{% if system_message or instructions or expected_output or examples or system_extra_message %}
-<developer_note>
-{% if system_message %}{{ system_message }}
-{% endif %}
-{% if instructions %}<instructions>
-{{ instructions }}
-</instructions>
-{% endif %}
-{% if expected_output %}<expected_output>
-{{ expected_output }}
-</expected_output>
-{% endif %}
-{% if examples %}<examples>
-{{ examples }}
-</examples>
-{% endif %}
-{% if system_extra_message %}
-{{ system_extra_message }}
-{% endif %}
-</developer_note>
-{% endif %}
-"""
+
 
 
 class Agent(Module):
@@ -169,7 +155,7 @@ class Agent(Module):
         response_template: Optional[str] = None,
         # task_messages_mode: Literal["relevant", "recent", "full"] = "relevant",
         fixed_messages: Optional[List[Dict[str, Any]]] = None,
-        #signature: Optional[str] = None,
+        signature: Optional[Signature] = None,
         #verbose: Optional[bool] = False,
         description: Optional[str] = None,
         system_prompt_template: Optional[str] = SYSTEM_PROMPT_TEMPLATE,
@@ -180,13 +166,23 @@ class Agent(Module):
 
         if stream and response_template:
             raise ValueError("`response_template` is not `stream=True` compatible")
+
         if stream and is_subclass_of(generation_schema, ReAct): # TODO nenhum deles deve ser
             raise ValueError(
                 "`generation_schema=ReAct` is not `stream=True` compatible"
             )
+
         if stream and output_guardrail:
             raise ValueError("`output_guardrail` is not `stream=True` compatible")
 
+        if signature is not None:
+            if generation_schema is not None:
+                self._set_signature(signature, generation_schema)
+            else:
+                self._set_signature(signature)            
+        else:
+            self._set_generation_schema(generation_schema)
+            
         self.set_name(name)
         self.set_description(description)
         self._set_annotations(_annotations or {"message": str, "return": str})
@@ -195,7 +191,6 @@ class Agent(Module):
         self._set_examples(examples)
         self._set_expected_output(expected_output)
         self._set_fixed_messages(fixed_messages)
-        self._set_generation_schema(generation_schema)
         self._set_input_guardrail(input_guardrail)
         self._set_output_guardrail(output_guardrail)
         self._set_instructions(instructions)
@@ -450,13 +445,13 @@ class Agent(Module):
         if self.task_inputs.data:
             text_content = self._process_inputs(message)
             if self.task_template.data:
-                text_content = self._format_task_template(text_content)
-            content += f"<task>\n{text_content}\n</task>\n"
+                text_content = self._format_task_template(text_content)                
+            content += apply_xml_tags("task", text_content)
         # It's possible to use `task_template` as the default task message
         # if no `task_inputs` is selected. This can be useful for multimodal
         # models that require a text message to be sent along with the data
         elif self.task_template.data:
-            content += f"<task>\n{self.task_template.data}\n</task>\n"
+            content += apply_xml_tags("task", self.task_template.data)
 
         # Remove whitespace
         content = content.strip()
@@ -510,8 +505,8 @@ class Agent(Module):
         if msg_context:
             content += f"{msg_context}\n\n"                        
 
-        if content:
-            context_content = f"<context>\n{content}\n</context>\n"
+        if content:            
+            context_content = apply_xml_tags("context", content)
             return context_content
         else:
             return None
@@ -829,6 +824,61 @@ class Agent(Module):
             raise TypeError("`system_extra_message` requires a string or None "
                             f"given `{type(system_extra_message)}`")
 
+    def _set_signature(
+        self, 
+        signature: Optional[Union[str, Signature]] = None,
+        generation_schema: Optional[msgspec.Struct] = None,
+    ):
+        if signature is not None:
+
+            examples = None
+
+            # Get system message
+            system_message = SIGNATURE_SYSTEM_MESSAGES.get(generation_schema, SIGNATURE_DEFAULT_SYSTEM_MESSAGE)
+            self._set_system_message(system_message)
+            
+            if isinstance(signature, Signature):
+                # Get instructions
+                instructions = signature.get_instructions()
+                self._set_instructions(instructions)
+
+                # Get examples from signature
+                examples = get_examples_from_signature(signature)
+
+                # Descriptions
+                inputs_desc = signature.get_input_descriptions()
+                outputs_desc = signature.get_output_descriptions()
+                output_str_signature = signature.get_str_signature().split("->")[-1]
+
+            elif isinstance(signature, str):
+                input_str_signature, output_str_signature = signature.split("->")  
+                inputs_desc = parse_annotations(input_str_signature)
+                outputs_desc = parse_annotations(output_str_signature)
+            else:
+                raise TypeError("`signature` requires a string, `Signature` or None "
+                                f"given `{type(signature)}`")
+            
+            # Create task template
+            task_template = get_task_template_from_signature(inputs_desc)
+            self._set_task_template(task_template)
+
+            # Create generation schema
+            output_struct = create_struct_from_str_signature(output_str_signature, "outputs")
+            if generation_schema is not None:            
+                output_struct = generation_schema[output_struct] # Insert as an TypeVar
+            self._set_generation_schema(output_struct)
+
+            # Create expected outputs
+            expected_output = get_expected_output_from_signature(inputs_desc, outputs_desc)
+            self._set_expected_output(expected_output)
+
+            # Create examples
+            if examples:
+                input_examples_dict, output_json_string = examples
+                input_examples_string = self._format_task_template(input_examples_dict)
+                xml_examples = format_examples([input_examples_string, output_json_string])
+                self._set_examples(xml_examples)
+
     def _get_system_prompt(self):
         """
         Render the system prompt using the Jinja template.
@@ -840,6 +890,6 @@ class Agent(Module):
             instructions=self.instructions.data,
             expected_output=self.expected_output.data,
             examples=self.examples.data,
-            extra_message=self.system_extra_message.data
+            system_extra_message=self.system_extra_message.data
         )
         return system_prompt

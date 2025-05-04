@@ -41,3 +41,5 @@ class TreeOfThoughts(Struct, Generic[T]):
     confidence_score: float
     reasoning_summary: str
     final_answer: T
+
+TOT_SYSTEM_MESSAGE = """ """

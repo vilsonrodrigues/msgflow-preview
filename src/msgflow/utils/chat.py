@@ -10,7 +10,9 @@ from typing import (
     Dict,
     Literal,
     List,
+    Optional,
     Union,
+    Tuple,
     get_origin,
 )
 from jinja2 import Template
@@ -19,9 +21,100 @@ from msgflow.logger import logger
 from msgflow.utils.inspect import get_mime_type
 
 
+class PromptSpec:
+    SYSTEM_MESSAGE = "Who are you"
+    INSTRUCTIONS = "How you should do"
+    EXAMPLES = "Samples of what to do"
+    EXPECTED_OUTPUT = "Describes what the response should be like"
+    SYSTEM_PROMPT_TEMPLATE = "A jinja template to format the system prompt"
+    #TASK_TEMPLATE = ""
+
+
+SYSTEM_PROMPT_TEMPLATE =  """
+{% if system_message or instructions or expected_output or examples or system_extra_message %}
+<developer_note>
+{% if system_message %}{{ system_message }}
+{% endif %}
+{% if instructions %}<instructions>
+{{ instructions }}
+</instructions>
+{% endif %}
+{% if expected_output %}<expected_output>
+{{ expected_output }}
+</expected_output>
+{% endif %}
+{% if examples %}<examples>
+{{ examples }}
+</examples>
+{% endif %}
+{% if system_extra_message %}
+{{ system_extra_message }}
+{% endif %}
+</developer_note>
+{% endif %}
+"""
+
+
+def apply_xml_tags(id: str, content: str, output_id: Optional[str] = None) -> str:
+    if output_id is None:
+        output_id = id
+    return f"<{id}>\n{content}\n</{output_id}>"
+
+
+def format_examples(examples: List[Union[Tuple[str, str], Tuple[str, str, str]]]) -> str:
+    """
+    Formats a list of examples into XML-style string format.
+    
+    Each example in the list should be a tuple containing input and output strings,
+    with an optional title as the third element. The function generates sequential IDs
+    for each example starting from 1.
+    
+    Args:
+        examples: A list of tuples where each tuple contains:
+            - Input string (required)
+            - Output string (required)
+            - Title string (optional)
+    
+    Returns:
+        A formatted XML-style string containing all examples.
+    
+    Example:
+        >>> examples = [
+        ...     ("What is your name?", "My name is GPT-3.5.", "Introduction"),
+        ...     ("What day is today?", "Today is Tuesday."),
+        ... ]
+        >>> print(format_examples(examples))
+        <example id=1 title="Introduction">
+        <input>What is your name?</input>
+        <output>My name is GPT-3.5.</output>
+        </example>
+        
+        <example id=2>
+        <input>What day is today?</input>
+        <output>Today is Tuesday.</output>
+        </example>
+    """
+    result = []
+    
+    for i, example in enumerate(examples, start=1):
+        if len(example) == 3:
+            input_text, output_text, title = example
+            result.append(f'<example id={i} title="{title}">')
+        else:
+            input_text, output_text = example
+            result.append(f"<example id={i}>")
+        
+        result.append(apply_xml_tags("input", input_text))
+        result.append(apply_xml_tags("output", output_text))
+        result.append("</example>\n")
+    
+    return "\n".join(result)
+
+
 def adapt_struct_schema_to_json_schema(
     original_schema: Dict[str, Any],
 ) -> Dict[str, Any]:
+    """Convert a Msgspec.Struct in Json Schema ChatCompletion-like"""
     def resolve_ref(ref: str, defs: Dict) -> Dict:
         """Resolves a reference `$ref` using the dictionary `$defs`"""
         ref_key = ref.split("/")[-1]

@@ -25,4 +25,7 @@ class SelfConsistency(Struct, Generic[T]):
     most_common_answer: str
     confidence_distribution: Dict[str, float]
     final_answer: T
-    explanation: str
+
+SELF_CONSISTENCY_SYSTEM_MESSAGE = """
+
+""".
