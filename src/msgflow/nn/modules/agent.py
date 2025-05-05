@@ -805,7 +805,7 @@ class Agent(Module):
 
     def _set_system_prompt_template(self, system_prompt_template: str = SYSTEM_PROMPT_TEMPLATE):
         if isinstance(system_prompt_template, str) or system_prompt_template is None:
-            self.examples = Parameter(system_prompt_template, PromptSpec.SYSTEM_PROMPT_TEMPLATE)
+            self.system_prompt_template = Parameter(system_prompt_template, PromptSpec.SYSTEM_PROMPT_TEMPLATE)
         else:
             raise TypeError("`system_prompt_template` requires a string given "
                             f"`{type(system_prompt_template)}`")
@@ -866,7 +866,7 @@ class Agent(Module):
             self._set_expected_output(expected_output)
 
             # Create examples
-            if examples:
+            if examples is not None:
                 input_examples_dict, output_json_string = examples
                 input_examples_string = self._format_task_template(input_examples_dict)
                 xml_examples = format_examples([input_examples_string, output_json_string])
