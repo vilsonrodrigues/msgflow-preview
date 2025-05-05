@@ -26,7 +26,7 @@ class Retriever(Module):
         self,
         name: str,
         retriever: Union[
-            HybridRetriever, LexicalRetriever, SemanticRetriever, VectorDB
+            WebRetriever, LexicalRetriever, SemanticRetriever, VectorDB
         ],
         *,        
         model: Optional[
@@ -180,11 +180,11 @@ class Retriever(Module):
     def _set_retriever(
         self,
         retriever: Union[
-            HybridRetriever, LexicalRetriever, SemanticRetriever, VectorDB
+            WebRetriever, LexicalRetriever, SemanticRetriever, VectorDB
         ],
     ):
         if isinstance(
-            retriever, (HybridRetriever, LexicalRetriever, SemanticRetriever, VectorDB)
+            retriever, (WebRetriever, LexicalRetriever, SemanticRetriever, VectorDB)
         ):
             self.register_buffer("retriever", retriever)
         else:
