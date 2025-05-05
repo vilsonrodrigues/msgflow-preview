@@ -110,6 +110,50 @@ def format_examples(examples: List[Union[Tuple[str, str], Tuple[str, str, str]]]
     
     return "\n".join(result)
 
+def format_available_modules(modules: List[Dict[str, str]], title: Optional[str] = None) -> str:
+    """
+    Generates an XML structure for a list of modules, mapping module names to their descriptions.
+
+    Args:
+        modules: 
+            A list of dictionaries, each containing 'name' and 'description' keys.
+        title: 
+            A title in modules.
+
+    Returns:
+        str: A string containing the XML structure with module names and descriptions.
+
+    Example:
+        modules = [
+            {"name": "Authentication", "description": "Handles user login and session management."},
+        ]
+        xml = generate_modules_xml(modules)
+        print(xml)
+        <modules>
+        <module id=1 name="Authentication">
+        <description>
+        Handles user login and session management.
+        </description>
+        </module>
+        </modules>        
+    """
+    id = "modules"
+    modules_content = ""
+
+    for i, module in enumerate(modules, start=1):
+        description_xml = apply_xml_tags("description", module["description"])
+        module_xml = apply_xml_tags(
+            f'module id={i} name="{module["name"]}"', 
+            description_xml, 
+            output_id="module"
+        )
+        modules_content += f"{module_xml}\n"
+
+    if title:
+        id = f'modules title="{title}"'
+
+    return apply_xml_tags(id, modules_content.strip(), "modules")
+
 
 def adapt_struct_schema_to_json_schema(
     original_schema: Dict[str, Any],

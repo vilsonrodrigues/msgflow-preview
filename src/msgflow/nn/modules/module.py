@@ -81,6 +81,15 @@ def _addindent(s_, numSpaces):
     return s
 
 
+def get_callable_name(callable: Callable) -> str:
+    if isinstance(callable, Module):
+        return callable.get_module_name()
+    elif inspect.isfunction(callable):    
+        return callable.__name__
+    else:
+        return callable.__class__.__name__
+
+
 r"""This tracks hooks common to all modules that are executed immediately before
 .registering the buffer/module/parameter"""
 _global_buffer_registration_hooks: Dict[int, Callable] = OrderedDict()
@@ -433,7 +442,9 @@ class Module:
             return template.format(content)
         elif isinstance(content, dict):
             template = Template(raw_template)
-            return template.render(content).strip()
+            rendered = template.render(content) 
+            rendered = content.strip()
+            return rendered
         else:
             raise ValueError("Unsupported content type for template formatting")    
 
@@ -669,7 +680,7 @@ class Module:
     def get_module_name(self):
         module_name = getattr(self, "name", None)
         if module_name is None:
-            module_name = self.__class__.__name__
+            module_name = self._get_name()
         else:
             module_name = module_name.data
         return module_name

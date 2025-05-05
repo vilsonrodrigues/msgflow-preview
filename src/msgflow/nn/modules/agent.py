@@ -52,8 +52,6 @@ from msgflow.telemetry.span import trace_agent_prepare_model_execution
 # it is possible to continue generating a model. Just resend to it what it
 # wrote and then it will continue from there
 
-# from schema to scheme
-
 # if not all(isinstance(module, Module) for module in modules_to_send):
 
 # the system can change the response to the stream if x condition is met. nein
@@ -61,11 +59,6 @@ from msgflow.telemetry.span import trace_agent_prepare_model_execution
 # add time/date to the system prompt (this can be bad if you use prompt cache)
 
 # TODO: context inputs precisam de template?
-
-
-
-
-
 
 class Agent(Module):
     r"""Agent is a Module type that uses language models to solve tasks.
@@ -155,7 +148,7 @@ class Agent(Module):
         response_template: Optional[str] = None,
         # task_messages_mode: Literal["relevant", "recent", "full"] = "relevant",
         fixed_messages: Optional[List[Dict[str, Any]]] = None,
-        signature: Optional[Signature] = None,
+        signature: Optional[Union[str, Signature]] = None,
         #verbose: Optional[bool] = False,
         description: Optional[str] = None,
         system_prompt_template: Optional[str] = SYSTEM_PROMPT_TEMPLATE,
@@ -863,7 +856,7 @@ class Agent(Module):
             self._set_task_template(task_template)
 
             # Create generation schema
-            output_struct = create_struct_from_str_signature(output_str_signature, "outputs")
+            output_struct = create_struct_from_str_signature(output_str_signature, "Outputs")
             if generation_schema is not None:            
                 output_struct = generation_schema[output_struct] # Insert as an TypeVar
             self._set_generation_schema(output_struct)
