@@ -7,9 +7,9 @@ from msgflow.models.types import (
     TextEmbedderModel,
 )
 from msgflow.data.retrievers.types import (
-    HybridRetriever,
     LexicalRetriever,
     SemanticRetriever,
+    WebRetriever
 )
 from msgflow.models.gateway import ModelGateway
 from msgflow.nn.modules.module import Module
