@@ -41,7 +41,7 @@ from msgflow.utils.chat import (
     get_react_tools_prompt_format
 )
 from msgflow.utils.encode import encode_data_to_base64
-from msgflow.utils.encode import get_mime_type
+from msgflow.utils.inspect import get_mime_type
 from msgflow.utils.validation import is_base64, is_subclass_of
 from msgflow.telemetry.span import trace_agent_prepare_model_execution
 
