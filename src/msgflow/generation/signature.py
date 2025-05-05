@@ -178,6 +178,7 @@ class Signature(metaclass=_SignatureMeta):
         inputs = [f"{key}: {typ}" for key, typ in cls._get_inputs().items()]
         outputs = [f"{key}: {typ}" for key, typ in cls._get_outputs().items()]
         return ", ".join(inputs) + " -> " + ", ".join(outputs)
+    # TODO: tem bugs no parser quando usa optional
 
     @classmethod
     def get_input_descriptions(cls) -> List[Tuple[str, str, str]]:
@@ -189,7 +190,8 @@ class Signature(metaclass=_SignatureMeta):
             type, and description.
         """
         inputs = cls._get_inputs()
-        return [(key, typ, cls._inputs[key].desc) for key, typ in inputs.items()]
+        return [(key, typ, cls._inputs[key].desc, cls._inputs[key].ex) 
+                for key, typ in inputs.items()]
 
     @classmethod
     def get_output_descriptions(cls) -> List[Tuple[str, str, str]]:
@@ -201,7 +203,8 @@ class Signature(metaclass=_SignatureMeta):
             type, and description.
         """
         outputs = cls._get_outputs()
-        return [(key, typ, cls._outputs[key].desc) for key, typ in outputs.items()]
+        return [(key, typ, cls._outputs[key].desc, cls._outputs[key].ex) 
+                for key, typ in outputs.items()]
 
     @classmethod
     def get_instructions(cls) -> Optional[str]:

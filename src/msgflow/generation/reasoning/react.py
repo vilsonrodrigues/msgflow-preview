@@ -1,6 +1,10 @@
 from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 from msgspec import Struct
+from typing_extensions import Generic, TypeVar
+
+
+T = TypeVar("T", default=str)
 
 
 class ToolCall(Struct, kw_only=True):
@@ -20,15 +24,9 @@ class ReActStep(Struct):
     thought: Thought
     actions: List[ToolCall] = [] 
 
-
-class ReActResult(Struct):
-    answer: str 
-    explanation: str 
-
-
-class ReAct(Struct):
+class ReAct(Struct, Generic[T]):
     current_step: Optional[ReActStep] = None
-    final_answer: Optional[ReActResult] = None  
+    final_answer: Optional[T] = None  
 
 
 REACT_SYSTEM_MESSAGE = """
