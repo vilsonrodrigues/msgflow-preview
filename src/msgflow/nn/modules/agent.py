@@ -880,7 +880,7 @@ class Agent(Module):
             if examples is not None:
                 input_examples_dict, output_json_string = examples
                 input_examples_string = self._format_task_template(input_examples_dict)
-                examples = format_examples([input_examples_string, output_json_string])
+                examples = format_examples([(input_examples_string, output_json_string)])
             self._set_examples(examples)
 
     def _get_system_prompt(self):
