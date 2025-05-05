@@ -11,14 +11,16 @@ from typing import (
     Union,    
     Tuple,
     Type,
-    get_type_hints,
-    get_origin,    
+    get_args,
+    get_origin,
+    get_type_hints,    
 )
 import msgspec
 from msgflow.generation.reasoning.cot import ChainOfThoughts, COT_SYSTEM_MESSAGE
 from msgflow.generation.reasoning.react import ReAct, REACT_SYSTEM_MESSAGE
 from msgflow.generation.reasoning.self_consistency import SelfConsistency, SELF_CONSISTENCY_SYSTEM_MESSAGE
 from msgflow.generation.reasoning.tot import TreeOfThoughts, TOT_SYSTEM_MESSAGE
+from msgflow.logger import logger
 from msgflow.utils.chat import apply_xml_tags
 
 
@@ -248,103 +250,104 @@ ALLOWED_TYPES = {
 }
 
 def _parse_literal_args(args_str: str) -> tuple:
-    """Analisa com segurança os argumentos dentro de Literal[...] usando ast."""
+    """Safely parse arguments inside Literal[...] using ast."""
     try:
-        # Envolve a string em colchetes para analisá-la como uma lista literal
-        parsed_node = ast.parse(f'[{args_str}]', mode='eval')
-        # Extrai os valores do nó da lista literal analisada
-        # ast.literal_eval avalia com segurança strings, números, tuplas, listas, dicts, bools, None
+        # Wrap the string in square brackets to parse it as a literal list
+        parsed_node = ast.parse(f"[{args_str}]", mode="eval")
+        # Extract node values ​​from the parsed literal list
+        # ast.literal_eval safely evaluates strings, numbers, tuples, lists, dicts, bools, None
         values = [ast.literal_eval(node) for node in parsed_node.body.elts]
         return tuple(values)
     except (SyntaxError, ValueError, TypeError) as e:
-        raise ValueError(f"Argumentos literais inválidos: '{args_str}'. Erro: {e}")
+        logger.error(str(e))
+        raise ValueError(f"Invalid literal arguments: `{args_str}`")
+    
 
 def _split_args(args_str: str) -> list[str]:
     """
-    Divide uma string de argumentos (ex: "str, list[str], Literal['a', 'b']")
-    respeitando colchetes aninhados e aspas simples/duplas básicas.
+    Splits a string of arguments (e.g. "str, list[str], Literal['a', 'b']")
+    respecting nested brackets and basic single/double quotes.
     """
     args = []
-    level = 0  # Nível de aninhamento de colchetes/parênteses
+    level = 0  # Bracket/parentheses nesting level
     current_arg_start = 0
-    in_quotes = None # Controla se está dentro de aspas simples ou duplas
+    in_quotes = None # Controls whether it is enclosed in single or double quotes
 
-    # Lida com o caso especial de argumentos vazios como em Tuple[()]
+    # Handle the special case of empty arguments as in Tuple[()]
     if not args_str.strip():
         return []
 
     for i, char in enumerate(args_str):
-        if char in ('[', '{', '(') and not in_quotes:
+        if char in ("[", "{", "(") and not in_quotes:
             level += 1
-        elif char in (']', '}', ')') and not in_quotes:
+        elif char in ("]", "}", ")") and not in_quotes:
             level -= 1
         elif char == "'" or char == '"':
             if in_quotes == char:
-                in_quotes = None # Saiu das aspas
+                in_quotes = None # Got out of the quotes
             elif in_quotes is None:
-                in_quotes = char # Entrou nas aspas
+                in_quotes = char # Entered the quotes
 
-        # Divide por vírgula apenas se não estiver aninhado e não dentro de aspas
-        elif char == ',' and level == 0 and not in_quotes:
+        # Divide by comma only if not nested and not inside quotes
+        elif char == "," and level == 0 and not in_quotes:
             args.append(args_str[current_arg_start:i].strip())
             current_arg_start = i + 1
 
-    # Adiciona o último argumento (ou o único argumento)
+    # Add the last argument (or the only argument)
     args.append(args_str[current_arg_start:].strip())
-    return [arg for arg in args if arg] # Filtra strings vazias
+    return [arg for arg in args if arg] # Filter empty strings
 
 def _parse_type_string(type_str: str) -> type:
     """
-    Analisa recursivamente uma string de tipo (ex: "dict[str, list[str]]")
-    para um objeto de tipo Python real, usando ALLOWED_TYPES (case-insensitive).
-    Substitui o uso inseguro de eval().
+    Recursively parses a type string (e.g. "dict[str, list[str]]")
+    into a real Python type object, using ALLOWED_TYPES (case-insensitive).
     """
     type_str = type_str.strip()
 
     if not type_str:
-        raise ValueError("A string de tipo não pode estar vazia.")
+        raise ValueError("The type string cannot be empty.")
 
-    type_str_lower = type_str.lower() # Converte para minúsculas para lookup
+    type_str_lower = type_str.lower() # Convert to lowercase for lookup
 
-    # Caso base: Tipos simples (str, int, bool, any, none)
-    # Verifica se NÃO é um tipo genérico que precisa de análise de argumentos
+    # Base case: Simple types (str, int, bool, any, none)
+    # Checks if it is NOT a generic type that needs argument parsing
     simple_types_lower = {"str", "int", "float", "bool", "any", "none"}
     if type_str_lower in simple_types_lower and type_str_lower in ALLOWED_TYPES:
          return ALLOWED_TYPES[type_str_lower]
 
-    # Caso recursivo: Tipos genéricos como list[T], dict[K, V], Union[X, Y], Literal[...], Optional[T], Tuple[...]
-    # Usa regex para encontrar o padrão NomeTipo[argumentos]
-    # O nome do tipo (grupo 1) pode ser case-insensitive agora
-    match = re.match(r"^\s*(\w+)\s*\[(.*)\]\s*$", type_str, re.DOTALL) # re.DOTALL para abranger múltiplas linhas nos args
+    # Recursive case: Generic types like list[T], dict[K, V], Union[X, Y], 
+    # Literal[...], Optional[T], Tuple[...]
+    # Use regex to find the pattern TypeName[arguments]
+    # Type name (group 1) can be case-insensitive now
+    # re.DOTALL to span multiple lines in args    
+    match = re.match(r"^\s*(\w+)\s*\[(.*)\]\s*$", type_str, re.DOTALL)
     if match:
         base_type_name, args_str = match.groups()
         base_type_name = base_type_name.strip()
-        args_str = args_str.strip() # Argumentos internos
+        args_str = args_str.strip() # Internal arguments
 
-        base_type_name_lower = base_type_name.lower() # Converte para minúsculas para lookup
+        base_type_name_lower = base_type_name.lower() # Convert to lowercase for lookup
 
         if base_type_name_lower not in ALLOWED_TYPES:
-            # Usa o nome original no erro para clareza
-            raise ValueError(f"Tipo base não suportado: '{base_type_name}' em '{type_str}'")
+            # Use the original name in the error for clarity
+            raise ValueError(f"Base type not supported: `{base_type_name}` in `{type_str}`")
 
-        base_type = ALLOWED_TYPES[base_type_name_lower] # Busca usando a versão minúscula
-
-        # --- Tratamento Específico para Tipos Genéricos ---
-        # A lógica interna permanece a mesma, usando a variável `base_type` obtida
+        base_type = ALLOWED_TYPES[base_type_name_lower] # Search using lowercase version
 
         if base_type is Literal:
             try:
                 parsed_args = _parse_literal_args(args_str)
                 if not parsed_args:
-                     raise ValueError("Literal[...] não pode estar vazio")
+                     raise ValueError("Literal[...] cannot be empty")
                 return Literal[parsed_args]
             except Exception as e:
-                 raise ValueError(f"Falha ao analisar argumentos Literal '{args_str}': {e}")
+                 raise ValueError(f"Failed to parse Literal arguments `{args_str}`: {e}")
 
         elif base_type is Optional:
             arg_strs_list = _split_args(args_str)
             if len(arg_strs_list) != 1:
-                 raise ValueError(f"Optional[...] requer exatamente 1 argumento, obteve {len(arg_strs_list)} em '{type_str}'")
+                raise ValueError("Optional[...] requires exactly 1 argument, "
+                                 f"got {len(arg_strs_list)} in `{type_str}`")
             inner_type = _parse_type_string(arg_strs_list[0])
             return Union[inner_type, type(None)]
 
@@ -359,106 +362,104 @@ def _parse_type_string(type_str: str) -> type:
                      return Tuple[item_type, ...]
 
              if not arg_strs_list and base_type is not Tuple:
-                 # Usa o nome original no erro
-                 raise ValueError(f"{base_type_name}[...] deve conter argumentos.")
+                 # Use original name in error
+                 raise ValueError(f"{base_type_name}[...] must contain arguments.")
 
              parsed_args = tuple(_parse_type_string(arg) for arg in arg_strs_list)
 
              if base_type is Dict and len(parsed_args) != 2:
-                 raise ValueError(f"Dict requer exatamente 2 argumentos (chave, valor), obteve {len(parsed_args)} em '{type_str}'")
+                 raise ValueError("Dict requires exactly 2 arguments (key, value), "
+                                  f"got {len(parsed_args)} in `{type_str}`")
              if base_type is List and len(parsed_args) != 1:
-                 raise ValueError(f"List requer exatamente 1 argumento, obteve {len(parsed_args)} em '{type_str}'")
+                 raise ValueError("List requires exactly 1 argument, got "
+                                  f"{len(parsed_args)} in `{type_str}`")
              if base_type is Union:
                   if len(parsed_args) == 0:
-                      raise ValueError(f"Union[...] não pode estar vazio em '{type_str}'")
+                      raise ValueError(f"Union[...] cannot be empty in `{type_str}`")
                   if len(parsed_args) == 1:
-                      return parsed_args[0] # Union[T] simplifica para T
+                      return parsed_args[0] # Union[T] simplify to T
 
              try:
                  return base_type[parsed_args]
              except TypeError as e:
-                 # Usa o nome original no erro
-                 raise ValueError(f"Argumentos de tipo inválidos para {base_type_name}: {parsed_args}. Erro: {e}")
+                 raise ValueError(f"Invalid type arguments for {base_type_name}: "
+                                  f"{parsed_args}. Error: {e}")
         else:
-             # Usa o nome original no erro
-             raise ValueError(f"A construção do tipo genérico '{base_type_name}' não está implementada ou é inválida.")
+             raise ValueError(f"The construction of the generic type `{base_type_name}`"
+                              " is not implemented or is invalid.")
 
-    # Se não for um tipo simples e não corresponder ao padrão genérico NomeTipo[...]
-    # Verifica novamente se é um tipo simples permitido (usando minúsculas)
+    # If it is not a simple type and does not match the generic pattern TypeName[...]
+    # Check again if it is a permitted simple type (using lowercase)
     if type_str_lower in ALLOWED_TYPES:
         return ALLOWED_TYPES[type_str_lower]
 
-    # Se chegou até aqui, a string de tipo não é reconhecida
-    raise ValueError(f"String de tipo não suportada ou malformada: '{type_str}'")
+    raise ValueError(f"Unsupported or malformed type string: c{type_str}`")
 
 def parse_annotations(signature: str) -> List[Tuple[str, str]]:
     """
-    Analisa uma string de assinatura no formato "campo1: tipo1, campo2: tipo2, campo3".
-    Assume `str` como tipo padrão se omitido.
-    Lida com tipos aninhados e literais com vírgulas.
+    Parses a signature string in the format "field1:type1, field2:type2, field3".
+    Assumes `str` as default type if omitted.
+    Handles nested types and literals with commas.
     """
     fields = []
     current_pos = 0
-    level = 0  # Nível de aninhamento de colchetes/parênteses
-    in_quotes = None # Controla aspas simples ou duplas
+    level = 0 
+    in_quotes = None
     current_field_start = 0
     signature = signature.strip()
 
     if not signature:
-        return [] # Retorna lista vazia se a assinatura for vazia
+        return []
 
     while current_pos < len(signature):
         char = signature[current_pos]
 
-        if char in ('[', '{', '(') and not in_quotes:
+        if char in ("[", "{", "(") and not in_quotes:
             level += 1
-        elif char in (']', '}', ')') and not in_quotes:
+        elif char in ("]", "}", ")") and not in_quotes:
             level -= 1
-            if level < 0: # Verifica aninhamento inválido
-                 raise ValueError(f"Aninhamento de colchetes/parênteses desbalanceado perto de: '{signature[current_pos:]}'")
+            if level < 0:
+                 raise ValueError("Unbalanced bracket/parentheses "
+                                  f"nesting near `{signature[current_pos:]}`")
         elif char == "'" or char == '"':
              if in_quotes == char:
-                 in_quotes = None # Saiu das aspas
+                 in_quotes = None
              elif in_quotes is None:
-                 in_quotes = char # Entrou nas aspas
+                 in_quotes = char
 
-        # Divide por vírgula apenas se não estiver aninhado e não dentro de aspas
-        if char == ',' and level == 0 and not in_quotes:
+        # Divide by comma only if not nested and not inside quotes
+        if char == "," and level == 0 and not in_quotes:
             field_str = signature[current_field_start:current_pos].strip()
-            if field_str: # Evita adicionar strings vazias se houver vírgulas extras
+            if field_str: # Avoid adding empty strings if there are extra commas
                 fields.append(field_str)
             current_field_start = current_pos + 1
 
         current_pos += 1
 
-    # Verifica se o aninhamento terminou corretamente
     if level != 0:
-        raise ValueError("Aninhamento de colchetes/parênteses desbalanceado na assinatura.")
+        raise ValueError("Unbalanced bracket/parentheses nesting in signature.")
     if in_quotes:
-        raise ValueError("Aspas não fechadas na assinatura.")
+        raise ValueError("Unclosed quotation marks in signature.")
 
-    # Adiciona o último campo
     last_field_str = signature[current_field_start:].strip()
     if last_field_str:
         fields.append(last_field_str)
 
     result = []
     for field_str in fields:
-        # Divide pelo primeiro ':' encontrado
         parts = field_str.split(":", 1)
         if len(parts) == 2:
             key = parts[0].strip()
             value_type = parts[1].strip()
             if not key:
-                 raise ValueError(f"Nome do campo não pode ser vazio em '{field_str}'")
+                 raise ValueError(f"Field name cannot be empty in`{field_str}`")
             if not value_type:
-                 raise ValueError(f"Tipo não pode ser vazio após ':' em '{field_str}'")
+                 raise ValueError(f"Type cannot be empty after ':' in `{field_str}`")
         else:
-            # Assume tipo 'str' se não houver ':'
             key = field_str.strip()
-            value_type = "str" # Tipo padrão
+            value_type = "str" # Default type
             if not key:
-                 raise ValueError(f"Nome do campo não pode ser vazio em '{field_str}'")
+                 raise ValueError(f"Field name cannot be empty in `{field_str}`")
 
         result.append((key, value_type))
 
@@ -466,169 +467,154 @@ def parse_annotations(signature: str) -> List[Tuple[str, str]]:
 
 def create_struct_from_signature(signature: str, struct_name: Optional[str] = "DynamicStruct"):
     """
-    Cria uma classe struct msgspec a partir de uma string de assinatura,
-    usando um parser de tipos seguro e case-insensitive para nomes de tipos.
+    Creates a struct msgspec class from a signature string,
+    using a type-safe and case-insensitive parser for type names.
 
     Args:
-        signature: String de assinatura (ex: "campo1: tipo1, campo2: tipo2").
-        struct_name: Nome da classe struct a ser criada.
+        signature: Signature string (e.g. "field1: type1, field2: type2").
+        struct_name: Name of the struct class to create.
 
     Returns:
-        Uma classe msgspec struct.
+        A struct msgspec class.
 
     Raises:
-        ValueError: Se a assinatura ou os tipos forem inválidos/não suportados.
-        RuntimeError: Para erros inesperados durante o parsing.
+        ValueError: If the signature or types are invalid/unsupported.
+        RuntimeError: For unexpected errors during parsing.
     """
-    # Analisa a assinatura em pares (nome, string_tipo)
-    annotations = parse_annotations(signature)
+    annotations = parse_annotations(signature) # Parse the signature into (name, string_type) pairs
 
     struct_fields = []
     for name, type_str in annotations:
-        try:
-            # Usa o parser seguro (que agora é case-insensitive internamente)
+        try:            
             parsed_type = _parse_type_string(type_str)
             struct_fields.append((name, parsed_type))
-        except ValueError as e:
-            # Re-levanta o erro com mais contexto
-            raise ValueError(f"Erro ao analisar o tipo para o campo '{name}' (tipo='{type_str}'): {e}")
-        except Exception as e: # Captura outros erros inesperados
-            raise RuntimeError(f"Erro inesperado ao analisar o tipo '{type_str}' para o campo '{name}': {e}")
+        except ValueError as e:            
+            raise ValueError(f"Error parsing type for field `{name}` (type='{type_str}'): {e}")
+        except Exception as e: # Catch other unexpected errors
+            raise RuntimeError(f"Unexpected error parsing type `{type_str}` to field `{name}`: {e}")
 
-    # Verifica se algum campo foi realmente analisado se a assinatura não estava vazia
+    # Checks if any field was actually parsed if the signature was not empty
     if not struct_fields and signature.strip():
-        raise ValueError("Não foi possível analisar nenhum campo da assinatura fornecida.")
+        raise ValueError("Unable to parse any fields in the provided signature.")
 
-    # Cria a classe struct dinamicamente usando defstruct
-    # Permite a criação de structs vazias se a assinatura for vazia
     try:
         DynamicStruct = msgspec.defstruct(struct_name, struct_fields)
     except Exception as e:
-        raise RuntimeError(f"Erro ao criar msgspec.defstruct '{struct_name}': {e}")
+        raise RuntimeError(f"Error creating msgspec.defstruct `{struct_name}`: {e}")
 
     return DynamicStruct
 
 def _parse_example_str(example_str: str, target_type: Type) -> Any:
     """
-    Tenta analisar uma string de exemplo para o tipo Python de destino.
-    Usa ast.literal_eval para segurança e para lidar com literais Python.
+    Attempts to parse an example string into the target Python type.
+    Uses ast.literal_eval for safety and to handle Python literals.
     """
     origin_type = get_origin(target_type)
     
     # Trata 'None' literal -> None Python
-    if example_str.strip().lower() == 'none':
-        # Verifica se o tipo de destino permite None (Optional)
-        # Esta é uma verificação básica, pode precisar de mais robustez para tipos complexos
+    if example_str.strip().lower() == "none":
+        # Checks if the target type allows None (Optional)
         is_optional = origin_type is Union and type(None) in get_args(target_type)
         if target_type is type(None) or is_optional:
              return None
         else:
-             raise ValueError(f"String 'None' recebida, mas o tipo de destino '{target_type}' não é None ou Optional.")
+             raise ValueError(f"Received string `None` but target type `{target_type}` "
+                              " is not None or Optional.")
 
-    # Analisa baseado no tipo de destino
+    # Analyze based on destination type
     if target_type is str:
-        return example_str  # Retorna a string como está
+        return example_str
     elif target_type is bool:
         low_ex = example_str.strip().lower()
-        if low_ex in ('true', 'yes', '1'):
+        if low_ex in ("true", "yes", "1"):
             return True
-        elif low_ex in ('false', 'no', '0'):
+        elif low_ex in ("false", "no", "0"):
             return False
         else:
-            raise ValueError(f"Não foi possível analisar '{example_str}' como booleano.")
+            raise ValueError(f"Could not parse `{example_str}` as boolean.")
     elif target_type is int:
         return int(example_str)
     elif target_type is float:
         return float(example_str)
-    # Tenta analisar tipos como list, dict, tuple, set e seus equivalentes em typing
-    elif origin_type in (list, dict, tuple, set, typing.List, typing.Dict, typing.Tuple, typing.Set):
+    elif origin_type in (list, dict, tuple, set, List, Dict, Tuple, Set):
         try:
             parsed_value = ast.literal_eval(example_str)
-            # Validação básica do tipo após a análise
-            expected_type = list if origin_type in (list, typing.List) else \
-                            dict if origin_type in (dict, typing.Dict) else \
-                            tuple if origin_type in (tuple, typing.Tuple) else \
-                            set if origin_type in (set, typing.Set) else None
+            expected_type = list if origin_type in (list, List) else \
+                            dict if origin_type in (dict, Dict) else \
+                            tuple if origin_type in (tuple, Tuple) else \
+                            set if origin_type in (set, Set) else None
             
             if expected_type and not isinstance(parsed_value, expected_type):
-                 raise TypeError(f"Valor analisado '{parsed_value}' não é do tipo esperado {expected_type} para {target_type}")
+                 raise TypeError(f"Parsed value `{parsed_value}` is not of "
+                                 "expected type {expected_type} for {target_type}")
                  
             return parsed_value
         except (ValueError, SyntaxError, TypeError, MemoryError) as e:
-            raise ValueError(f"Falha ao analisar '{example_str}' como {target_type} usando ast.literal_eval: {e}") from e
+            raise ValueError(f"Failed to parse `{example_str}` as {target_type} using ast.literal_eval: {e}") from e
     else:
-        # Tenta ast.literal_eval como fallback genérico (para tipos simples como NoneType ou outros literais)
-        # Use com cautela, pode não funcionar para tipos complexos/customizados.
         try:
-            # Pode ser útil se o tipo for, por exemplo, Optional[int] e o exemplo for "123"
-            # No entanto, os casos específicos (int, float, bool, etc.) já foram tratados.
-            # Isso pode pegar casos como um exemplo "None" para um Optional[str].
+            # It might be useful if the type is, for example, Optional[int] and the example is "123"
             return ast.literal_eval(example_str)
         except (ValueError, SyntaxError, TypeError, MemoryError):
-             # Se falhar, indica que não é um literal Python simples e não foi tratado acima.
-             raise ValueError(f"Tipo não suportado '{target_type}' para análise automática da string de exemplo '{example_str}'")
+             raise ValueError(f"Unsupported type `{target_type}` for automatic parsing of example string '{example_str}'")
 
 
 def get_examples_from_signature(
     signature_cls: Type[Signature]
 ) -> Optional[Tuple[Dict[str, str], str]]:
     """
-    Processa exemplos de uma classe Signature, retornando um dict para inputs
-    e uma string JSON para outputs, somente se todos os exemplos estiverem presentes.
+    Processes examples of a Signature class, returning a dict for inputs
+    and a JSON string for outputs, only if all examples are present.
 
     Args:
-        signature_cls: A classe Signature (que herda de Signature) a ser processada.
+        signature_cls: The Signature class (which inherits from Signature) to process.
 
     Returns:
-        Uma tupla contendo:
-        - Dicionário mapeando nomes de inputs para suas strings de exemplo.
-        - String JSON mapeando nomes de outputs para seus exemplos *analisados* (parsed).
-        Retorna None se qualquer campo (input ou output) não tiver um exemplo definido.
-        Levanta ValueError/TypeError se ocorrer um erro na análise dos exemplos de output
-        ou na codificação JSON.
+        A tuple containing:
+        - Dictionary mapping input names to their example strings.
+        - JSON string mapping output names to their *parsed* examples.
+        Returns None if any field (input or output) does not have an example defined.
+        Raises ValueError/TypeError if an error occurs in parsing the output examples
+        or in the JSON encoding.
     """
     input_descs = signature_cls.get_input_descriptions()
     output_descs = signature_cls.get_output_descriptions()
 
-    # Verifica se TODOS os campos têm um exemplo (não None)
+    # Check if ALL fields have an instance (not None)
     all_inputs_have_examples = all(desc[3] is not None for desc in input_descs)
     all_outputs_have_examples = all(desc[3] is not None for desc in output_descs)
 
     if not (all_inputs_have_examples and all_outputs_have_examples):
-        return None  # Retorna None se faltar algum exemplo
+        return None
 
-    # 1. Cria o dicionário de exemplos de input (nome -> exemplo string)
-    # Garantido que desc[3] (exemplo) não é None por causa da verificação acima
+    # 1. Create dictionary of input examples (name -> example string)
+    # Ensured that desc[3] (example) is not None because of the above check
     input_examples_dict = {desc[0]: desc[3] for desc in input_descs} 
 
-    # 2. Cria o dicionário de exemplos de output (nome -> exemplo *analisado*)
+    # 2. Create the dictionary of output examples (name -> *parsed* example)
     output_parsed_dict = {}
-    type_hints = get_type_hints(signature_cls) # Obtém os tipos reais
+    type_hints = get_type_hints(signature_cls) # Get the actual types
 
     try:
         for name, _, _, example_str in output_descs:
-             # example_str é garantido como não None aqui
-             target_type = type_hints.get(name)
-             if target_type is None:
-                 # Isso não deveria acontecer se a classe Signature estiver bem definida
-                 raise ValueError(f"Type hint não encontrado para o campo de output '{name}' em {signature_cls.__name__}")
+            target_type = type_hints.get(name)
+            if target_type is None:
+                raise ValueError(f"Type hint not found for field "
+                                 f"output `{name}` em {signature_cls.__name__}")
              
-             # Usa a função auxiliar para analisar a string de exemplo para o tipo correto
-             parsed_value = _parse_example_str(example_str, target_type) 
-             output_parsed_dict[name] = parsed_value
+            # Use the helper function to parse the example string to the correct type
+            parsed_value = _parse_example_str(example_str, target_type) 
+            output_parsed_dict[name] = parsed_value
 
     except (ValueError, TypeError) as e:
-        # Captura erros da análise (parsing)
-        raise ValueError(f"Erro ao analisar exemplos de output para {signature_cls.__name__}: {e}") from e
-
-    # 3. Codifica o dicionário de outputs analisados para uma string JSON
-    try:
-        # ensure_ascii=False é bom para caracteres non-ASCII
-        #output_json_string = json.dumps(output_parsed_dict, ensure_ascii=False, indent=2) # Adiciona indentação para legibilidade
-        output_json_string = msgspec.json.encode(output_parsed_dict) # Adiciona indentação para legibilidade
+        raise ValueError(f"Error parsing output examples for "
+                         f"{signature_cls.__name__}: {e}") from e
+    
+    try: # 3. Encode the parsed output dictionary to a JSON string
+        output_json_string = msgspec.json.encode(output_parsed_dict)
     except TypeError as e:
-        # Captura erros se algum tipo analisado não for serializável em JSON
-        raise TypeError(f"Erro ao codificar outputs analisados para JSON em {signature_cls.__name__}: {e}") from e
+        raise TypeError(f"Error encoding parsed outputs to JSON in "
+                        f"{signature_cls.__name__}: {e}") from e
 
     return input_examples_dict, output_json_string
 
@@ -651,7 +637,9 @@ def get_expected_output_from_signature(
     expected_output += "\nBe consise in choosing your answers. Write an encoded JSON."
     return expected_output
 
-def get_task_template_from_signature(inputs_desc: List[Tuple[str, str, str, Union[str, None]]]) -> str:
+def get_task_template_from_signature(
+    inputs_desc: List[Tuple[str, str, str, Union[str, None]]]
+) -> str:
     task_template = ""
     for input_desc in inputs_desc:
         part = apply_xml_tags(input_desc[0], f"{{{{ {input_desc[0]} }}}}")
