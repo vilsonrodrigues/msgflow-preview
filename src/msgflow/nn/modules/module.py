@@ -443,7 +443,7 @@ class Module:
         elif isinstance(content, dict):
             template = Template(raw_template)
             rendered = template.render(content) 
-            rendered = content.strip()
+            rendered = rendered.strip()
             return rendered
         else:
             raise ValueError("Unsupported content type for template formatting")    
