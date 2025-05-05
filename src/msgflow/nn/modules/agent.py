@@ -169,30 +169,30 @@ class Agent(Module):
             raise ValueError("`output_guardrail` is not `stream=True` compatible")
 
         if signature is not None:
+            signature_params = {"signature": signature, "instructions": instructions}
             if generation_schema is not None:
-                self._set_signature(signature, generation_schema)
-            else:
-                self._set_signature(signature)            
+                signature_params["generation_schema"] = generation_schema
+            self._set_signature(**signature_params)                      
         else:
+            self._set_examples(examples)
+            self._set_expected_output(expected_output)        
             self._set_generation_schema(generation_schema)
+            self._set_instructions(instructions)
+            self._set_system_message(system_message)     
             
         self.set_name(name)
         self.set_description(description)
         self._set_annotations(_annotations or {"message": str, "return": str})
         self._set_context_cache(context_cache)
         self._set_context_inputs(context_inputs)
-        self._set_examples(examples)
-        self._set_expected_output(expected_output)
         self._set_fixed_messages(fixed_messages)
         self._set_input_guardrail(input_guardrail)
-        self._set_output_guardrail(output_guardrail)
-        self._set_instructions(instructions)
+        self._set_output_guardrail(output_guardrail)        
         self._set_task_messages(task_messages)
         self._set_model(model)        
         self._set_model_preference(model_preference)
         self._set_prefilling(prefilling)
         self._set_system_extra_message(system_extra_message)        
-        self._set_system_message(system_message)
         self._set_system_prompt_template(system_prompt_template)
         self._set_response_mode(response_mode)
         self._set_stream(stream)
@@ -821,6 +821,7 @@ class Agent(Module):
         self, 
         signature: Optional[Union[str, Signature]] = None,
         generation_schema: Optional[msgspec.Struct] = None,
+        instructions: Optional[str] = None,
     ):
         if signature is not None:
 
@@ -833,7 +834,6 @@ class Agent(Module):
             if isinstance(signature, Signature):
                 # Get instructions
                 instructions = signature.get_instructions()
-                self._set_instructions(instructions)
 
                 # Get examples from signature
                 examples = get_examples_from_signature(signature)
@@ -855,6 +855,9 @@ class Agent(Module):
             task_template = get_task_template_from_signature(inputs_desc)
             self._set_task_template(task_template)
 
+            # Set instructions
+            self._set_instructions(instructions)
+
             # Create generation schema
             output_struct = create_struct_from_str_signature(output_str_signature, "Outputs")
             if generation_schema is not None:            
@@ -869,8 +872,8 @@ class Agent(Module):
             if examples is not None:
                 input_examples_dict, output_json_string = examples
                 input_examples_string = self._format_task_template(input_examples_dict)
-                xml_examples = format_examples([input_examples_string, output_json_string])
-                self._set_examples(xml_examples)
+                examples = format_examples([input_examples_string, output_json_string])
+            self._set_examples(examples)
 
     def _get_system_prompt(self):
         """
