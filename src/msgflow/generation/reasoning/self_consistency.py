@@ -28,4 +28,4 @@ class SelfConsistency(Struct, Generic[T]):
 
 SELF_CONSISTENCY_SYSTEM_MESSAGE = """
 
-""".
+"""
