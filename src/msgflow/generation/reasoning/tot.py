@@ -20,7 +20,7 @@ class Thought(Struct):
     reasoning: str
 
 
-class ThoughtNode(Struct):
+class ThoughtNode(Struct, kw_only=True):
     thought: Thought
     children: Optional[List["ThoughtNode"]] = []
     depth: int
