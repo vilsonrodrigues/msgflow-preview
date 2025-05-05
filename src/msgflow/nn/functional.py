@@ -1,5 +1,5 @@
 # https://mpitutorial.com/tutorials/mpi-scatter-gather-and-allgather/
-from typing import Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 import gevent
 from gevent import Greenlet
 from msgflow.logger import logger
@@ -10,6 +10,48 @@ from msgflow.telemetry.span import trace
 
 @trace("msgflow.nn.F.bcast_gather")
 def bcast_gather(
+    message: Any,
+    to_send: List[Callable],
+    timeout: Optional[float] = None,
+) -> Tuple[Any]:
+    """
+    Broadcasts a single message to multiple modules and gathers the responses.
+
+    The given message is sent to each callable in `to_send`, and the responses are collected.
+    Then a tuple containing the response of each callable will be returned. If an error occurs, 
+    the response of that callable will be None. Includes exception handling and optional timeout.
+
+    Args:
+        message: Any data object to broadcast.
+        to_send: List of callable objects (e.g. functions or `Module` instances).
+        timeout: Maximum time (in seconds) to wait for responses.
+
+    Returns:
+        Tuple containing the responses.
+
+    Raises:
+        TypeError: If `to_send` is not a list of callables.
+    """
+    if not to_send or not all(isinstance(module, Callable) for module in to_send):
+        raise TypeError("`to_send` must be a non-empty list of callable objects")
+        
+    tasks: List[Greenlet] = [gevent.spawn(module, message) for module in to_send]    
+    gevent.joinall(tasks, timeout=timeout)
+    responses = []
+    for task in tasks:
+        try:        
+            if task.successful():
+                responses.append(task.value)
+            else:
+                responses.append(None)
+        except Exception as e:
+            logger.error(str(e))                
+    responses = tuple(responses)
+    return responses
+
+
+@trace("msgflow.nn.F.msg_bcast_gather")
+def msg_bcast_gather(
     message: Message,
     to_send: List[Callable],
     response_mode: Optional[str] = "outputs",
@@ -36,7 +78,6 @@ def bcast_gather(
             of callables, or `response_mode` is not a string.
         ValueError: If `response_mode` is an empty string or `to_send` is empty.
     """
-    # Validações
     if not isinstance(message, Message):
         raise TypeError("`message` must be an instance of `msgflow.Message`")
     
@@ -48,10 +89,8 @@ def bcast_gather(
     if response_mode == "":
         raise ValueError("`response_mode` cannot be an empty string")
     
-    tasks: List[Greenlet] = [gevent.spawn(module, message) for module in to_send]
-    
+    tasks: List[Greenlet] = [gevent.spawn(module, message) for module in to_send]    
     gevent.joinall(tasks, timeout=timeout)
-
     for module, task in zip(to_send, tasks):
         module_name = get_callable_name(module)
         try:
@@ -62,11 +101,59 @@ def bcast_gather(
         except Exception as e:
             message.set(f"{response_mode}.{module_name}", None)
             logger.error(str(e))
-
     return message
+
 
 @trace("msgflow.nn.F.scatter_gather")
 def scatter_gather(
+    messages: List[Any],
+    to_send: List[Callable],
+    timeout: Optional[float] = None,
+) -> Tuple[Any]:
+    """
+    Scatter a list of messages to a list of modules and gather the responses.
+
+    Each message in `messages` is sent to the corresponding callable in `to_send`, 
+    and the responses are collected. Then a tuple containing the response of each 
+    callable will be returned. If an error occurs, the response of that callable 
+    will be None.
+
+    Args:
+        messages: List of any data object to be distributed.
+        to_send: List of callable objects (e.g. functions or `Module` instances).
+        timeout: Maximum time (in seconds) to wait for responses.
+
+    Returns:
+        Tuple containing the responses.
+
+    Raises:
+        TypeError: If `to_send` is not a list of callables.
+        ValueError: If the lengths of `messages` and `to_send` do not match.
+    """
+    if not to_send or not all(isinstance(module, Callable) for module in to_send):
+        raise TypeError("`to_send` must be a non-empty list of callable objects")
+    
+    if len(messages) != len(to_send):
+        raise ValueError(f"The size of `messages` ({len(messages)}) "
+                         f"must be equal to that of `to_send`: ({len(to_send)})")
+             
+    tasks: List[Greenlet] = [gevent.spawn(module, message) for module, message in zip(to_send, messages)]    
+    gevent.joinall(tasks, timeout=timeout)
+    responses = []
+    for task in tasks:
+        try:        
+            if task.successful():
+                responses.append(task.value)
+            else:
+                responses.append(None)
+        except Exception as e:
+            logger.error(str(e))              
+    responses = tuple(responses)
+    return responses
+
+
+@trace("msgflow.nn.F.msg_scatter_gather")
+def msg_scatter_gather(
     messages: List[Message],
     to_send: List[Callable],
     response_mode: Optional[str] = "outputs",
@@ -110,10 +197,8 @@ def scatter_gather(
     if response_mode == "":
         raise ValueError("`response_mode` cannot be an empty string")
 
-    tasks: List[Greenlet] = [gevent.spawn(module, msg) for module, msg in zip(to_send, messages)]
-    
+    tasks: List[Greenlet] = [gevent.spawn(module, msg) for module, msg in zip(to_send, messages)]    
     gevent.joinall(tasks, timeout=timeout)
-
     for module, message, task in zip(to_send, messages, tasks):
         module_name = get_callable_name(module)
         try:
@@ -125,5 +210,4 @@ def scatter_gather(
         except Exception as e:
             message.set(f"{response_mode}.{module_name}", None)
             logger.error(str(e))
-
     return tuple(messages)
