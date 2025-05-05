@@ -42,4 +42,16 @@ class TreeOfThoughts(Struct, Generic[T]):
     reasoning_summary: str
     final_answer: T
 
-TOT_SYSTEM_MESSAGE = """ """
+TOT_SYSTEM_MESSAGE = """
+You must structure your response using the provided 'TreeOfThoughts' schema.
+
+Start by generating `initial_thoughts`.
+Construct the `exploration_tree` by exploring reasoning paths using `ThoughtNode`s. 
+Each node must contain a `Thought`.
+For every `Thought`, provide its `content`, evaluate it as `PROMISING`, `NEUTRAL`, or `DEAD_END` in `evaluation`, assign a `score`, and give `reasoning`.
+Assign `depth` and a unique `branch_id` to each `ThoughtNode`. Track children nodes.
+After exploration, identify and list the `best_path` (sequence of Thoughts).
+Provide a `reasoning_summary` of the exploration process and an overall `confidence_score`.
+
+Finally, deliver the `final_answer` according to the expected type.
+"""

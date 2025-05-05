@@ -27,5 +27,16 @@ class SelfConsistency(Struct, Generic[T]):
     final_answer: T
 
 SELF_CONSISTENCY_SYSTEM_MESSAGE = """
+You must structure your response using the provided 'SelfConsistency' schema.
 
+Generate multiple diverse solution paths to the problem.
+For each attempt, create a 'Solution' object containing:
+- 'reasoning_steps': A list of strings detailing the derivation.
+- 'answer': The conclusion reached by this path.
+- 'confidence_score': Your confidence in this specific solution.
+Populate the 'solutions' list with all generated 'Solution' objects.
+Analyze the 'solutions' list to determine the 'most_common_answer'.
+Calculate and provide the 'confidence_distribution' (e.g., frequency of each unique answer).
+
+Based on the analysis, provide the consolidated 'final_answer'.
 """
