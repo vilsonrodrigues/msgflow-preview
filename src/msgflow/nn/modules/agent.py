@@ -836,7 +836,7 @@ class Agent(Module):
             schema_system_message = SIGNATURE_SYSTEM_MESSAGES.get(generation_schema, None)
             self._set_system_message(schema_system_message or system_message)
             
-            if is_subclass_of(signature, Signature):
+            if issubclass(signature, Signature):
                 # Get instructions
                 instructions = signature.get_instructions()
 
