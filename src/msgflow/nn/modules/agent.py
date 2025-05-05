@@ -169,7 +169,11 @@ class Agent(Module):
             raise ValueError("`output_guardrail` is not `stream=True` compatible")
 
         if signature is not None:
-            signature_params = {"signature": signature, "instructions": instructions}
+            signature_params = {
+                "signature": signature, 
+                "instructions": instructions,
+                "system_message": system_message or SIGNATURE_DEFAULT_SYSTEM_MESSAGE
+            }
             if generation_schema is not None:
                 signature_params["generation_schema"] = generation_schema
             self._set_signature(**signature_params)                      
@@ -822,14 +826,15 @@ class Agent(Module):
         signature: Optional[Union[str, Signature]] = None,
         generation_schema: Optional[msgspec.Struct] = None,
         instructions: Optional[str] = None,
+        system_message: Optional[str] = None
     ):
         if signature is not None:
 
             examples = None
 
             # Get system message
-            system_message = SIGNATURE_SYSTEM_MESSAGES.get(generation_schema, SIGNATURE_DEFAULT_SYSTEM_MESSAGE)
-            self._set_system_message(system_message)
+            schema_system_message = SIGNATURE_SYSTEM_MESSAGES.get(generation_schema, None)
+            self._set_system_message(schema_system_message or system_message)
             
             if isinstance(signature, Signature):
                 # Get instructions
