@@ -45,7 +45,7 @@ class InputField:
         ex: Input parameter example.
     """
 
-    def __init__(self, desc: Optional[str] = "", ex: Optional[str] = None):
+    def __init__(self, desc: Optional[str] = None, ex: Optional[str] = None):
         self.desc = desc
         self.ex = ex
 
@@ -59,7 +59,7 @@ class OutputField:
         ex: Output parameter example.
     """
 
-    def __init__(self, desc: Optional[str] = "", ex: Optional[str] = None):
+    def __init__(self, desc: Optional[str] = None, ex: Optional[str] = None):
         self.desc = desc
         self.ex = ex
         
@@ -625,13 +625,13 @@ def get_expected_output_from_signature(
     expected_output = "Your task inputs are:\n\n"
     for i, input_desc in enumerate(inputs_desc, 1):
         part = f"{i}. `{input_desc[0]}` ({input_desc[1]})"
-        if input_desc[2]:
+        if len(input_desc) == 3 and input_desc[2] is not None:
             part += f": {input_desc[2]}"
         expected_output += part + "\n"
     expected_output += "\nYour final answer should have:\n\n"
     for i, output_desc in enumerate(outputs_desc, 1):
         part = f"{i}. `{output_desc[0]}` ({output_desc[1]})"
-        if output_desc[2]:
+        if len(output_desc) == 3 and output_desc[2] is not None:
             part += f": {output_desc[2]}" 
         expected_output += f"{part}\n"
     expected_output += "\nBe consise in choosing your answers. Write an encoded JSON."
