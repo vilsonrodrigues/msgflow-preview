@@ -751,7 +751,7 @@ class Agent(Module):
         if is_subclass_of(generation_schema, msgspec.Struct) or generation_schema is None:
             self.register_buffer("generation_schema", generation_schema)
         else:
-            raise TypeError("`generation_schema` need be a `msgspec.Struct` or None"
+            raise TypeError("`generation_schema` need be a `msgspec.Struct` or None "
                             f"given `{type(generation_schema)}`")
 
     def _set_model(self, model: Union[ChatCompletionModel, ModelGateway]):
@@ -867,6 +867,9 @@ class Agent(Module):
             output_struct = create_struct_from_str_signature(output_str_signature, "Outputs")
             if generation_schema is not None:            
                 output_struct = generation_schema[output_struct] # Insert as an TypeVar
+                class Output(output_struct, msgspec.Struct): # Convert typing._GenericAlias to Struct
+                    pass
+                output_struct = Output
             self._set_generation_schema(output_struct)
 
             # Create expected outputs
