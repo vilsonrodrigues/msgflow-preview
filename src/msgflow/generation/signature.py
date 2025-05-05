@@ -465,7 +465,7 @@ def parse_annotations(signature: str) -> List[Tuple[str, str]]:
 
     return result
 
-def create_struct_from_signature(signature: str, struct_name: Optional[str] = "DynamicStruct"):
+def create_struct_from_str_signature(signature: str, struct_name: Optional[str] = "DynamicStruct"):
     """
     Creates a struct msgspec class from a signature string,
     using a type-safe and case-insensitive parser for type names.
