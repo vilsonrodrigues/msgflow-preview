@@ -182,7 +182,8 @@ class Agent(Module):
             self._set_expected_output(expected_output)        
             self._set_generation_schema(generation_schema)
             self._set_instructions(instructions)
-            self._set_system_message(system_message)     
+            self._set_system_message(system_message)
+            self._set_task_template(task_template)
             
         self.set_name(name)
         self.set_description(description)
@@ -203,7 +204,6 @@ class Agent(Module):
         self._set_response_template(response_template)
         self._set_task_multimodal_inputs(task_multimodal_inputs)
         self._set_task_inputs(task_inputs)
-        self._set_task_template(task_template)
         self._set_tool_choice(tool_choice)        
         self._set_tools(tools)
 
