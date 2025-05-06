@@ -835,8 +835,13 @@ class Agent(Module):
             # Get system message
             schema_system_message = SIGNATURE_SYSTEM_MESSAGES.get(generation_schema, None)
             self._set_system_message(schema_system_message or system_message)
-            
-            if issubclass(signature, Signature):
+
+            if isinstance(signature, str):
+                input_str_signature, output_str_signature = signature.split("->")  
+                inputs_desc = parse_annotations(input_str_signature)
+                outputs_desc = parse_annotations(output_str_signature)
+
+            elif issubclass(signature, Signature):
                 # Get instructions
                 instructions = signature.get_instructions()
 
@@ -848,10 +853,6 @@ class Agent(Module):
                 outputs_desc = signature.get_output_descriptions()
                 output_str_signature = signature.get_str_signature().split("->")[-1]
 
-            elif isinstance(signature, str):
-                input_str_signature, output_str_signature = signature.split("->")  
-                inputs_desc = parse_annotations(input_str_signature)
-                outputs_desc = parse_annotations(output_str_signature)
             else:
                 raise TypeError("`signature` requires a string, `Signature` or None "
                                 f"given `{type(signature)}`")
