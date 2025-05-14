@@ -4,6 +4,7 @@ from typing import Any, Callable, Dict, Iterator, List, Tuple
 import gevent
 
 from msgflow.nn.modules.container import ModuleDict
+from msgflow.nn import functional as F
 from msgflow.nn.modules.module import Module
 from msgflow.utils.chat import generate_tool_json_schema
 from msgflow.utils.convert import convert_camel_to_snake_case
@@ -198,30 +199,27 @@ class ToolLibrary(Module):
                 {'123121': '12:00', '322': '4 * 2 = 8'}
         """
         tool_responses = {}
-        greenlets = {}
 
         tool_names = self.get_tool_names()
+
+        messages = []
+        to_send = []
+        tool_ids = []
 
         for id, name, args in tool_callings:
             if name in tool_names:
                 if args:
-                    greenlet = gevent.spawn(self.library[name], **args)
+                    messages.append(**args)
                 else:
-                    greenlet = gevent.spawn(self.library[name])
-
-                greenlets[id] = greenlet
+                    messages.append(None)
+                to_send.append(self.library[name])
+                tool_ids.append(id)
             else:
                 tool_responses[id] = "This tool is not available"
 
-        if greenlets:
-            try:
-                gevent.joinall(greenlets.values())
+        if messages and to_send:
+            responses = F.scatter_gather(messages, to_send)
+            for id, response in zip(tool_ids, responses):
+                tool_responses[id] = response
 
-                # Collect results
-                for id, greenlet in greenlets.items():
-                    tool_responses[id] = greenlet.value
-            except gevent.Timeout:
-                raise TimeoutError(f"Execution exceeded time limit")
-
-        return tool_responses
-    
+        return tool_responses    
