@@ -1,5 +1,6 @@
 import ast
 import re
+import xml.etree.ElementTree as ET
 from typing import (
     Any,
     Dict,
@@ -15,13 +16,16 @@ from typing import (
     get_origin,
     get_type_hints,    
 )
+from xml.dom import minidom
+
 import msgspec
+
 from msgflow.generation.reasoning.cot import ChainOfThoughts, COT_SYSTEM_MESSAGE
 from msgflow.generation.reasoning.react import ReAct, REACT_SYSTEM_MESSAGE
 from msgflow.generation.reasoning.self_consistency import SelfConsistency, SELF_CONSISTENCY_SYSTEM_MESSAGE
 from msgflow.generation.reasoning.tot import TreeOfThoughts, TOT_SYSTEM_MESSAGE
 from msgflow.logger import logger
-from msgflow.utils.chat import apply_xml_tags
+from msgflow.utils.xml import apply_xml_tags
 
 
 SIGNATURE_SYSTEM_MESSAGES = {
@@ -567,23 +571,64 @@ def _parse_example_str(example_str: str, target_type: Type) -> Any:
              raise ValueError(f"Unsupported type `{target_type}` for automatic parsing of example string '{example_str}'")
 
 
+def dict_to_typed_xml(data: Dict[str, Any]) -> str:
+    """Converts a dictionary into a typed XML string without a root tag, formatted readably."""
+    def build_element(name: str, value: Any) -> ET.Element:
+        """Helper function to build an XML element from a key-value pair."""
+        if isinstance(value, dict):
+            elem = ET.Element(name, dtype="dict")
+            for k, v in value.items():
+                elem.append(build_element(k, v))
+            return elem
+        elif isinstance(value, list):
+            elem = ET.Element(name, dtype="list")
+            for item in value:
+                elem.append(build_element("item", item))
+            return elem
+        else:
+            type_str = type(value).__name__
+            elem = ET.Element(name, dtype=type_str)
+            elem.text = str(value)
+            return elem
+
+    # Generate a list of top-level elements
+    root_elements = [build_element(key, value) for key, value in data.items()]
+    
+    # Format each element individually and collect the results
+    pretty_xml_parts = []
+    for elem in root_elements:
+        # Convert the element to a string
+        xml_str = ET.tostring(elem, encoding="unicode")
+        # Parse and format it pretty
+        parsed = minidom.parseString(xml_str)
+        pretty_xml = parsed.toprettyxml(indent="  ")
+        # Remove the XML declaration (<?xml ...>) and strip empty lines
+        pretty_xml = "\n".join(line for line in pretty_xml.splitlines() if "<?xml" not in line)
+        pretty_xml_parts.append(pretty_xml.strip())
+    
+    # Combine all parts with newlines
+    return "\n".join(pretty_xml_parts)
+
+
 def get_examples_from_signature(
-    signature_cls: Type[Signature]
+    signature_cls: Type[Signature],
+    xml_format: Optional[bool] = False
 ) -> Optional[Tuple[Dict[str, str], str]]:
     """
     Processes examples of a Signature class, returning a dict for inputs
-    and a JSON string for outputs, only if all examples are present.
+    and a JSON string or XML string for outputs, only if all examples are present.
 
     Args:
         signature_cls: The Signature class (which inherits from Signature) to process.
+        xml_format: If True, outputs are returned as typed XML; otherwise, as JSON.
 
     Returns:
         A tuple containing:
         - Dictionary mapping input names to their example strings.
-        - JSON string mapping output names to their *parsed* examples.
+        - String representing outputs (JSON or XML based on xml_format).
         Returns None if any field (input or output) does not have an example defined.
         Raises ValueError/TypeError if an error occurs in parsing the output examples
-        or in the JSON encoding.
+        or in the JSON/XML encoding.
     """
     input_descs = signature_cls.get_input_descriptions()
     output_descs = signature_cls.get_output_descriptions()
@@ -596,35 +641,39 @@ def get_examples_from_signature(
         return None
 
     # 1. Create dictionary of input examples (name -> example string)
-    # Ensured that desc[3] (example) is not None because of the above check
-    input_examples_dict = {desc[0]: desc[3] for desc in input_descs} 
+    input_examples_dict = {desc[0]: desc[3] for desc in input_descs}
 
     # 2. Create the dictionary of output examples (name -> *parsed* example)
     output_parsed_dict = {}
-    type_hints = get_type_hints(signature_cls) # Get the actual types
+    type_hints = get_type_hints(signature_cls)  # Get the actual types
 
     try:
         for name, _, _, example_str in output_descs:
             target_type = type_hints.get(name)
             if target_type is None:
-                raise ValueError(f"Type hint not found for field "
-                                 f"output `{name}` em {signature_cls.__name__}")
-             
-            # Use the helper function to parse the example string to the correct type
-            parsed_value = _parse_example_str(example_str, target_type) 
+                raise ValueError(f"Type hint not found for output field `{name}` in {signature_cls.__name__}")
+            
+            # Parse the example string to the correct type
+            parsed_value = _parse_example_str(example_str, target_type)
             output_parsed_dict[name] = parsed_value
 
     except (ValueError, TypeError) as e:
-        raise ValueError(f"Error parsing output examples for "
-                         f"{signature_cls.__name__}: {e}") from e
-    
-    try: # 3. Encode the parsed output dictionary to a JSON string
-        output_json_string = msgspec.json.encode(output_parsed_dict)
-    except TypeError as e:
-        raise TypeError(f"Error encoding parsed outputs to JSON in "
-                        f"{signature_cls.__name__}: {e}") from e
+        raise ValueError(f"Error parsing output examples for {signature_cls.__name__}: {e}") from e
 
-    return input_examples_dict, output_json_string
+    # 3. Encode the parsed output dictionary to JSON or XML based on xml_format
+    if xml_format:
+        try:
+            output_string = dict_to_typed_xml(output_parsed_dict)
+        except Exception as e:
+            raise ValueError(f"Error converting outputs to XML in {signature_cls.__name__}: {e}") from e
+    else:
+        try:
+            output_string = msgspec.json.encode(output_parsed_dict)
+        except TypeError as e:
+            raise TypeError(f"Error encoding parsed outputs to JSON in {signature_cls.__name__}: {e}") from e
+
+    return input_examples_dict, output_string
+
 
 def get_expected_output_from_signature(
     inputs_desc: List[Tuple[str, str, str, Union[str, None]]],
