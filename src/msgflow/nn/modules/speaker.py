@@ -30,7 +30,7 @@ class Speaker(Module):
         name: str,
         model: Union[TTSModel, ModelGateway],
         *,
-        guardrail: Optional[Union[Callable]] = None,        
+        input_guardrail: Optional[Callable] = None,        
         stream: Optional[bool] = False,
         task_inputs: Optional[str] = None,
         response_mode: Optional[str] = "plain_response",
@@ -39,7 +39,7 @@ class Speaker(Module):
     ):
         super().__init__()
         self.set_name(name)
-        self._set_guardrail(guardrail)
+        self._set_input_guardrail(input_guardrail)
         self._set_model(model)
         self._set_prompt(prompt)
         self._set_response_format(response_format)
@@ -56,8 +56,8 @@ class Speaker(Module):
 
     def _execute_model(self, data, model_preference=None):
         model_execution_params = self._prepare_model_execution(data, model_preference)
-        if self.attr_is_valid(self.guardrail):
-            self._execute_guardrail(model_execution_params)        
+        if self.attr_is_valid(self.input_guardrail):
+            self._execute_input_guardrail(model_execution_params)        
         model_response = self.model.data(**model_execution_params)
         return model_response
 
@@ -66,8 +66,9 @@ class Speaker(Module):
             "data": data,
             "response_format": self.response_format.data,
             "prompt": self.prompt.data,
-            "stream": self.stream.data,
         }
+        if self.stream.data:
+            model_execution_params["stream"] = self.stream.data
         if model_preference:
             model_execution_params["model_preference"] = model_preference
         return model_execution_params        
@@ -93,7 +94,6 @@ class Speaker(Module):
             data = self._process_message_task(message)
         else:
             raise ValueError(f"Unsupported message type: `{type(message)}`")
-                
         return data
 
     def _process_message_task(self, message: Message):         
