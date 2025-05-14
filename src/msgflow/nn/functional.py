@@ -21,6 +21,8 @@ def bcast_gather(
     Then a tuple containing the response of each callable will be returned. If an error occurs, 
     the response of that callable will be None. Includes exception handling and optional timeout.
 
+    If the value of message is None the module will be called without passing parameters.  
+
     Args:
         message: Any data object to broadcast.
         to_send: List of callable objects (e.g. functions or `Module` instances).
@@ -34,8 +36,11 @@ def bcast_gather(
     """
     if not to_send or not all(isinstance(module, Callable) for module in to_send):
         raise TypeError("`to_send` must be a non-empty list of callable objects")
-        
-    tasks: List[Greenlet] = [gevent.spawn(module, message) for module in to_send]    
+
+    tasks: List[Greenlet] = [
+        gevent.spawn(module, message) if message is not None else gevent.spawn(module)
+        for module in to_send
+    ]
     gevent.joinall(tasks, timeout=timeout)
     responses = []
     for task in tasks:
@@ -118,6 +123,8 @@ def scatter_gather(
     callable will be returned. If an error occurs, the response of that callable 
     will be None.
 
+    If the value of message is None the module will be called without passing parameters.    
+
     Args:
         messages: List of any data object to be distributed.
         to_send: List of callable objects (e.g. functions or `Module` instances).
@@ -136,8 +143,11 @@ def scatter_gather(
     if len(messages) != len(to_send):
         raise ValueError(f"The size of `messages` ({len(messages)}) "
                          f"must be equal to that of `to_send`: ({len(to_send)})")
-             
-    tasks: List[Greenlet] = [gevent.spawn(module, message) for module, message in zip(to_send, messages)]    
+
+    tasks: List[Greenlet] = [
+        gevent.spawn(module, message) if message is not None else gevent.spawn(module)
+        for module, message in zip(to_send, messages)
+    ]
     gevent.joinall(tasks, timeout=timeout)
     responses = []
     for task in tasks:
