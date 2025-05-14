@@ -32,6 +32,7 @@ from msgflow.utils.chat import adapt_struct_schema_to_json_schema
 from msgflow.utils.encode import encode_data_to_bytes
 from msgflow.utils.msgspec import struct_to_dict
 from msgflow.utils.tenacity import model_retry
+from msgflow.utils.xml import xml_to_typed_dict
 
 
 OpenAIInstrumentor().instrument()
@@ -169,13 +170,14 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
     def _generate(self, **kwargs):
         response = ModelResponse()
         
+        xml_to_dict = kwargs.pop("xml_to_dict")
         generation_schema = kwargs.pop("generation_schema")
-        if generation_schema:
+        if generation_schema is not None and xml_to_dict is False:
             schema = msgspec.json.schema(generation_schema)
             json_schema = adapt_struct_schema_to_json_schema(schema)
             kwargs["response_format"] = json_schema
 
-        model_output = self._execute_model(**kwargs)        
+        model_output = self._execute_model(**kwargs)
 
         choice = model_output.choices[0]
 
@@ -189,9 +191,15 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                 aggregator.process(call_index, id, name, arguments)
             response.add(aggregator)
         elif choice.message.content:
-            if generation_schema:
+            if xml_to_dict is True:
                 response.set_response_type("structured")
-                #print(choice.message.content)
+                dict_parsed = xml_to_typed_dict(choice.message.content)
+                if generation_schema: # Type validation
+                    dict_encoded = msgspec.json.encode(dict_parsed)
+                    msgspec.json.decode(dict_encoded, type=generation_schema)
+                response.add(dict_parsed)            
+            elif generation_schema is not None:
+                response.set_response_type("structured")
                 struct = msgspec.json.decode(
                     choice.message.content, type=generation_schema
                 )
@@ -219,11 +227,6 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
     def _stream_generate(self, **kwargs):
         aggregator = ToolCallAggregator()
         stream_response = kwargs.pop("stream_response")
-        generation_schema = kwargs.pop("generation_schema")
-
-        if generation_schema:
-            schema = msgspec.json.schema(generation_schema)
-            kwargs["response_format"] = adapt_struct_schema_to_json_schema(schema)
 
         model_output = self._execute_model(**kwargs)        
 
@@ -231,10 +234,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             if chunk.choices:
                 if chunk.choices[0].delta.content:
                     if stream_response.response_type is None:
-                        if generation_schema:
-                            stream_response.set_response_type("structured")
-                        else:
-                            stream_response.set_response_type("text_generation")
+                        stream_response.set_response_type("text_generation")
                         stream_response.first_chunk_event.set()
                     stream_response.add(chunk.choices[0].delta.content)
                 elif chunk.choices[0].delta.tool_calls:
@@ -263,13 +263,20 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         generation_schema: Optional[msgspec.Struct] = None,
         tool_schemas: Optional[Dict] = None,
         tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
+        xml_to_dict: Optional[bool] = False,
     ) -> Union[ModelResponse, ModelStreamResponse]:
         if isinstance(messages, str):
             messages = [{"role": "user", "content": messages}]
         if isinstance(system_prompt, str):
             messages.insert(0, {"role": "system", "content": system_prompt})
         
-        if stream:
+        if stream is True:
+            if generation_schema is not None:
+                raise ValueError("`generation_schema` is not `stream=True` compatible")
+
+            if xml_to_dict is True:
+                raise ValueError("`xml_to_dict=True` is not `stream=True` compatible")
+
             stream_response = ModelStreamResponse()
             gevent.spawn(
                 self._stream_generate,

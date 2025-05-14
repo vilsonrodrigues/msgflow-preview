@@ -10,7 +10,6 @@ from typing import (
 )
 
 import msgspec
-from jinja2 import Template
 
 from msgflow.generation.reasoning.react import ReAct
 from msgflow.generation.signature import (
@@ -33,7 +32,8 @@ from msgflow.nn.parameter import Parameter
 from msgflow.utils.chat import (
     PromptSpec,
     SYSTEM_PROMPT_TEMPLATE,
-    apply_xml_tags,
+    XML_TO_DICT_TEMPLATE,
+    adapt_struct_schema_to_json_schema,
     chatml_to_steps_format, 
     download_file,
     format_examples,
@@ -43,6 +43,7 @@ from msgflow.utils.chat import (
 from msgflow.utils.encode import encode_data_to_base64
 from msgflow.utils.inspect import get_mime_type
 from msgflow.utils.validation import is_base64, is_subclass_of
+from msgflow.utils.xml import apply_xml_tags
 from msgflow.telemetry.span import trace_agent_prepare_model_execution
 
 
@@ -139,6 +140,8 @@ class Agent(Module):
         task_template: Optional[str] = None,
         context_inputs: Optional[Union[str, List[str]]] = None,
         context_cache: Optional[str] = None,
+        system_extra_message: Optional[str] = None,
+        xml_to_dict: Optional[bool] = False,
         model_preference: Optional[str] = None,
         prefilling: Optional[str] = None,
         generation_schema: Optional[msgspec.Struct] = None,
@@ -151,32 +154,37 @@ class Agent(Module):
         signature: Optional[Union[str, Signature]] = None,
         #verbose: Optional[bool] = False,
         description: Optional[str] = None,
-        system_prompt_template: Optional[str] = SYSTEM_PROMPT_TEMPLATE,
-        system_extra_message: Optional[str] = None,
-        _annotations: Optional[Dict[str, type]] = None,
+        _system_prompt_template: Optional[str] = SYSTEM_PROMPT_TEMPLATE,
+        _xml_to_dict_template: Optional[str] = XML_TO_DICT_TEMPLATE,
+        _annotations: Optional[Dict[str, type]] = {"message": Union[str, Dict[str, str]], "return": str},
     ):
         super().__init__()
 
-        if stream and response_template:
-            raise ValueError("`response_template` is not `stream=True` compatible")
+        if stream is True:
+            if generation_schema is not None:
+                raise ValueError("`generation_schema` is not `stream=True` compatible")
 
-        if stream and is_subclass_of(generation_schema, ReAct): # TODO nenhum deles deve ser
-            raise ValueError(
-                "`generation_schema=ReAct` is not `stream=True` compatible"
-            )
+            if output_guardrail is not None:
+                raise ValueError("`output_guardrail` is not `stream=True` compatible")
 
-        if stream and output_guardrail:
-            raise ValueError("`output_guardrail` is not `stream=True` compatible")
+            if response_template is not None:
+                raise ValueError("`response_template` is not `stream=True` compatible")
+
+            if xml_to_dict is True:
+                raise ValueError("`xml_to_dict=True` is not `stream=True` compatible")
+
+        self._set_xml_to_dict_template(_xml_to_dict_template)
 
         if signature is not None:
             signature_params = {
                 "signature": signature, 
                 "instructions": instructions,
-                "system_message": system_message or SIGNATURE_DEFAULT_SYSTEM_MESSAGE
+                "system_message": system_message,
+                "xml_to_dict": xml_to_dict,
             }
             if generation_schema is not None:
                 signature_params["generation_schema"] = generation_schema
-            self._set_signature(**signature_params)                      
+            self._set_signature(**signature_params)
         else:
             self._set_examples(examples)
             self._set_expected_output(expected_output)        
@@ -184,10 +192,11 @@ class Agent(Module):
             self._set_instructions(instructions)
             self._set_system_message(system_message)
             self._set_task_template(task_template)
+            self._set_xml_to_dict(xml_to_dict)
             
         self.set_name(name)
         self.set_description(description)
-        self._set_annotations(_annotations or {"message": str, "return": str})
+        self._set_annotations(_annotations)
         self._set_context_cache(context_cache)
         self._set_context_inputs(context_inputs)
         self._set_fixed_messages(fixed_messages)
@@ -198,7 +207,7 @@ class Agent(Module):
         self._set_model_preference(model_preference)
         self._set_prefilling(prefilling)
         self._set_system_extra_message(system_extra_message)        
-        self._set_system_prompt_template(system_prompt_template)
+        self._set_system_prompt_template(_system_prompt_template)
         self._set_response_mode(response_mode)
         self._set_stream(stream)
         self._set_response_template(response_template)
@@ -207,7 +216,7 @@ class Agent(Module):
         self._set_tool_choice(tool_choice)        
         self._set_tools(tools)
 
-    def forward(self, message: Union[str, Dict[str, Any], Message]):
+    def forward(self, message: Union[str, Dict[str, str], Message]):
         model_preference = self.get_model_preference(message)
         model_state = self._prepare_task(message)
         model_response = self._execute_model(model_state, self.prefilling.data, model_preference)
@@ -253,6 +262,7 @@ class Agent(Module):
             "tool_schemas": tool_schemas,
             "tool_choice": self.tool_choice.data,
             "generation_schema": self.generation_schema.data,
+            "xml_to_dict": self.xml_to_dict.data
         }
 
         if model_preference:
@@ -821,20 +831,39 @@ class Agent(Module):
             raise TypeError("`system_extra_message` requires a string or None "
                             f"given `{type(system_extra_message)}`")
 
+    def _set_xml_to_dict(self, xml_to_dict: Optional[bool] = False):
+        if isinstance(xml_to_dict, bool):
+            if xml_to_dict:
+                json_schema = self.generation_schema.data
+                if json_schema:
+                    json_schema = adapt_struct_schema_to_json_schema(json_schema)
+                template_inputs = {
+                    "instructions": self.instructions.data,
+                    "json_schema": json_schema
+                }
+                xml_instructions = self._format_template(
+                    template_inputs, self.xml_to_dict_template.data
+                )
+                self._set_instructions(xml_instructions)
+            self.register_buffer("xml_to_dict", xml_to_dict)
+        else:
+            raise TypeError(f"`xml_to_dict` requires a bool given `{type(xml_to_dict)}`")
+
     def _set_signature(
         self, 
         signature: Optional[Union[str, Signature]] = None,
         generation_schema: Optional[msgspec.Struct] = None,
         instructions: Optional[str] = None,
-        system_message: Optional[str] = None
+        system_message: Optional[str] = None,
+        xml_to_dict: Optional[bool] = False
     ):
         if signature is not None:
 
             examples = None
 
             # Get system message
-            schema_system_message = SIGNATURE_SYSTEM_MESSAGES.get(generation_schema, None)
-            self._set_system_message(schema_system_message or system_message)
+            schema_system_message = SIGNATURE_SYSTEM_MESSAGES.get(generation_schema, SIGNATURE_DEFAULT_SYSTEM_MESSAGE)
+            self._set_system_message(system_message or schema_system_message)
 
             if isinstance(signature, str):
                 input_str_signature, output_str_signature = signature.split("->")  
@@ -880,21 +909,26 @@ class Agent(Module):
             # Create examples
             if examples is not None:
                 input_examples_dict, output_json_string = examples
-                input_examples_string = self._format_task_template(input_examples_dict)
+                input_examples_string = self._format_task_template(input_examples_dict, xml_to_dict)
                 examples = format_examples([(input_examples_string, output_json_string)])
             self._set_examples(examples)
+
+            # Set xml output
+            self._set_xml_to_dict(xml_to_dict)
 
     def _get_system_prompt(self):
         """
         Render the system prompt using the Jinja template.
         Returns an empty string if no segments are provided.
         """
-        template = Template(self.system_prompt_template.data)
-        system_prompt = template.render(
-            system_message=self.system_message.data,
-            instructions=self.instructions.data,
-            expected_output=self.expected_output.data,
-            examples=self.examples.data,
-            system_extra_message=self.system_extra_message.data
+        template_inputs = {
+            "system_message": self.system_message.data,
+            "instructions": self.instructions.data,
+            "expected_output": self.expected_output.data,
+            "examples": self.examples.data,
+            "system_extra_message": self.system_extra_message.data
+        }
+        system_prompt = self._format_template(
+            template_inputs, self.system_prompt_template.data
         )
         return system_prompt
