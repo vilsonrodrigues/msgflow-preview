@@ -451,7 +451,7 @@ class Module:
     def set_name(self, name: str):
         if isinstance(name, str):
             if name != "":
-                self.register_buffer("name", name)            
+                self.register_buffer("name", name)
             else:
                 raise ValueError("`name` requires a string not empty")
         else:
@@ -648,8 +648,20 @@ class Module:
             guardrail_response = self._extract_raw_response(guardrail_response)
 
         if not guardrail_response["safe"]:
-            raise UnsafeModelResponse()
+            raise UnsafeModelResponse()# TODO
         return
+
+    def _set_workers(self, workers: List["Module"]):
+        if not all(isinstance(worker, Module) for worker in workers):
+            raise TypeError("") # TODO
+        if not all(hasattr(worker, "description") for worker in workers):
+            raise ValueError("")
+        if not all(hasattr(worker, "name") for worker in workers):
+            raise ValueError("")
+        
+        worker_descriptions = {worker.name: worker.description for worker in workers}
+        self.register_buffer("worker_descriptions", worker_descriptions)
+        self.workers = workers
 
     def attr_is_valid(self, attr: str) -> bool:
         if isinstance(attr, Buffer):
