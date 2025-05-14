@@ -19,6 +19,7 @@ from jinja2 import Template
 from urllib.parse import urlparse
 from msgflow.logger import logger
 from msgflow.utils.inspect import get_mime_type
+from msgflow.utils.xml import apply_xml_tags
 
 
 class PromptSpec:
@@ -54,11 +55,49 @@ SYSTEM_PROMPT_TEMPLATE =  """
 {% endif %}
 """
 
+XML_TO_DICT_TEMPLATE =  """
+{% if instructions %}{{ instructions }}{% endif %}
 
-def apply_xml_tags(id: str, content: str, output_id: Optional[str] = None) -> str:
-    if output_id is None:
-        output_id = id
-    return f"<{id}>\n{content}\n</{output_id}>"
+You SHOULD write your response in a structured manner using XML tags.
+DO NOT write XML headers or add extra messages beyond the XML response.
+You should then generate an XML specifying the dtype.
+The available data types are: str (default if not specified), int, float, bool, dict and list.
+
+Example of how you can write your response in XML:
+
+<user_profile dtype="dict">
+    <id dtype="int">1024</id>
+    <username dtype="str">johndoe</username>
+    <is_active dtype="bool">true</is_active>
+    <account_balance dtype="float">2.75</account_balance>
+
+    <preferences dtype="dict">
+        <newsletter_subscribed dtype="bool">false</newsletter_subscribed>
+        <theme>dark</theme>
+    </preferences>
+
+    <roles dtype="list">
+        <role>admin</role>
+        <role>editor</role>
+    </roles>
+
+    <login_history dtype="list">
+        <login_event dtype="dict">
+            <ip_address dtype="str">192.168.1.100</ip_address>
+            <successful dtype="bool">true</successful>
+        </login_event>
+        <login_event dtype="dict">
+            <ip_address dtype="str">192.168.1.0</ip_address>
+            <successful dtype="bool">false</successful>
+        </login_event>
+    </login_history>
+</user_profile>
+
+{% if json_schema %}
+Here is a JSON-schema that you SHOULD use to guide you in generating your response using XML tags:
+{{ json_schema }}
+{% endif %}
+"""
 
 
 def format_examples(examples: List[Union[Tuple[str, str], Tuple[str, str, str]]]) -> str:
@@ -110,49 +149,50 @@ def format_examples(examples: List[Union[Tuple[str, str], Tuple[str, str, str]]]
     
     return "\n".join(result)
 
-def format_available_modules(modules: List[Dict[str, str]], title: Optional[str] = None) -> str:
+def format_available_workers(workers: List[Dict[str, str]], title: Optional[str] = None) -> str:
     """
-    Generates an XML structure for a list of modules, mapping module names to their descriptions.
+    Generates an XML structure for a list of workers, mapping module names to their descriptions.
 
     Args:
-        modules: 
+        workers: 
             A list of dictionaries, each containing 'name' and 'description' keys.
         title: 
-            A title in modules.
+            A title in workers.
 
     Returns:
         str: A string containing the XML structure with module names and descriptions.
 
     Example:
-        modules = [
+        workers = [
             {"name": "Authentication", "description": "Handles user login and session management."},
         ]
-        xml = generate_modules_xml(modules)
+        xml = format_available_workers(workers)
         print(xml)
-        <modules>
-        <module id=1 name="Authentication">
+        <workers>
+        <worker id=1 name="Authentication">
         <description>
         Handles user login and session management.
         </description>
-        </module>
-        </modules>        
+        </worker>
+        </workers>
     """
-    id = "modules"
+    id = output_id = "workers"
+    sub_id = "worker"
     modules_content = ""
 
-    for i, module in enumerate(modules, start=1):
+    for i, module in enumerate(workers, start=1):
         description_xml = apply_xml_tags("description", module["description"])
         module_xml = apply_xml_tags(
-            f'module id={i} name="{module["name"]}"', 
+            f'{sub_id} id={i} name="{module["name"]}"', 
             description_xml, 
-            output_id="module"
+            output_id=sub_id
         )
         modules_content += f"{module_xml}\n"
 
     if title:
-        id = f'modules title="{title}"'
+        id += f'title="{title}"'
 
-    return apply_xml_tags(id, modules_content.strip(), "modules")
+    return apply_xml_tags(id, modules_content.strip(), output_id)
 
 
 def adapt_struct_schema_to_json_schema(
