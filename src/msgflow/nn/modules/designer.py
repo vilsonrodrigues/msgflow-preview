@@ -16,7 +16,7 @@ from msgflow.nn.modules.module import Module
 from msgflow.utils.encode import encode_data_to_base64
 
 
-VISION_GEN_MODEL_TYPES = [
+VISION_GEN_MODEL_TYPES = Union[
     ModelGateway,
     ImageTextTo3DModel,
     ImageTextToImageModel,
