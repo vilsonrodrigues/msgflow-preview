@@ -1,8 +1,6 @@
 import inspect
 from typing import Any, Callable, Dict, Iterator, List, Tuple
 
-import gevent
-
 from msgflow.nn.modules.container import ModuleDict
 from msgflow.nn import functional as F
 from msgflow.nn.modules.module import Module
@@ -134,8 +132,6 @@ def _convert_module_to_nn_tool(impl: Callable) -> ToolBase:
 # usar o id da img
 class ToolLibrary(Module):
     
-    #_tasks = OrderedDict()  # TODO: para pensar aqui sobre cancelmanento de tasks
-
     def __init__(
         self,
         name: str,
@@ -222,4 +218,4 @@ class ToolLibrary(Module):
             for id, response in zip(tool_ids, responses):
                 tool_responses[id] = response
 
-        return tool_responses    
+        return tool_responses
