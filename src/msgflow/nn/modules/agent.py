@@ -3,7 +3,7 @@ from typing import (
     Any, 
     Callable, 
     Dict, 
-    List, 
+    List,
     Literal,
     Optional, 
     Union
@@ -22,6 +22,11 @@ from msgflow.generation.signature import (
     get_task_template_from_signature,
     parse_annotations
 )
+from msgflow.generation.templates import (
+    PromptSpec,
+    SYSTEM_PROMPT_TEMPLATE,
+    XML_TO_DICT_TEMPLATE,
+)
 from msgflow.logger import logger
 from msgflow.message import Message
 from msgflow.models.gateway import ModelGateway
@@ -30,9 +35,6 @@ from msgflow.nn.modules.module import Module
 from msgflow.nn.modules.tool import ToolLibrary
 from msgflow.nn.parameter import Parameter
 from msgflow.utils.chat import (
-    PromptSpec,
-    SYSTEM_PROMPT_TEMPLATE,
-    XML_TO_DICT_TEMPLATE,
     adapt_struct_schema_to_json_schema,
     chatml_to_steps_format, 
     download_file,
@@ -52,8 +54,6 @@ from msgflow.telemetry.span import trace_agent_prepare_model_execution
 # initial_assist_msg or prefix_agent_msg this will be a param (prefilling)
 # it is possible to continue generating a model. Just resend to it what it
 # wrote and then it will continue from there
-
-# if not all(isinstance(module, Module) for module in modules_to_send):
 
 # the system can change the response to the stream if x condition is met. nein
 
@@ -140,6 +140,7 @@ class Agent(Module):
         task_template: Optional[str] = None,
         context_inputs: Optional[Union[str, List[str]]] = None,
         context_cache: Optional[str] = None,
+        context_template: Optional[str] = ...,
         system_extra_message: Optional[str] = None,
         xml_to_dict: Optional[bool] = False,
         model_preference: Optional[str] = None,
@@ -199,11 +200,12 @@ class Agent(Module):
         self._set_annotations(_annotations)
         self._set_context_cache(context_cache)
         self._set_context_inputs(context_inputs)
+        self._set_context_template(context_template)
         self._set_fixed_messages(fixed_messages)
         self._set_input_guardrail(input_guardrail)
         self._set_output_guardrail(output_guardrail)        
         self._set_task_messages(task_messages)
-        self._set_model(model)        
+        self._set_model(model)
         self._set_model_preference(model_preference)
         self._set_prefilling(prefilling)
         self._set_system_extra_message(system_extra_message)        
@@ -216,7 +218,7 @@ class Agent(Module):
         self._set_tool_choice(tool_choice)        
         self._set_tools(tools)
 
-    def forward(self, message: Union[str, Dict[str, str], Message]):
+    def forward(self, message: Union[str, Message, Dict[str, str], List[Dict[str, Any]]]):
         model_preference = self.get_model_preference(message)
         model_state = self._prepare_task(message)
         model_response = self._execute_model(model_state, self.prefilling.data, model_preference)
@@ -404,12 +406,14 @@ class Agent(Module):
         return steps_response
 
     def _prepare_task(
-        self, message: Union[str, Dict[str, Any], Message]
-    ) -> List[Dict[str, Any]]:        
+        self, message: Union[str, Message, Dict[str, str], List[Dict[str, Any]]]
+    ) -> List[Dict[str, Any]]:
         """Prepare model input in ChatML format"""
         task_messages = None
         
-        if isinstance(message, (str, dict)):
+        if isinstance(message, list):
+            task_messages = message # Assume the task is already done
+        elif isinstance(message, (str, dict)):
             content = self._process_str_dict_task(message)
         elif isinstance(message, Message):
             content = self._process_message_task(message)
@@ -436,89 +440,108 @@ class Agent(Module):
             return content
         else:
             if isinstance(message, dict):
-                raise AttributeError("message is a dict that requires a `task_template`")
+                raise AttributeError("message is a dict, that requires a `task_template`")
             return message
 
     def _process_message_task(self, message: Message) -> Optional[Union[str, List[Dict[str, Any]]]]:
+        to_check = (self.task_inputs.data, self.task_multimodal_inputs.data, self.task_template.data)
+        if all(v is None for v in to_check):
+            return None
+        
         content = ""
 
-        # Process context
         context_content = self._context_manager(message)
-
         if context_content:
             content += context_content
 
-        # Process text content
-        if self.task_inputs.data:
-            text_content = self._process_inputs(message)
-            if self.task_template.data:
-                text_content = self._format_task_template(text_content)                
-            content += apply_xml_tags("task", text_content)
-        # It's possible to use `task_template` as the default task message
-        # if no `task_inputs` is selected. This can be useful for multimodal
-        # models that require a text message to be sent along with the data
-        elif self.task_template.data:
-            content += apply_xml_tags("task", self.task_template.data)
-
-        # Remove whitespace
-        content = content.strip()
-
-        # Process multimodal content        
-        if self.task_multimodal_inputs.data:
-            multimodal_content = self._process_multimodal_inputs(message)
+        task_content = self._process_task_content(message)
+        content += task_content
+        content = content.strip() # Remove whitespace
+        
+        if self.task_multimodal_inputs.data: # Process multimodal content
+            multimodal_content = self._process_task_multimodal_inputs(message)
             if multimodal_content:
                 multimodal_content.append({"type": "text", "text": content})
                 return multimodal_content
-
         return content
 
-    def _process_inputs(self, message: Message) -> Union[str, Dict[str, Any]]:
-        # TODO allow other fields besides outputs?
-        content = None
-        
-        if self.task_inputs == "outputs":  # Consume all values in outputs
-            content = "\n\n".join(str(v) for v in message.get("outputs").values())
-        elif isinstance(self.task_inputs.data, str):
-            content = self._get_content_from_message(self.task_inputs.data, message)
-        elif isinstance(self.task_inputs.data, dict):
-            text_inputs = {}
-            for k, v in self.task_inputs.data.items():
-                text_inputs[k] = self._get_content_from_message(v, message)
-            content = text_inputs
-            
-        return content
-    
-    def _context_manager(self, message: Message): # TODO support to list, dict, str
-        """ Manager agent context """
-        content = ""
-        
-        if self.context_cache.data:
-            content += f"{self.context_cache.data}\n\n"
-            
-        if isinstance(self.context_inputs.data, str) and self.context_inputs.data == "context":
-            msg_context = "\n\n".join(str(v) for v in message.get("context").values())
-        elif isinstance(self.context_inputs.data, list): # ["context.1", "context.2"]
-            context_values = []
-            for path in self.context_inputs.data:
+    def _extract_message_values(self, inputs: Any, message: Message) -> Union[str, Dict[str, Any], List[Any], None]:
+        """Process inputs based on their type (str, dict, list) by extracting content from the message."""
+        if isinstance(inputs, str):
+            return self._get_content_from_message(inputs, message)
+        elif isinstance(inputs, dict):
+            return {
+                key: self._get_content_from_message(path, message)
+                for key, path in inputs.items()
+            }
+        elif isinstance(inputs, list):
+            return [
+                self._get_content_from_message(path, message)
+                for path in inputs
+                if self._get_content_from_message(path, message) is not None
+            ]
+        return None    
 
-                context_value = self._get_content_from_message(path, message)
-                if context_value is not None:
-                    context_values.append(context_value)
+    def _process_context_inputs(self, message: Message) -> Optional[str]:
+        """Process context inputs based on their type and format the result."""
+        input_data = self._extract_message_values(self.context_inputs.data, message)
+        return self._process_context_value(input_data)
 
-            msg_context = " ".join(context_values)
-        else:
-            msg_context = None
-        
-        if msg_context:
-            content += f"{msg_context}\n\n"                        
+    def _process_context_value(self, context_value: Any) -> Optional[str]:
+        """Process a single context value based on its type."""
+        if isinstance(context_value, str):
+            return context_value
+        elif isinstance(context_value, list):
+            return " ".join(str(v) for v in context_value) if context_value else None
+        elif isinstance(context_value, dict):
+            return self._format_context_dict(context_value)
+        return None
 
-        if content:            
-            context_content = apply_xml_tags("context", content)
-            return context_content
-        else:
+    def _format_context_dict(self, context_dict: dict) -> Optional[str]:
+        """Format a dictionary context, applying a template if available."""
+        if not context_dict:
             return None
+        if self.context_template.data:
+            return self._format_template(context_dict, self.context_template.data)
+        return "\n\n".join(str(v) for v in context_dict.values())
 
-    def _process_multimodal_inputs_old(self, message: Message) -> List[Dict[str, Any]]:
+    def _process_task_content(self, message: Message) -> Optional[str]:
+        """Process task content based on task inputs or template, wrapping it with XML tags."""
+        if self.task_inputs.data:
+            content = self._process_task_inputs(message)
+            if content is None:
+                raise ValueError("When accessing Message values ​​for `task_inputs` None was returned")
+            if isinstance(content, dict):
+                content = self._format_task_dict(content)
+            elif isinstance(content, str) and self.task_template.data:
+                content = self._format_template(content, self.task_template.data)
+        # It's possible to use `task_template` as the default task message
+        # if no `task_inputs` is selected. This can be useful for multimodal
+        # models that require a text message to be sent along with the data                
+        elif self.task_template.data:
+            content = self.task_template.data
+        else:
+            raise AttributeError("When using a `Message` in `nn.Agent` it is necessary to "
+                                 "have configured `task_inputs` or `task_template`")
+        task_content = apply_xml_tags("task", content)
+        return task_content
+
+    def _process_task_inputs(self, message: Message) -> Union[str, Dict[str, Any], None]:
+        """Process task inputs based on their type, returning raw data."""
+        input_data = self._extract_message_values(self.task_inputs.data, message)
+        if isinstance(input_data, list):
+            return " ".join(str(v) for v in input_data) if input_data else None
+        return input_data
+
+    def _format_task_dict(self, task_dict: dict) -> Optional[str]:
+        """Format a dictionary task input, applying a template if available."""
+        if not task_dict:
+            return None
+        if self.task_template.data:
+            return self._format_task_template(task_dict)
+        return "\n\n".join(str(v) for v in task_dict.values())
+
+    def _process_task_multimodal_inputs_old(self, message: Message) -> List[Dict[str, Any]]:
         # TODO: suporte para consumir todas as entradas de images or outro
         content = []
         
@@ -647,7 +670,7 @@ class Agent(Module):
             "file": {"filename": filename, "file_data": file_data_uri}
         }
 
-    def _process_multimodal_inputs(self, message: Message) -> List[Dict[str, Any]]:
+    def _process_task_multimodal_inputs(self, message: Message) -> List[Dict[str, Any]]:
         """
         Processes multimodal inputs (image, audio, file) from the configuration
         and the Message object, returning a list of dictionaries formatted for the model.
@@ -707,6 +730,13 @@ class Agent(Module):
             raise TypeError("`context_cache` requires a string or None"
                             f"given `{type(context_cache)}`")
 
+    def _set_context_template(self, context_template: Optional[str] = None):
+        if isinstance(context_template, str) or context_template is None:
+            self.register_buffer("context_template", context_template)
+        else:
+            raise TypeError("`context_template` requires a string or None"
+                            f"given `{type(context_template)}`")
+
     def _set_prefilling(self, prefilling: Optional[str] = None):
         if isinstance(prefilling, str) or prefilling is None:
             self.register_buffer("prefilling", prefilling)
@@ -731,9 +761,6 @@ class Agent(Module):
         else:
             raise TypeError("`response_mode` requires a string "
                             f"given `{type(response_mode)}`")
-
-    # def _set_chat_history(self, chat_history: Union[ChatHistory, MultiChatHistory]):
-    #    super().__setattr__("chat_history", chat_history)
 
     def _set_tools(self, tools: Optional[List[Callable]] = None):
         if (
@@ -817,7 +844,14 @@ class Agent(Module):
             raise TypeError("`task_messages` requires a string or None "
                             f"given `{type(task_messages)}`")
 
-    def _set_system_prompt_template(self, system_prompt_template: str = SYSTEM_PROMPT_TEMPLATE):
+    def _set_team_members(self, team_members: Optional[str] = None):
+        if isinstance(team_members, str) or team_members is None:
+            self.register_buffer("team_members", team_members)
+        else:
+            raise TypeError("`team_members` requires a string or None "
+                            f"given `{type(team_members)}`")
+
+    def _set_system_prompt_template(self, system_prompt_template: Optional[str] = None):
         if isinstance(system_prompt_template, str) or system_prompt_template is None:
             self.system_prompt_template = Parameter(system_prompt_template, PromptSpec.SYSTEM_PROMPT_TEMPLATE)
         else:
@@ -916,7 +950,7 @@ class Agent(Module):
             # Set xml output
             self._set_xml_to_dict(xml_to_dict)
 
-    def _get_system_prompt(self):
+    def _get_system_prompt(self) -> str:
         """
         Render the system prompt using the Jinja template.
         Returns an empty string if no segments are provided.
@@ -926,8 +960,10 @@ class Agent(Module):
             "instructions": self.instructions.data,
             "expected_output": self.expected_output.data,
             "examples": self.examples.data,
-            "system_extra_message": self.system_extra_message.data
+            "system_extra_message": self.system_extra_message.data,
         }
+        if self.team_members.data:
+            template_inputs["team_members"] = self.team_members.data
         system_prompt = self._format_template(
             template_inputs, self.system_prompt_template.data
         )
