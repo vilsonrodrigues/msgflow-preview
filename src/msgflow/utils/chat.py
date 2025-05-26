@@ -22,6 +22,45 @@ from msgflow.utils.inspect import get_mime_type
 from msgflow.utils.xml import apply_xml_tags
 
 
+class ChatML:
+    """Manage messages in ChatML format"""
+    def __init__(self, messages: List[Dict[str, Any]] = None):
+        """Inicializa o gerenciador com um histórico opcional."""
+        self.history = messages if messages is not None else []
+
+    def add_user_message(self, content: Union[str, Dict[str, Any]]):
+        """Adds a message with role `user`."""
+        return self._add_message("user", content)
+
+    def add_assist_message(self, content: Union[str, Dict[str, Any]]):
+        """Adds a message with role `assistant`."""
+        return self._add_message("assistant", content)
+
+    def add_tool_message(self, content: Union[str, Dict[str, Any]]):
+        """Adds a message with role `tool`."""
+        return self._add_message("tool", content)
+
+    def _add_message(self, role: str, content: Union[str, Dict[str, Any]]):
+        """Internal method to add message to history."""
+        if role not in ["user", "assistant", "tool"]:
+            raise ValueError(
+                f"Role must be `user`, `assistant` or `tool` given `{role}`"
+            )
+        message = {"role": role, "content": content}
+        self.history.append(message)
+        return self.messages
+
+    def extend_history(self, messages):
+        """Add a list of messages to the history."""
+        return self.history.extend(messages)
+
+    def get_messages(self):
+        return self.history
+
+    def clear_history(self):
+        self.messages = []
+        return
+
 def format_examples(examples: List[Union[Tuple[str, str], Tuple[str, str, str]]]) -> str:
     """
     Formats a list of examples into XML-style string format.
@@ -71,51 +110,78 @@ def format_examples(examples: List[Union[Tuple[str, str], Tuple[str, str, str]]]
     
     return "\n".join(result)
 
-def format_available_workers(workers: List[Dict[str, str]], title: Optional[str] = None) -> str:
+def format_available_members(members: List[Dict[str, str]], title: Optional[str] = None) -> str:
     """
-    Generates an XML structure for a list of workers, mapping module names to their descriptions.
+    Generates an XML structure for a list of members, mapping module names to their descriptions.
 
     Args:
-        workers: 
-            A list of dictionaries, each containing 'name' and 'description' keys.
+        members: 
+            A list of dictionaries, each containing `name` and `description` keys.
         title: 
-            A title in workers.
+            A title in members.
 
     Returns:
         str: A string containing the XML structure with module names and descriptions.
 
     Example:
-        workers = [
+        members = [
             {"name": "Authentication", "description": "Handles user login and session management."},
         ]
-        xml = format_available_workers(workers)
+        xml = format_available_members(members)
         print(xml)
-        <workers>
-        <worker id=1 name="Authentication">
+        <members>
+        <member id=1 name="Authentication">
         <description>
         Handles user login and session management.
         </description>
-        </worker>
-        </workers>
+        </member>
+        </members>
     """
-    id = output_id = "workers"
-    sub_id = "worker"
-    modules_content = ""
+    id = output_id = "members"
+    sub_id = "member"
+    members_content = ""
 
-    for i, module in enumerate(workers, start=1):
+    for i, module in enumerate(members, start=1):
         description_xml = apply_xml_tags("description", module["description"])
         module_xml = apply_xml_tags(
             f'{sub_id} id={i} name="{module["name"]}"', 
             description_xml, 
             output_id=sub_id
         )
-        modules_content += f"{module_xml}\n"
+        members_content += f"{module_xml}\n"
 
     if title:
-        id += f'title="{title}"'
+        id += f' title="{title}"'
 
-    return apply_xml_tags(id, modules_content.strip(), output_id)
+    return apply_xml_tags(id, members_content.strip(), output_id)
 
+def format_member_responses(responses: List[Dict[str, str]], iteration: Optional[int] = None) -> str:
+    """
+    Generates an XML structure for a list of members, mapping module names to their descriptions.
+
+    Args:
+        members: 
+            A list of dictionaries, each containing `member`, `description` and `result` keys.
+        iteration: 
+            Iteration of these responses.
+
+    Returns:
+        str: A string containing the XML structure with member responses.
+    """
+    id = output_id = "responses"
+    sub_id = "response"
+    response_content = ""
+
+    for i, response in enumerate(responses, start=1):
+        member_content = ""
+        for k, v in response.items():
+            row = apply_xml_tags(k, v)
+            member_content += f"{row}\n"
+        block = apply_xml_tags(f"{sub_id} id={i}", member_content.strip(), sub_id)
+        response_content += block + "\n"
+    if iteration:
+        id += f" iteration={iteration}"
+    return apply_xml_tags(id, response_content.strip(), output_id)
 
 def adapt_struct_schema_to_json_schema(
     original_schema: Dict[str, Any],
@@ -168,7 +234,6 @@ def adapt_struct_schema_to_json_schema(
 
     return adapted_schema
 
-
 def chatml_to_steps_format(model_state, response):
     steps = []
     pending_tool_calls = {}
@@ -205,7 +270,7 @@ def chatml_to_steps_format(model_state, response):
 
     return steps
 
-def text_code_to_callable(text_code: str) -> Callable:
+def text_code_to_callable(text_code: str) -> Callable: # TODO: TIRAR ISSO, NADA DE EXEC
     """Convert text Python code to a callable object"""
     local_context = {}
     global_context = globals()
@@ -231,7 +296,6 @@ def clean_docstring(docstring: str) -> str:
     cleaned = re.sub(r"\s*Args:.*", "", docstring, flags=re.DOTALL).strip()
 
     return cleaned
-
 
 def parse_docstring_args(docstring: str) -> Dict[str, str]:
     """
@@ -284,7 +348,6 @@ def parse_docstring_args(docstring: str) -> Dict[str, str]:
         param_descriptions[current_param] = " ".join(current_desc).strip()
 
     return param_descriptions
-
 
 def generate_json_schema(cls: type) -> Dict[str, Any]:
     """
@@ -349,6 +412,7 @@ def generate_tool_json_schema(cls: type) -> Dict[str, Any]:
     return tool_json_schema
 
 # TODO: needs improvement to write encoded json
+# TODO virar jinja template
 def get_react_tools_prompt_format(tool_schemas):
     template = Template("""
     You are a function calling AI model. You may call one or more functions to assist with the user query. Don't make assumptions about what values to plug into functions. Here are the available tools:
