@@ -46,7 +46,7 @@ class Collaborative(Module):
     def _set_max_iterations(self, max_iterations: int):
         if isinstance(max_iterations, int):
             if max_iterations < 2:
-                raise ValueError(f"`max_iterations` need be greater than 1, given `{max_iterations)`")
+                raise ValueError(f"`max_iterations` need be greater than 1, given `{max_iterations}`")
             self.register_buffer("max_iterations", max_iterations)
         else:
             raise TypeError(f"`max_iterations` need be a int , given `{type(max_iterations)}`")
