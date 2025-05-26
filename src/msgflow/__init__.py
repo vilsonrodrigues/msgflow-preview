@@ -6,11 +6,13 @@ from .generation.signature import InputField, OutputField, Signature
 from .message import Message
 from .models.gateway import ModelGateway
 from .models.model import Model
+from .utils.chat import ChatML
 from .utils.inspect import get_fn_name
 from .utils.msgspec import load, save
 
 
 __all__ = [
+    "ChatML",
     "DataBase",  
     "InputField",
     "Message",
