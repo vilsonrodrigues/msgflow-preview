@@ -16,6 +16,9 @@ from msgflow.nn.modules.module import Module
 from msgflow.utils.encode import encode_to_io_object
 
 
+_RETRIVERS = Union[WebRetriever, LexicalRetriever, SemanticRetriever, VectorDB]
+_MODELS = Union[AudioEmbedderModel, ImageEmbedderModel, TextEmbedderModel, ModelGateway]
+
 class Retriever(Module):
     """
     dict_key
@@ -25,15 +28,9 @@ class Retriever(Module):
     def __init__(
         self,
         name: str,
-        retriever: Union[
-            WebRetriever, LexicalRetriever, SemanticRetriever, VectorDB
-        ],
+        retriever: _RETRIVERS,
         *,        
-        model: Optional[
-            Union[
-                AudioEmbedderModel, ImageEmbedderModel, TextEmbedderModel, ModelGateway
-            ]
-        ] = None,
+        model: Optional[_MODELS] = None,
         task_inputs: Optional[Union[str, Dict[str, str]]] = None,
         task_multimodal_inputs: Optional[Dict[str, List[str]]] = None,
         response_mode: Optional[str] = "plain_response",
@@ -150,24 +147,23 @@ class Retriever(Module):
 
     def _process_message_task(self, message: Message) -> List[Union[str, ]]:
         if self.task_inputs:
-            content = self._process_inputs(message)
+            content = self._process_task_inputs(message)
         elif self.task_multimodal_inputs:
-            content = self._process_multimodal_inputs(message)
+            content = self._process_task_multimodal_inputs(message)
         else:
             raise AttributeError(
                 "a message object was passed but neither `task_inputs` "
-                "nor `multimodal_task_inputs` were defined")
-        # Recurssion
-        queries = self._prepare_task(content)
+                "nor `task_multimodal_inputs` were defined")        
+        queries = self._prepare_task(content) # Recurssion
         return queries
 
-    def _process_inputs(self, message):
+    def _process_task_inputs(self, message):
         content = self._get_content_from_message(self.task_inputs, message)        
         if content is None:
             raise ValueError(f"No content found in paths: {self.task_inputs}")
         return content
 
-    def _process_multimodal_inputs(self, message: Message) -> List[Dict[str, Any]]:
+    def _process_task_multimodal_inputs(self, message: Message) -> List[Dict[str, Any]]:
         content = []
         for image_path in self.task_multimodal_inputs.get("image", []):
             image_data = self._get_content_from_message(image_path, message)        
@@ -179,9 +175,7 @@ class Retriever(Module):
 
     def _set_retriever(
         self,
-        retriever: Union[
-            WebRetriever, LexicalRetriever, SemanticRetriever, VectorDB
-        ],
+        retriever: _RETRIVERS,
     ):
         if isinstance(
             retriever, (WebRetriever, LexicalRetriever, SemanticRetriever, VectorDB)
@@ -195,9 +189,7 @@ class Retriever(Module):
 
     def _set_model(
         self,
-        model: Optional[Union[
-            AudioEmbedderModel, ImageEmbedderModel, TextEmbedderModel, ModelGateway
-        ]] = None,
+        model: Optional[_MODELS] = None,
     ):
         if "embedder" in model.model_type or model == None:
             self.register_buffer("model", model)

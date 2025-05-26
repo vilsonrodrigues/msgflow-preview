@@ -70,17 +70,17 @@ class Transcriber(Module):
 
     def _execute_model(self, data, model_preference=None):
         model_execution_params = self._prepare_model_execution(data, model_preference)
-        model_response = self.model.data(**model_execution_params)
+        model_response = self.model(**model_execution_params)
         return model_response
 
     def _prepare_model_execution(self, data, model_preference=None):
         model_execution_params = {
             "data": data,
-            "language": self.language.data,
-            "response_format": self.response_format.data,
-            "timestamp_granularities": self.timestamp_granularities.data,
-            "prompt": self.prompt.data,
-            "stream": self.stream.data,
+            "language": self.language,
+            "response_format": self.response_format,
+            "timestamp_granularities": self.timestamp_granularities,
+            "prompt": self.prompt,
+            "stream": self.stream,
         }
         if model_preference:
             model_execution_params["model_preference"] = model_preference   
@@ -108,8 +108,8 @@ class Transcriber(Module):
         return data
 
     def _process_message_task(self, message: Message):
-        if self.task_multimodal_inputs.data:
-            content = self._process_multimodal_inputs(message)
+        if self.task_multimodal_inputs:
+            content = self._process_task_multimodal_inputs(message)
         else:
             raise AttributeError(
                 "A message object was passed but neither `multimodal_task_inputs` "
@@ -117,15 +117,15 @@ class Transcriber(Module):
             )            
         return content        
 
-    def _process_multimodal_inputs(self, message: Message) -> bytes:
+    def _process_task_multimodal_inputs(self, message: Message) -> bytes:
         content = None
-        audio_path = self.task_multimodal_inputs.data.get("audio", None)
+        audio_path = self.task_multimodal_inputs.get("audio", None)
 
         if audio_path:
             content = self._get_content_from_message(audio_path, message)
             
         if content is None:
-            raise ValueError(f"No audio found in paths: `{self.task_inputs.data}`")            
+            raise ValueError(f"No audio found in paths: `{self.task_inputs}`")            
         return content
 
     def _set_model(self, model: Union[ASRModel, ModelGateway]):

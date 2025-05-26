@@ -138,9 +138,9 @@ class Designer(Module):
     def _process_message_task(self, message: Message):
         params = {}
         if self.task_inputs:
-            params["prompt"] = self._process_inputs(message)
+            params["prompt"] = self._process_task_inputs(message)
         elif self.task_multimodal_inputs:
-            params.update(self._process_multimodal_inputs(message))
+            params.update(self._process_task_multimodal_inputs(message))
         else:
             raise AttributeError(
                 "A message object was passed but neither `task_inputs` "
@@ -152,11 +152,11 @@ class Designer(Module):
         
         return params
 
-    def _process_inputs(self, message: Message):
+    def _process_task_inputs(self, message: Message):
         content = self._get_content_from_message(self.task_inputs, message)
         return content
 
-    def _process_multimodal_inputs(self, message: Message):
+    def _process_task_multimodal_inputs(self, message: Message):
         params = {}
         
         image_path = self.task_multimodal_inputs.get("image", None)

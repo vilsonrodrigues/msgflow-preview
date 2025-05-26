@@ -97,10 +97,10 @@ class Speaker(Module):
         return data
 
     def _process_message_task(self, message: Message):         
-        content = self._process_inputs(message)
+        content = self._process_task_inputs(message)
         return content
 
-    def _process_inputs(self, message: Message):
+    def _process_task_inputs(self, message: Message):
         content = self._get_content_from_message(self.task_inputs, message)
         if content is None:
             raise ValueError(f"No text found in paths: `{self.task_inputs}`")

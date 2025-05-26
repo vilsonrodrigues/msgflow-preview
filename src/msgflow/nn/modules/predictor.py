@@ -80,9 +80,9 @@ class Predictor(Module):
 
     def _process_message_task(self, message: Message):
         if self.task_inputs:
-            content = self._process_inputs(message)
+            content = self._process_task_inputs(message)
         elif self.task_multimodal_inputs:
-            content = self._process_multimodal_inputs(message)
+            content = self._process_task_multimodal_inputs(message)
         else:
             raise AttributeError(
                 "A message object was passed but neither `task_inputs` "
@@ -90,11 +90,11 @@ class Predictor(Module):
             )            
         return content
 
-    def _process_inputs(self, message: Message):
+    def _process_task_inputs(self, message: Message):
         content = self._get_content_from_message(self.task_inputs, message)
         return content
 
-    def _process_multimodal_inputs(self, message: Message):
+    def _process_task_multimodal_inputs(self, message: Message):
         content = None
 
         audio_path = self.task_multimodal_inputs.get("audio", None)
