@@ -3,11 +3,20 @@ class PromptSpec:
     INSTRUCTIONS = "How you should do"
     EXAMPLES = "Samples of what to do"
     EXPECTED_OUTPUT = "Describes what the response should be like"
-    SYSTEM_PROMPT_TEMPLATE = "A jinja template to format the system prompt"
     #TASK_TEMPLATE = ""
 
+
+AVAILABLE_MEMBERS_TEMPLATE =  """
+Here is a list of team members:
+{{ members }}
+
+{% if max_iterations %}
+You have up to {{ max_iterations }} interactions to decide the final answer.
+{% endif %}
+"""
+
 SYSTEM_PROMPT_TEMPLATE =  """
-{% if system_message or instructions or expected_output or examples or system_extra_message %}
+{% if system_message or instructions or expected_output or examples or team_members or system_extra_message %}
 <developer_note>
 {% if system_message %}{{ system_message }}
 {% endif %}
@@ -23,12 +32,17 @@ SYSTEM_PROMPT_TEMPLATE =  """
 {{ examples }}
 </examples>
 {% endif %}
+{% if team_members %}<team_members>
+{{ team_members }}
+</team_members>
+{% endif %}
 {% if system_extra_message %}
 {{ system_extra_message }}
 {% endif %}
 </developer_note>
 {% endif %}
 """
+
 
 XML_TO_DICT_TEMPLATE =  """
 {% if instructions %}{{ instructions }}{% endif %}
