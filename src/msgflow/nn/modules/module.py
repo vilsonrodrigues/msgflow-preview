@@ -28,7 +28,7 @@ from msgflow.message import Message
 from msgflow.models.gateway import ModelGateway
 from msgflow.models.model import Model
 from msgflow.models.response import ModelResponse, ModelStreamResponse
-from msgflow.nn.parameter import Buffer, Parameter
+from msgflow.nn.parameter import Parameter
 from msgflow.utils.convert import convert_camel_snake_to_title
 from msgflow.utils.hooks import RemovableHandle
 from msgflow.utils.mermaid import plot_mermaid
@@ -334,7 +334,7 @@ class Module:
     the change."""
 
     _parameters: Dict[str, Optional[Parameter]] = OrderedDict()
-    _buffers: Dict[str, Optional[Buffer]] = OrderedDict()
+    _buffers: Dict[str, Optional[Any]] = OrderedDict() # ANTES Buffer
     _modules: Dict[str, Optional["Module"]] = OrderedDict()
     _is_full_backward_hook: Optional[bool]
     _forward_hooks: Dict[int, Callable]
@@ -523,7 +523,7 @@ class Module:
             raise ValueError(f"Unsupported `model_response={type(model_response)}`")
         return raw_response
 
-    def _distributed_execute_model(self, distributed_params):
+    def _distributed_execute_model(self, distributed_params): # TODO: deprecated
         greenlets = []
         responses = []
 
@@ -538,7 +538,7 @@ class Module:
         return raw_resposes
 
     def _prepare_response(self, raw_response, message):
-        if self.response_template.data and not isinstance(raw_response, ModelStreamResponse):
+        if self.response_template.data is not None and not isinstance(raw_response, ModelStreamResponse):
             response = self._format_response_template(raw_response)
         else:
             response = raw_response
@@ -625,10 +625,7 @@ class Module:
 
     def _execute_input_guardrail(self, model_execution_params):
         guardrail_params = self._prepare_input_guardrail_execution(model_execution_params)
-        if isinstance(self.input_guardrail, Buffer):
-            guardrail_response = self.input_guardrail.data(guardrail_params)
-        else:
-            guardrail_response = self.input_guardrail(guardrail_params)
+        guardrail_response = self.input_guardrail(guardrail_params)
 
         if isinstance(guardrail_response, ModelResponse):
             guardrail_response = self._extract_raw_response(guardrail_response)
@@ -639,10 +636,7 @@ class Module:
 
     def _execute_output_guardrail(self, model_response):
         guardrail_params = self._prepare_output_guardrail_execution(model_response)
-        if isinstance(self.output_guardrail, Buffer):
-            guardrail_response = self.output_guardrail.data(guardrail_params)
-        else:
-            guardrail_response = self.output_guardrail(guardrail_params)
+        guardrail_response = self.output_guardrail(guardrail_params)
 
         if isinstance(guardrail_response, ModelResponse):
             guardrail_response = self._extract_raw_response(guardrail_response)
@@ -651,19 +645,7 @@ class Module:
             raise UnsafeModelResponse()# TODO
         return
 
-    def _set_workers(self, workers: List["Module"]):
-        if not all(isinstance(worker, Module) for worker in workers):
-            raise TypeError("") # TODO
-        if not all(hasattr(worker, "description") for worker in workers):
-            raise ValueError("")
-        if not all(hasattr(worker, "name") for worker in workers):
-            raise ValueError("")
-        
-        worker_descriptions = {worker.name: worker.description for worker in workers}
-        self.register_buffer("worker_descriptions", worker_descriptions)
-        self.workers = workers
-
-    def attr_is_valid(self, attr: str) -> bool:
+    def attr_is_valid(self, attr: str) -> bool: # TODO DEPRECATED
         if isinstance(attr, Buffer):
             return attr.data is not None
         else:
@@ -759,23 +741,17 @@ class Module:
         #elif data is None:
         #    raise KeyError("buffer data can't be None")
         else:
-            if isinstance(data, Buffer):
-                buffer = data
-                buffer.persistent = persistent
-            else:
-                buffer = Buffer(data=data, persistent=persistent)
-            
             for hook in _global_buffer_registration_hooks.values():
-                output = hook(self, name, buffer)
+                output = hook(self, name, data)
                 if output is not None:
-                    buffer = output
+                    data = output
             
-            self._buffers[name] = buffer
+            self._buffers[name] = data
             if persistent:
                 self._non_persistent_buffers_set.discard(name)
             else:
                 self._non_persistent_buffers_set.add(name)
-                
+
     def register_parameter(self, name: str, param: Parameter) -> None:
         r"""Add a parameter to the module.
 
@@ -898,8 +874,7 @@ class Module:
             return self
 
         atoms: List[str] = target.split(".")
-        #mod: msgflow.nn.Module = self
-        mod = self
+        mod: Module = self
 
         for item in atoms:
             if not hasattr(mod, item):
@@ -909,8 +884,8 @@ class Module:
 
             mod = getattr(mod, item)
 
-            #if not isinstance(mod, msgflow.nn.Module):
-            #    raise AttributeError("`" + item + "` is not " "an nn.Module")
+            if not isinstance(mod, Module):
+                raise AttributeError("`" + item + "` is not " "an nn.Module")
 
         return mod
 
@@ -957,7 +932,7 @@ class Module:
 
         atoms: List[str] = target.split(".")
         name = atoms.pop(-1)
-        mod: msgflow.nn.Module = self
+        mod: Module = self
 
         for item in atoms:
             if not hasattr(mod, item):
@@ -968,7 +943,7 @@ class Module:
             mod = getattr(mod, item)
 
             # Use isinstance instead of type here to also handle subclass of nn.Module
-            if not isinstance(mod, msgflow.nn.Module):
+            if not isinstance(mod, Module):
                 raise AttributeError("`" + item + "` is not an nn.Module")
 
         setattr(mod, name, module)
@@ -995,23 +970,21 @@ class Module:
         """
         module_path, _, param_name = target.rpartition(".")
 
-        #mod: msgflow.nn.Module = self.get_submodule(module_path)
-        mod = self.get_submodule(module_path)
+        mod: Module = self.get_submodule(module_path)        
 
         if not hasattr(mod, param_name):
             raise AttributeError(
                 mod._get_name() + " has no attribute `" + param_name + "`"
             )
 
-        #param: msgflow.nn.Parameter = getattr(mod, param_name)
-        param = getattr(mod, param_name)
+        param: Parameter = getattr(mod, param_name)        
 
-        #if not isinstance(param, msgflow.nn.Parameter):
-        #    raise AttributeError("`" + param_name + "` is not an " "nn.Parameter")
+        if not isinstance(param, Parameter):
+            raise AttributeError("`" + param_name + "` is not an " "nn.Parameter")
 
         return param
 
-    def get_buffer(self, target: str) -> "Buffer":
+    def get_buffer(self, target: str) -> Any:
         """Return the buffer given by ``target`` if it exists, otherwise throw an error.
 
         See the docstring for ``get_submodule`` for a more detailed
@@ -1033,16 +1006,14 @@ class Module:
         """
         module_path, _, buffer_name = target.rpartition(".")
 
-        #mod: msgflow.nn.Module = self.get_submodule(module_path)
-        mod = self.get_submodule(module_path)
+        mod: Module = self.get_submodule(module_path)        
 
         if not hasattr(mod, buffer_name):
             raise AttributeError(
                 mod._get_name() + " has no attribute `" + buffer_name + "`"
             )
 
-        #buffer: msgflow.Buffer = getattr(mod, buffer_name)
-        buffer = getattr(mod, buffer_name)
+        buffer: Any = getattr(mod, buffer_name)
 
         if buffer_name not in mod._buffers:
             raise AttributeError("`" + buffer_name + "` is not a buffer")
@@ -1360,8 +1331,8 @@ class Module:
                 modules[name] = value
             else:
                 buffers = self.__dict__.get("_buffers")
-                if isinstance(value, Buffer) or buffers is not None and name in buffers:
-                    if isinstance(value, Buffer):
+                if isinstance(value, Any) or buffers is not None and name in buffers:
+                    if isinstance(value, Any):
                         persistent = value.persistent
                     else:
                         persistent = name not in self._non_persistent_buffers_set
@@ -1471,9 +1442,8 @@ class Module:
             return serialize_msgspec_struct(obj)
         elif hasattr(obj, "serialize"):
             return obj.serialize()
-        else:
-            # Fallback: convert to string if no other option
-            return str(obj)
+        else:            
+            return None # Fallback
 
     def _save_to_state_dict(self, destination, prefix):
         """ Save parameters and buffers to state dict """
@@ -1485,7 +1455,7 @@ class Module:
         # Save buffers (handle different data types)
         for name, buf in self._buffers.items():
             if buf.persistent:
-                destination[prefix + name] = self._get_serializable_value(buf.data)
+                destination[prefix + name] = self._get_serializable_value(buf)
 
     def state_dict(
         self, 
@@ -1607,14 +1577,14 @@ class Module:
                         if msgflow_type in MSGFLOW_DESERIALIZABLE_CLS:
                             cls = MSGFLOW_DESERIALIZABLE_CLS[msgflow_type]
                             instance = cls.from_serialized(**data)
-                            self._buffers[name].copy_to_data(instance)
+                            self._buffers[name] = instance
                         elif msgflow_type == "generation_schema":
                             state = data.pop("state")
                             generation_schema = deserialize_struct(state)
-                            self._buffers[name].copy_to_data(generation_schema)
+                            self._buffers[name] = generation_schema
                     else:
                         # Otherwise, load the value directly
-                        self._buffers[name].data = data
+                        self._buffers[name] = data
 
         # Load submodules recursively
         for name, module in self._modules.items():
@@ -1719,7 +1689,7 @@ class Module:
         )
         yield from gen
 
-    def buffers(self, recurse: bool = True) -> Iterator[Buffer]: # TODO doc
+    def buffers(self, recurse: bool = True) -> Iterator[Any]: # TODO doc
         """Return an iterator over module buffers.
 
         Args:
