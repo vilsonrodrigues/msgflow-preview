@@ -1714,7 +1714,7 @@ class Module:
 
     def named_buffers(
         self, prefix: str = "", recurse: bool = True, remove_duplicate: bool = True
-    ) -> Iterator[Tuple[str, Buffer]]: # TODO docstring
+    ) -> Iterator[Tuple[str, Any]]: # TODO docstring
         r"""Return an iterator over module buffers, yielding both the name of the 
             buffer as well as the buffer itself.
 
