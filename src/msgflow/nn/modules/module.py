@@ -697,7 +697,7 @@ class Module:
 
     # msgflow END
 
-    def register_buffer(self, name: str, data: Any, persistent: bool = True) -> None:
+    def register_buffer(self, name: str, data: Any) -> None:
         # TODO: muito trabalho pra ajeitar a docstring
         # mudei de tensor para data
         r"""Add a buffer to the module.
@@ -747,10 +747,7 @@ class Module:
                     data = output
             
             self._buffers[name] = data
-            if persistent:
-                self._non_persistent_buffers_set.discard(name)
-            else:
-                self._non_persistent_buffers_set.add(name)
+            self._non_persistent_buffers_set.discard(name)
 
     def register_parameter(self, name: str, param: Parameter) -> None:
         r"""Add a parameter to the module.
@@ -1332,36 +1329,7 @@ class Module:
             else:
                 buffers = self.__dict__.get("_buffers")
                 if isinstance(value, Any) or buffers is not None and name in buffers:
-                    if isinstance(value, Any):
-                        persistent = value.persistent
-                    else:
-                        persistent = name not in self._non_persistent_buffers_set
-                    # === HACK ===
-                    # This whole block below should just be:
-                    # self.register_buffer(name, value, persistent)
-
-                    # But to support subclasses of nn.Module that (wrongfully) implement a
-                    # register_buffer() method that doesn't have the "persistent"
-                    # argument. Only pass it in if it is accepted otherwise assume
-                    # it is always true
-                    if self.register_buffer is msgflow.nn.Module.register_buffer:
-                        self.register_buffer(name, value, persistent)
-                    else:
-                        sign = inspect.signature(self.register_buffer)
-                        if "persistent" in sign.parameters:
-                            self.register_buffer(name, value, persistent)
-                        else:
-                            if not persistent:
-                                raise RuntimeError(
-                                    "Registering a non-persistent buffer "
-                                    "on a Module subclass that implements "
-                                    "register_buffer() without the persistent "
-                                    "argument is not allowed."
-                                )
-                            # Assume that the implementation without the argument has the
-                            # behavior from before the argument was added: persistent=True
-                            self.register_buffer(name, value)
-                    # === HACK END ===
+                    self.register_buffer(name, value)
                 else:
                     super().__setattr__(name, value)
 
@@ -1454,8 +1422,7 @@ class Module:
 
         # Save buffers (handle different data types)
         for name, buf in self._buffers.items():
-            if buf.persistent:
-                destination[prefix + name] = self._get_serializable_value(buf)
+            destination[prefix + name] = self._get_serializable_value(buf)
 
     def state_dict(
         self, 
@@ -1566,25 +1533,23 @@ class Module:
                     self._parameters[name].copy_to_data(state_dict[key])                    
 
         # Load buffers
-        for name, buf in self._buffers.items():
-            if buf.persistent:
-                key = prefix + name
-                if key in state_dict:
-                    data = state_dict[key]
-                    # Check if it is a msgflow serializable class
-                    if isinstance(data, dict) and "msgflow_type" in data:
-                        msgflow_type = data.pop("msgflow_type")
-                        if msgflow_type in MSGFLOW_DESERIALIZABLE_CLS:
-                            cls = MSGFLOW_DESERIALIZABLE_CLS[msgflow_type]
-                            instance = cls.from_serialized(**data)
-                            self._buffers[name] = instance
-                        elif msgflow_type == "generation_schema":
-                            state = data.pop("state")
-                            generation_schema = deserialize_struct(state)
-                            self._buffers[name] = generation_schema
-                    else:
-                        # Otherwise, load the value directly
-                        self._buffers[name] = data
+        for name, _ in self._buffers.items():
+            key = prefix + name
+            if key in state_dict:
+                data = state_dict[key]
+                # Check if it is a msgflow serializable class
+                if isinstance(data, dict) and "msgflow_type" in data:
+                    msgflow_type = data.pop("msgflow_type")
+                    if msgflow_type in MSGFLOW_DESERIALIZABLE_CLS:
+                        cls = MSGFLOW_DESERIALIZABLE_CLS[msgflow_type]
+                        instance = cls.from_serialized(**data)
+                        self._buffers[name] = instance
+                    elif msgflow_type == "generation_schema":
+                        state = data.pop("state")
+                        generation_schema = deserialize_struct(state)
+                        self._buffers[name] = generation_schema
+                else: # Otherwise, load the value directly
+                    self._buffers[name] = data
 
         # Load submodules recursively
         for name, module in self._modules.items():
