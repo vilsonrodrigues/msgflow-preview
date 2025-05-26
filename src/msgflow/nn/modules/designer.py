@@ -86,20 +86,20 @@ class Designer(Module):
 
     def _execute_model(self, params, model_preference=None):
         model_execution_params = self._prepare_model_execution(params, model_preference)
-        if self.attr_is_valid(self.guardrail):
+        if self.guardrail is not None:
             self._execute_guardrail(model_execution_params)
-        model_response = self.model.data(**model_execution_params)
+        model_response = self.model(**model_execution_params)
         return model_response
 
     def _prepare_model_execution(self, params, model_preference=None):        
-        model_execution_params = self.execution_kwargs.data or {}
+        model_execution_params = self.execution_kwargs or {}
         model_execution_params.update(params)
-        if self.negative_prompt.data:
-            model_execution_params["negative_prompt"] = self.negative_prompt.data
-        if self.fps.data:
-            model_execution_params["fps"] = self.fps.data
-        if self.duration_seconds.data:
-            model_execution_params["duration_seconds"] = self.duration_seconds.data
+        if self.negative_prompt:
+            model_execution_params["negative_prompt"] = self.negative_prompt
+        if self.fps:
+            model_execution_params["fps"] = self.fps
+        if self.duration_seconds:
+            model_execution_params["duration_seconds"] = self.duration_seconds
         if model_preference:
             model_execution_params["model_preference"] = model_preference
         return model_execution_params
@@ -137,9 +137,9 @@ class Designer(Module):
 
     def _process_message_task(self, message: Message):
         params = {}
-        if self.task_inputs.data:
+        if self.task_inputs:
             params["prompt"] = self._process_inputs(message)
-        elif self.task_multimodal_inputs.data:
+        elif self.task_multimodal_inputs:
             params.update(self._process_multimodal_inputs(message))
         else:
             raise AttributeError(
@@ -153,14 +153,14 @@ class Designer(Module):
         return params
 
     def _process_inputs(self, message: Message):
-        content = self._get_content_from_message(self.task_inputs.data, message)
+        content = self._get_content_from_message(self.task_inputs, message)
         return content
 
     def _process_multimodal_inputs(self, message: Message):
         params = {}
         
-        image_path = self.task_multimodal_inputs.data.get("image", None)
-        mask_path = self.task_multimodal_inputs.data.get("mask", None)
+        image_path = self.task_multimodal_inputs.get("image", None)
+        mask_path = self.task_multimodal_inputs.get("mask", None)
 
         if image_path:
             image = self._get_content_from_message(image_path, message)

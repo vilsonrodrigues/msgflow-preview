@@ -56,19 +56,19 @@ class Speaker(Module):
 
     def _execute_model(self, data, model_preference=None):
         model_execution_params = self._prepare_model_execution(data, model_preference)
-        if self.attr_is_valid(self.input_guardrail):
+        if self.input_guardrail is not None:
             self._execute_input_guardrail(model_execution_params)        
-        model_response = self.model.data(**model_execution_params)
+        model_response = self.model(**model_execution_params)
         return model_response
 
     def _prepare_model_execution(self, data, model_preference=None):
         model_execution_params = {
             "data": data,
-            "response_format": self.response_format.data,
-            "prompt": self.prompt.data,
+            "response_format": self.response_format,
+            "prompt": self.prompt,
         }
-        if self.stream.data:
-            model_execution_params["stream"] = self.stream.data
+        if self.stream:
+            model_execution_params["stream"] = self.stream
         if model_preference:
             model_execution_params["model_preference"] = model_preference
         return model_execution_params        
@@ -101,9 +101,9 @@ class Speaker(Module):
         return content
 
     def _process_inputs(self, message: Message):
-        content = self._get_content_from_message(self.task_inputs.data, message)
+        content = self._get_content_from_message(self.task_inputs, message)
         if content is None:
-            raise ValueError(f"No text found in paths: `{self.task_inputs.data}`")
+            raise ValueError(f"No text found in paths: `{self.task_inputs}`")
         return content
 
     def _set_model(self, model: Union[TTSModel, ModelGateway]):

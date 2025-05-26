@@ -69,7 +69,7 @@ class Retriever(Module):
 
     def _execute_retriever(self, queries) -> List[Dict[str, Any]]:            
         queries_embed = None
-        if self.model.data:
+        if self.model:
             queries_embed = self._execute_model(queries)
     
         retriever_execution_params = self._prepare_retriever_execution(queries_embed or queries)
@@ -93,16 +93,16 @@ class Retriever(Module):
     def _prepare_retriever_execution(self, queries):
         retriever_execution_params = {
             "queries": queries,
-            "top_k": self.top_k.data,
-            "threshold": self.threshold.data,
-            "return_score": self.return_score.data,
+            "top_k": self.top_k,
+            "threshold": self.threshold,
+            "return_score": self.return_score,
         }
         return retriever_execution_params
 
     def _execute_model(self, queries):
-        if "bached" in self.model.data.model_type or len(queries) == 1:
+        if "bached" in self.model.model_type or len(queries) == 1:
             model_execution_params = self._prepare_model_execution(queries)
-            model_response = self.model.data(**model_execution_params)
+            model_response = self.model(**model_execution_params)
             queries_embed = self._extract_raw_response(model_response)
             if not isinstance(queries_embed, list):
                 queries_embed = [queries_embed]
@@ -139,8 +139,8 @@ class Retriever(Module):
         [{'name': 'vilsin'}]
         dict_key='name'
         """
-        if self.dict_key.data:
-            queries = [data[self.dict_key.data] for data in message]
+        if self.dict_key:
+            queries = [data[self.dict_key] for data in message]
             return queries
         else:
             raise AttributeError(
@@ -149,9 +149,9 @@ class Retriever(Module):
             )
 
     def _process_message_task(self, message: Message) -> List[Union[str, ]]:
-        if self.task_inputs.data:
+        if self.task_inputs:
             content = self._process_inputs(message)
-        elif self.task_multimodal_inputs.data:
+        elif self.task_multimodal_inputs:
             content = self._process_multimodal_inputs(message)
         else:
             raise AttributeError(
@@ -162,14 +162,14 @@ class Retriever(Module):
         return queries
 
     def _process_inputs(self, message):
-        content = self._get_content_from_message(self.task_inputs.data, message)        
+        content = self._get_content_from_message(self.task_inputs, message)        
         if content is None:
-            raise ValueError(f"No content found in paths: {self.task_inputs.data}")
+            raise ValueError(f"No content found in paths: {self.task_inputs}")
         return content
 
     def _process_multimodal_inputs(self, message: Message) -> List[Dict[str, Any]]:
         content = []
-        for image_path in self.task_multimodal_inputs.data.get("image", []):
+        for image_path in self.task_multimodal_inputs.get("image", []):
             image_data = self._get_content_from_message(image_path, message)        
             if image_data:
                 image_bytes_io = encode_to_io_object(image_data)

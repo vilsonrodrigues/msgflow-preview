@@ -51,11 +51,11 @@ class Predictor(Module):
 
     def _execute_model(self, data, model_preference=None):
         model_execution_params = self._prepare_model_execution(data, model_preference)
-        model_response = self.model.data(**model_execution_params)
+        model_response = self.model(**model_execution_params)
         return model_response
 
     def _prepare_model_execution(self, data, model_preference=None):
-        model_execution_params = self.execution_kwargs.data or {}
+        model_execution_params = self.execution_kwargs or {}
         model_execution_params["data"] = data
         if model_preference:
             model_execution_params["model_preference"] = model_preference        
@@ -79,9 +79,9 @@ class Predictor(Module):
         return data
 
     def _process_message_task(self, message: Message):
-        if self.task_inputs.data:
+        if self.task_inputs:
             content = self._process_inputs(message)
-        elif self.task_multimodal_inputs.data:
+        elif self.task_multimodal_inputs:
             content = self._process_multimodal_inputs(message)
         else:
             raise AttributeError(
@@ -91,15 +91,15 @@ class Predictor(Module):
         return content
 
     def _process_inputs(self, message: Message):
-        content = self._get_content_from_message(self.task_inputs.data, message)
+        content = self._get_content_from_message(self.task_inputs, message)
         return content
 
     def _process_multimodal_inputs(self, message: Message):
         content = None
 
-        audio_path = self.task_multimodal_inputs.data.get("audio", None)
-        image_path = self.task_multimodal_inputs.data.get("image", None)
-        file_path = self.task_multimodal_inputs.data.get("file", None)
+        audio_path = self.task_multimodal_inputs.get("audio", None)
+        image_path = self.task_multimodal_inputs.get("image", None)
+        file_path = self.task_multimodal_inputs.get("file", None)
 
         if audio_path:
             content = self._get_content_from_message(audio_path, message)

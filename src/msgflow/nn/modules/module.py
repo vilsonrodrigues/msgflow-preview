@@ -430,10 +430,10 @@ class Module:
         return content
 
     def _format_task_template(self, content: Union[str, Dict[str, Any]]) -> str:
-        return self._format_template(content, self.task_template.data)
+        return self._format_template(content, self.task_template)
 
     def _format_response_template(self, content: str) -> str:
-        return self._format_template(content, self.response_template.data)    
+        return self._format_template(content, self.response_template)    
 
     def _format_template(self, content: Union[str, Dict[str, Any]], raw_template: str) -> str:
         if isinstance(content, str):
@@ -528,7 +528,7 @@ class Module:
         responses = []
 
         for model_execution_params in distributed_params:
-            greenlets.append(gevent.spawn(self.model.data, **model_execution_params))
+            greenlets.append(gevent.spawn(self.model, **model_execution_params))
         
         gevent.joinall(greenlets.values())
         for greenlet in greenlets:
@@ -538,7 +538,7 @@ class Module:
         return raw_resposes
 
     def _prepare_response(self, raw_response, message):
-        if self.response_template.data is not None and not isinstance(raw_response, ModelStreamResponse):
+        if self.response_template is not None and not isinstance(raw_response, ModelStreamResponse):
             response = self._format_response_template(raw_response)
         else:
             response = raw_response
@@ -546,11 +546,11 @@ class Module:
         return self._define_response_mode(response, message)
 
     def _define_response_mode(self, response, message):        
-        if self.response_mode.data == "plain_response":
+        if self.response_mode == "plain_response":
             return response
         elif isinstance(message, Message):
-            if self.response_mode.data.startswith(("context", "outputs", "response")):
-                message.set(f"{self.response_mode.data}.{self.name.data}", response)
+            if self.response_mode.startswith(("context", "outputs", "response")): # TODO: tirar
+                message.set(f"{self.response_mode}.{self.name}", response)
             return message
         else:
             raise ValueError(
@@ -645,21 +645,15 @@ class Module:
             raise UnsafeModelResponse()# TODO
         return
 
-    def attr_is_valid(self, attr: str) -> bool: # TODO DEPRECATED
-        if isinstance(attr, Buffer):
-            return attr.data is not None
-        else:
-            return attr is not None
-
     def get_model_preference(self, message: Message):                
         if (
             isinstance(message, Message) 
             and 
-            self.model_preference.data
+            self.model_preference
             and
-            isinstance(self.model.data, ModelGateway)
+            isinstance(self.model, ModelGateway)
         ):
-            return message.get(self.model_preference.data)
+            return message.get(self.model_preference)
         else:
             return None
 
@@ -676,7 +670,7 @@ class Module:
         if module_name is None:
             module_name = self._get_name()
         else:
-            module_name = module_name.data
+            module_name = module_name
         return module_name
 
     def get_module_description(self):
@@ -684,7 +678,7 @@ class Module:
         if module_description is None:
             module_description = self.__class__.__doc__
         else:
-            module_description = module_description.data
+            module_description = module_description
         return module_description
 
     def get_module_annotations(self):
@@ -692,7 +686,7 @@ class Module:
         if module_annotations is None:
             module_annotations = self.__class__.__annotations__
         else:
-            module_annotations = module_annotations.data
+            module_annotations = module_annotations
         return module_annotations    
 
     # msgflow END

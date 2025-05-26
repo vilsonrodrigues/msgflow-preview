@@ -31,7 +31,7 @@ class Collaborative(Module):
     def _add_member(self, member: Module):
         if member.name in self.team.keys():
             return # Not raise
-        self.team.update({member.name.data: member})
+        self.team.update({member.name: member})
 
     def _remove_member(self, member_name: str):
         if member_name in self.team.keys():
@@ -87,12 +87,12 @@ class Coordinator(Collaborative):
         coordinator_response = self.coordinator(coordinator_messages)
         history.extend_history(coordinator_messages)
 
-        for iter in range(self.max_iterations.data):
+        for iter in range(self.max_iterations):
 
             if coordinator_response.get("new_members", None):
                 new_members = coordinator_response.pop("new_members") # Remove from history
                 for member_params in new_members:
-                    member_params["model"] = self.model_to_new_members.data or self.coordinator.model.data
+                    member_params["model"] = self.model_to_new_members or self.coordinator.model
                     self._add_member(Agent(**member_params))
 
             if coordinator_response.get("remove_members", None):
@@ -146,15 +146,15 @@ class Coordinator(Collaborative):
 
     def _set_coordinator(self, coordinator: Agent):        
         if isinstance(coordinator, Agent):
-            if coordinator.stream.data == True:
+            if coordinator.stream == True:
                 raise ValueError("Coordinator output cannot be in stream, set `stream=False`")
-            if coordinator.response_mode.data != "plain_response":
+            if coordinator.response_mode != "plain_response":
                 raise ValueError("Coordinator response must be `response_mode=plain_response`")
-            if coordinator.response_template.data is not None:
+            if coordinator.response_template is not None:
                 raise ValueError("Coordinator response needs to be structured, and "
                                  "so is not compatible with `response_template` which "
                                  "converts the output to a string, set `response_template=None`")                
-            if coordinator.generation_schema.data is None and coordinator.xml_to_dict.data is None:
+            if coordinator.generation_schema is None and coordinator.xml_to_dict is None:
                 raise ValueError("Coordinator requires structured output. This can be done via "
                                  "`generation_schema` or using `xml_to_dict=True`")
             self.coordinator = coordinator
@@ -165,14 +165,14 @@ class Coordinator(Collaborative):
     def _set_members_description_in_coordinator(self):
         members_desc = []
         for member in self.team:
-            members_desc.append({"name": member.name.data, "description": member.description.data})
+            members_desc.append({"name": member.name, "description": member.description})
         available_members = format_available_members(members_desc)
         template_inputs = {"members": available_members}
         if hasattr(self, "max_iterations"):
-            template_inputs["max_iterations"] = self.max_iterations.data
+            template_inputs["max_iterations"] = self.max_iterations
         team_members = self._format_template(
             template_inputs,
-            self.available_members_template.data
+            self.available_members_template
         )
         self.coordinator._set_team_members(team_members)
 
