@@ -1,4 +1,5 @@
 from msgflow.nn.modules.agent import Agent
+from msgflow.nn.modules.collab import Collaborative, Coordinator, Selector
 from msgflow.nn.modules.container import ModuleDict, ModuleList, Sequential
 from msgflow.nn.modules.module import Module
 from msgflow.nn.modules.retriever import Retriever
@@ -8,10 +9,13 @@ from msgflow.nn.modules.transcriber import Transcriber
 
 __all__ = [
     "Agent",
+    "Collaborative",
+    "Coordinator",
     "Module",
     "ModuleDict",    
     "ModuleList",
     "Retriever",
+    "Selector",
     "Sequential",    
     "Speaker",
     "ToolBase",
