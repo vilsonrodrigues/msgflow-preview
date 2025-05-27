@@ -1,6 +1,6 @@
+from queue import Empty, Queue
+from threading import Event
 from typing import Literal
-from gevent.event import Event
-from gevent.queue import Queue
 
 
 class _BaseResponse:
@@ -51,11 +51,16 @@ class ModelStreamResponse(_BaseResponse):
         self.queue = Queue()
 
     def add(self, data):
-        self.queue.put_nowait(data)
+        """Add data to the stream queue (thread-safe)."""
+        self.queue.put(data)
 
     def consume(self):
-        while not self.queue.empty():
-            chunk = self.queue.get()
-            if chunk is None:
-                break
-            yield chunk
+        """Generator that yields chunks from the queue until None is received."""
+        while True:
+            try:
+                chunk = self.queue.get(timeout=1.0)  # timeout to avoid infinite blocking
+                if chunk is None:
+                    break
+                yield chunk
+            except Empty:
+                continue
