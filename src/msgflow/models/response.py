@@ -1,5 +1,4 @@
-from queue import Empty, Queue
-from threading import Event
+import asyncio
 from typing import Literal
 
 
@@ -46,21 +45,21 @@ class ModelStreamResponse(_BaseResponse):
         "audio_generation", "structured", "text_generation", "tool_call"
     ] = None
 
-    def __init__(self):        
-        self.first_chunk_event = Event()
-        self.queue = Queue()
+    def __init__(self):
+        self.first_chunk_event = asyncio.Event()
+        self.queue = asyncio.Queue()
 
-    def add(self, data):
-        """Add data to the stream queue (thread-safe)."""
-        self.queue.put(data)
+    async def add(self, data):
+        """Add data to the stream queue (async)."""
+        await self.queue.put(data)
 
-    def consume(self):
-        """Generator that yields chunks from the queue until None is received."""
+    async def consume(self):
+        """Async generator that yields chunks from the queue until None is received."""
         while True:
             try:
-                chunk = self.queue.get(timeout=1.0)  # timeout to avoid infinite blocking
+                chunk = await asyncio.wait_for(self.queue.get(), timeout=1.0)
                 if chunk is None:
                     break
                 yield chunk
-            except Empty:
+            except asyncio.TimeoutError:
                 continue
