@@ -51,7 +51,7 @@ class ModelStreamResponse(_BaseResponse):
 
     async def add(self, data):
         """Add data to the stream queue (async)."""
-        await self.queue.put(data)
+        await self.queue.put_nowait(data)
 
     async def consume(self):
         """Async generator that yields chunks from the queue until None is received."""
