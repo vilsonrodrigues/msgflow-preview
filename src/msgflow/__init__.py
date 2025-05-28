@@ -6,6 +6,7 @@ from .generation.signature import InputField, OutputField, Signature
 from .message import Message
 from .models.gateway import ModelGateway
 from .models.model import Model
+from .nn.functional import configure_async_pool
 from .utils.chat import ChatML
 from .utils.inspect import get_fn_name
 from .utils.msgspec import load, save
@@ -27,3 +28,5 @@ __all__ = [
     "save",
     "set_envs",     
 ]
+
+configure_async_pool()
