@@ -12,6 +12,7 @@ from msgflow.data.retrievers.types import (
     WebRetriever
 )
 from msgflow.models.gateway import ModelGateway
+from msgflow.nn import functional as F
 from msgflow.nn.modules.module import Module
 from msgflow.utils.encode import encode_to_io_object
 
@@ -105,7 +106,10 @@ class Retriever(Module):
                 queries_embed = [queries_embed]
         else:
             distributed_params = [self._prepare_model_execution(query) for query in queries]
-            queries_embed = self._distributed_execute_model(distributed_params)
+            to_send = [self.model for _ in range(len(distributed_params))]
+            responses = F.scatter_gather(to_send, kwargs_list=distributed_params)
+            raw_resposes = [self._extract_raw_response(model_response) for model_response in responses]
+            return raw_resposes
 
         return queries_embed
 
