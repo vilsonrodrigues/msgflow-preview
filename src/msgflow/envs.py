@@ -94,4 +94,7 @@ class EnvironmentVariables(BaseSettings):
     # Tool retry delay
     tool_stop_after_delay: int = 0
 
+    # Num threads to async pool
+    num_threads_async_pool: int = 12
+
 envs = EnvironmentVariables()
