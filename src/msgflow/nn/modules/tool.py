@@ -149,7 +149,7 @@ class ToolLibrary(Module):
             raise ValueError(f"The tool name `{tool.__name__}` is already in tool library")
         if not isinstance(tool, ToolBase):
             tool = _convert_module_to_nn_tool(tool)
-        self.library.update({tool.name.data: tool})
+        self.library.update({tool.name: tool})
 
     def remove(self, tool_name: str):
         if tool_name in self.library.keys():
