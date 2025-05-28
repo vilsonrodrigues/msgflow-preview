@@ -69,6 +69,5 @@ def configure_async_pool():
 
 def get_async_pool() -> AsyncExecutorPool:
     """Returns the async pool instance (singleton)."""
-    global _async_pool
     configure_async_pool()
     return _async_pool
