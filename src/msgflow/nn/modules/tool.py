@@ -214,7 +214,7 @@ class ToolLibrary(Module):
                 tool_responses[id] = "This tool is not available"
 
         if messages and to_send:
-            responses = F.scatter_gather(messages, to_send)
+            responses = F.scatter_gather(to_send, kwargs_list=messages)
             for id, response in zip(tool_ids, responses):
                 tool_responses[id] = response
 

@@ -124,8 +124,8 @@ class Coordinator(Collaborative):
                     })
 
                 results = F.scatter_gather(
-                    [item["task"] for item in tasks],
-                    [item["member_module"] for item in tasks]
+                    [item["member_module"] for item in tasks],
+                    kwargs_list=[item["task"] for item in tasks]                    
                 )
 
                 for task, result in zip(tasks, results):
