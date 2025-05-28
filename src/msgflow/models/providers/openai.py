@@ -4,7 +4,6 @@ from contextlib import contextmanager
 from os import getenv
 from typing import Any, Dict, List, Literal, Optional, Union
 
-import gevent
 import msgspec
 try:
     import httpx
@@ -28,6 +27,7 @@ from msgflow.models.types import (
     TextEmbedderModel,
     TTSModel,
 )
+from msgflow.nn import functional as F
 from msgflow.utils.chat import adapt_struct_schema_to_json_schema
 from msgflow.utils.encode import encode_data_to_bytes
 from msgflow.utils.msgspec import struct_to_dict
@@ -224,7 +224,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         
         return response
 
-    def _stream_generate(self, **kwargs):
+    async def _stream_generate(self, **kwargs):
         aggregator = ToolCallAggregator()
         stream_response = kwargs.pop("stream_response")
 
@@ -236,7 +236,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                     if stream_response.response_type is None:
                         stream_response.set_response_type("text_generation")
                         stream_response.first_chunk_event.set()
-                    stream_response.add(chunk.choices[0].delta.content)
+                    await stream_response.add(chunk.choices[0].delta.content)
                 elif chunk.choices[0].delta.tool_calls:
                     if stream_response.response_type is None:
                         stream_response.set_response_type("tool_call")
@@ -248,10 +248,10 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                     aggregator.process(call_index, id, name, arguments)
         
         if aggregator.tool_calls:
-            stream_response.add(aggregator)
+            await stream_response.add(aggregator)
             stream_response.first_chunk_event.set()
 
-        stream_response.add(None)
+        await stream_response.add(None)
 
     def __call__(
         self,
@@ -278,7 +278,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                 raise ValueError("`xml_to_dict=True` is not `stream=True` compatible")
 
             stream_response = ModelStreamResponse()
-            gevent.spawn(
+            F.background_task(
                 self._stream_generate,
                 messages=messages,
                 prefilling=prefilling,
@@ -289,7 +289,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                 tools=tool_schemas,
                 tool_choice=tool_choice,
             )
-            stream_response.first_chunk_event.wait()
+            F.wait_for(stream_response.first_chunk_event)
             return stream_response
         else:
             response = self._generate(
@@ -410,8 +410,8 @@ class OpenAITTS(_BaseOpenAI, TTSModel):
         if stream:
             stream_response = ModelStreamResponse()
             params["stream_response"] = stream_response
-            gevent.spawn(self._stream_generate, **params)
-            stream_response.first_chunk_event.wait()
+            F.background_task(self._stream_generate, **params)
+            F.wait_for(stream_response.first_chunk_event)          
             return stream_response
         else:
             response = self._generate(**params)
@@ -586,8 +586,8 @@ class OpenAIASR(_BaseOpenAI, ASRModel):
             stream_response = ModelStreamResponse()
             params["stream_response"] = stream_response
             params["stream"] = stream
-            gevent.spawn(self._stream_generate, **params)
-            stream_response.first_chunk_event.wait()
+            F.background_task(self._stream_generate, **params)
+            F.wait_for(stream_response.first_chunk_event)
             return stream_response
         else:                
             response = self._generate(**params)
