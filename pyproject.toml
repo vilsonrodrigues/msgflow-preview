@@ -9,7 +9,6 @@ authors = [
 requires-python = ">=3.9"
 dependencies = [
     "code2mermaid>=0.3.0",
-    "gevent>=24.11.1",
     "ipykernel>=6.29.5",
     "jinja2>=3.1.5",
     "mermaid-py>=0.7.0",
