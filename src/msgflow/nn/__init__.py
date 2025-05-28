@@ -4,4 +4,4 @@ from msgflow.nn import (
     functional as functional,
     modules as modules,
     parameter as parameter,
-)        
+)
