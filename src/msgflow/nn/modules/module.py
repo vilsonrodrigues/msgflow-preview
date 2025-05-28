@@ -15,7 +15,6 @@ from typing import (
     TypeVar,
     Union,
 )
-import gevent
 import msgspec
 from code2mermaid import code_to_mermaid
 from jinja2 import Template
@@ -522,20 +521,6 @@ class Module:
         else:
             raise ValueError(f"Unsupported `model_response={type(model_response)}`")
         return raw_response
-
-    def _distributed_execute_model(self, distributed_params): # TODO: deprecated
-        greenlets = []
-        responses = []
-
-        for model_execution_params in distributed_params:
-            greenlets.append(gevent.spawn(self.model, **model_execution_params))
-        
-        gevent.joinall(greenlets.values())
-        for greenlet in greenlets:
-            responses.append(greenlet.value)
-
-        raw_resposes = [self._extract_raw_response(model_response) for model_response in responses]
-        return raw_resposes
 
     def _prepare_response(self, raw_response, message):
         if self.response_template is not None and not isinstance(raw_response, ModelStreamResponse):
