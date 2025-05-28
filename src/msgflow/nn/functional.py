@@ -1,8 +1,9 @@
 # https://mpitutorial.com/tutorials/mpi-scatter-gather-and-allgather/
 import asyncio
+import inspect
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple
 from msgflow.envs import envs
 from msgflow.logger import logger
 from msgflow.message import Message
@@ -14,332 +15,331 @@ class AsyncExecutorPool:
     """
     Generic asynchronous executor pool that can be reused by
     different functions, avoiding excessive thread creation.
+    This pool manages a single, shared ThreadPoolExecutor.
     """
-    
+
     def __init__(self, max_workers: int = 10):
         self.max_workers = max_workers
-        self._thread_local = threading.local()
-        self._lock = threading.Lock()
-    
-    def _get_executor(self):
-        """Get thread-local executor to avoid deadlocks."""
-        if not hasattr(self._thread_local, "executor"):
-            with self._lock:
-                if not hasattr(self._thread_local, "executor"):
-                    self._thread_local.executor = ThreadPoolExecutor(
-                        max_workers=self.max_workers,
-                        thread_name_prefix="AsyncMsgFlow"
-                    )
-        return self._thread_local.executor
-    
-    def run_async_function(self, async_func, *args, **kwargs):
+        self._executor = ThreadPoolExecutor(
+            max_workers=self.max_workers,
+            thread_name_prefix="AsyncMsgFlow"
+        )
+
+    def run_async_function(self, async_func: Callable[..., Coroutine[Any, Any, Any]], *args, **kwargs) -> Any:
         """
-        Executes an asynchronous function using the thread pool.
+        Executes an asynchronous function using the shared thread pool.
+        This function will block the caller until the async_func completes.
 
         Args:
-            async_func: Asynchronous function to execute
-            *args, **kwargs: Arguments to the function
+            async_func: Asynchronous function to execute.
+            *args, **kwargs: Arguments to the function.
 
         Returns:
-            Result of the asynchronous function
+            Result of the asynchronous function.
         """
-        def run_in_thread():
-            # Create new loop for this operation
+        def run_in_thread(): # Each async function runs in its own event loop
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
                 return loop.run_until_complete(async_func(*args, **kwargs))
             finally:
                 loop.close()
-        
-        try:            
-            asyncio.get_running_loop()            
-            executor = self._get_executor()
-            future = executor.submit(run_in_thread)
-            return future.result()
-        except RuntimeError:
-            # There is no loop running, use asyncio.run directly
-            return asyncio.run(async_func(*args, **kwargs))
-    
+
+        future = self._executor.submit(run_in_thread)
+        return future.result()
+
+    def submit_to_pool(self, func_to_run_in_thread: Callable[[], Any]) -> None:
+        """
+        Submits a synchronous function (which may internally manage an async loop)
+        to the pool for fire-and-forget execution.
+        `func_to_run_in_thread` is expected to handle its own exceptions.
+        """
+        self._executor.submit(func_to_run_in_thread)
+
     def __del__(self):
         """Executor cleanup when object is destroyed."""
-        if hasattr(self._thread_local, "executor"):
-            self._thread_local.executor.shutdown(wait=False)
+        if hasattr(self, "_executor") and self._executor:
+            self._executor.shutdown(wait=False)
 
 # Global
-global _async_pool
+_async_pool_lock = threading.Lock()
 _async_pool: Optional[AsyncExecutorPool] = None
 
 
-def get_async_pool() -> AsyncExecutorPool:
-    """Returns the async pool instance."""    
+def configure_async_pool():
+    """Configures async thread pool."""
     if _async_pool is None:
-        _async_pool = AsyncExecutorPool(max_workers=envs.num_threads_async_pool)
+        with _async_pool_lock:
+            _async_pool = AsyncExecutorPool(max_workers=envs.num_threads_async_pool)    
+
+
+def get_async_pool() -> AsyncExecutorPool:
+    """Returns the async pool instance (singleton)."""
+    global _async_pool
+    configure_async_pool()
     return _async_pool
 
 
-async def _execute_callable_async(callable_obj, message=None):
+async def _execute_callable_async(callable_obj, *args, **kwargs):
     """
     Executes a callable asynchronously.
-    Checks if it has a .acall() method, otherwise it uses the callable directly.
+    Checks if it has a .acall() method, is an async function, otherwise runs in thread pool.
     """
     try:
         if hasattr(callable_obj, "acall"):
-            if message is not None:
-                return await callable_obj.acall(message)
-            else:
-                return await callable_obj.acall()
-        else:
-            # If you don't have .acall(), run it in a thread pool to avoid blocking.
+            return await callable_obj.acall(*args, **kwargs) 
+        elif inspect.iscoroutinefunction(callable_obj): # async def
+            return await callable_obj(*args, **kwargs)
+        else: # sync def, run in thread pool (default executor of the current loop)
             loop = asyncio.get_event_loop()
-            if message is not None:
-                return await loop.run_in_executor(None, callable_obj, message)
-            else:
-                return await loop.run_in_executor(None, callable_obj)
+            # For synchronous functions, loop.run_in_executor executes them in a thread pool
+            # (the loop's default or one specified), allowing the loop to continue.            
+            return await loop.run_in_executor(None, callable_obj, *args, **kwargs)
+            
     except Exception as e:
         logger.error(f"Error in execution of {get_callable_name(callable_obj)}: {e}")
         raise
 
 
-def _run_background_task_fire_and_forget(
-    message: Any,
-    to_send: Callable,
-    timeout: Optional[float] = None,
-) -> None:
-    """
-    Executes a task in the background in a fire-and-forget manner using a daemon thread.
-    It does not block and does not return results.
-    """
-    def run_background_thread():
-        try:             
-            loop = asyncio.new_event_loop() # Create new loop for this daemon thread
-            asyncio.set_event_loop(loop)
-            try:
-                loop.run_until_complete(_background_task_async(message, to_send, timeout))
-            finally:
-                loop.close()
-        except Exception as e:
-            logger.error(f"Background thread failed: {e}")
-    
-    # Create daemon thread that does not block the main program
-    thread = threading.Thread(target=run_background_thread, daemon=True)
-    thread.start()
-
-
 # Async back-ends
 
 
+async def _wait_for_event_async(event: asyncio.Event):
+    """Asynchronous helper to wait for an asyncio.Event."""
+    await event.wait()
+
+
 async def _background_task_async(
-    message: Any,
     to_send: Callable,
+    *args,
     timeout: Optional[float] = None,
+    **kwargs
 ) -> None:
-    """Async version of background_task."""
-    if not isinstance(to_send, Callable):
-        raise TypeError("`to_send` must be a callable object")
-    
+    """Async version of background_task with support for args and kwargs."""
     try:
         if timeout is not None:
             await asyncio.wait_for(
-                _execute_callable_async(to_send, message),
+                _execute_callable_async(to_send, *args, **kwargs),
                 timeout=timeout
             )
         else:
-            await _execute_callable_async(to_send, message)
+            await _execute_callable_async(to_send, *args, **kwargs)
     except asyncio.TimeoutError:
         logger.error(f"Background task timeout after {timeout}s for {get_callable_name(to_send)}")
-    except Exception as e:
+    except Exception as e:        
         logger.error(f"Background task failed for {get_callable_name(to_send)}: {e}")
 
 
 async def _bcast_gather_async(
-    message: Any,
     to_send: List[Callable],
+    *args,
     timeout: Optional[float] = None,
-) -> Tuple[Any]:
+    **kwargs
+) -> Tuple[Any, ...]:
     """Async version of bcast_gather."""
-    if not to_send or not all(isinstance(module, Callable) for module in to_send):
-        raise TypeError("`to_send` must be a non-empty list of callable objects")
-
     tasks = [
-        asyncio.create_task(_execute_callable_async(module, message))
+        asyncio.create_task(_execute_callable_async(module, *args, **kwargs))
         for module in to_send
     ]
-    
+
+    responses: List[Any]
     try:
-        responses = await asyncio.wait_for(
-            asyncio.gather(*tasks, return_exceptions=True),
-            timeout=timeout
-        )
+        if timeout is not None:
+            responses = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=timeout
+            )
+        else:
+            responses = await asyncio.gather(*tasks, return_exceptions=True)
     except asyncio.TimeoutError:
+        logger.warning(f"Broadcast gather timed out after {timeout}s. Cancelling tasks.")
         for task in tasks: # Cancel pending tasks
             if not task.done():
                 task.cancel()
-        responses = [None] * len(tasks)
+        # Wait for tasks to process the cancellation
+        # CancelledError exceptions will be caught in responses
+        responses = await asyncio.gather(*tasks, return_exceptions=True)
 
     processed_responses = []
-    for response in responses:
+    for i, response in enumerate(responses):
         if isinstance(response, Exception):
+            if isinstance(response, asyncio.CancelledError):
+                logger.warning(f"Task {i} for {get_callable_name(to_send[i])} was cancelled due to timeout.")
+            else:
+                logger.error(f"Error in gathered task {i} for {get_callable_name(to_send[i])}: {response}")
             processed_responses.append(None)
         else:
             processed_responses.append(response)
-    
+
     return tuple(processed_responses)
 
 
 async def _scatter_gather_async(
-    messages: List[Any],
     to_send: List[Callable],
+    args_list: Optional[List[Tuple[Any, ...]]] = None,
+    kwargs_list: Optional[List[Dict[str, Any]]] = None,
+    *,
     timeout: Optional[float] = None,
-) -> Tuple[Any]:
+) -> Tuple[Any, ...]:
     """Async version of scatter_gather."""
     if not to_send or not all(isinstance(module, Callable) for module in to_send):
-        raise TypeError("`to_send` must be a non-empty list of callable objects")
-    
-    if len(messages) != len(to_send):
-        raise ValueError(f"The size of `messages` ({len(messages)}) "
-                        f"must be equal to that of `to_send`: ({len(to_send)})")
+        raise TypeError("`to_send` deve ser uma lista não vazia de objetos chamáveis.")
 
-    tasks = [
-        asyncio.create_task(_execute_callable_async(module, message))
-        for module, message in zip(to_send, messages)
-    ]
-    
-    try:
-        responses = await asyncio.wait_for(
-            asyncio.gather(*tasks, return_exceptions=True),
-            timeout=timeout
+    if args_list is not None and len(to_send) != len(args_list):
+        raise ValueError(
+            f"O comprimento de `to_send` ({len(to_send)}) deve corresponder ao comprimento de `args_list` ({len(args_list)})."
         )
+    if kwargs_list is not None and len(to_send) != len(kwargs_list):
+        raise ValueError(
+            f"O comprimento de `to_send` ({len(to_send)}) deve corresponder ao comprimento de `kwargs_list` ({len(kwargs_list)})."
+        )
+    
+    tasks = []
+    for i, module in enumerate(to_send):
+        current_args: Tuple[Any, ...] = args_list[i] if args_list and i < len(args_list) else ()
+        current_kwargs: Dict[str, Any] = kwargs_list[i] if kwargs_list and i < len(kwargs_list) else {}
+        tasks.append(asyncio.create_task(_execute_callable_async(module, *current_args, **current_kwargs)))
+
+    responses: List[Any]
+    try:
+        if timeout is not None:
+            responses = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=timeout
+            )
+        else:
+            responses = await asyncio.gather(*tasks, return_exceptions=True)
     except asyncio.TimeoutError:
-        for task in tasks: # Cancel pending tasks
+        logger.warning(f"scatter_gather had timeout after {timeout}s. Canceling tasks.")
+        for task in tasks:
             if not task.done():
                 task.cancel()
-        responses = [None] * len(tasks)
+        responses = await asyncio.gather(*tasks, return_exceptions=True) # Allows cancellations to be processed
 
     processed_responses = []
-    for response in responses:
+    for i, response in enumerate(responses):
+        callable_name = get_callable_name(to_send[i])
+        
+        log_args_info = ""
+        if args_list and i < len(args_list):
+            log_args_info += f"args={str(args_list[i])[:50]}" # Limita o tamanho para o log
+        if kwargs_list and i < len(kwargs_list):
+            if log_args_info: log_args_info += ", "
+            log_args_info += f"kwargs={str(kwargs_list[i])[:50]}"
+
         if isinstance(response, Exception):
+            if isinstance(response, asyncio.CancelledError):
+                logger.warning(f"Task to {callable_name} with ({log_args_info}) was canceled due to timeout.")
+            else:
+                logger.error(f"Error in task spread to {callable_name} with ({log_args_info}): {response}")
             processed_responses.append(None)
         else:
             processed_responses.append(response)
-    
+
     return tuple(processed_responses)
 
 
 async def _msg_bcast_gather_async(
-    message: Message,
     to_send: List[Callable],
+    message: Message,
     response_mode: Optional[str] = "outputs",
     timeout: Optional[float] = None,
 ) -> Message:
     """Async version of msg_bcast_gather."""
-    if not isinstance(message, Message):
-        raise TypeError("`message` must be an instance of `msgflow.Message`")
-    
-    if not to_send or not all(isinstance(module, Callable) for module in to_send):
-        raise TypeError("`to_send` must be a non-empty list of callable objects")
-        
-    if not isinstance(response_mode, str):
-        raise TypeError(f"`response_mode` must be a string, but it was received `{type(response_mode)}`")
-    if response_mode == "":
-        raise ValueError("`response_mode` cannot be an empty string")
-    
     tasks = [
         asyncio.create_task(_execute_callable_async(module, message))
         for module in to_send
     ]
-    
+
+    responses: List[Any]
     try:
-        responses = await asyncio.wait_for(
-            asyncio.gather(*tasks, return_exceptions=True),
-            timeout=timeout
-        )
+        if timeout is not None:
+            responses = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=timeout
+            )
+        else:
+            responses = await asyncio.gather(*tasks, return_exceptions=True)
     except asyncio.TimeoutError:
+        logger.warning(f"Message broadcast gather timed out after {timeout}s. Cancelling tasks.")
         for task in tasks: # Cancel pending tasks
             if not task.done():
                 task.cancel()
-        responses = [None] * len(tasks)
-    
+        responses = await asyncio.gather(*tasks, return_exceptions=True)
+
     for module, response in zip(to_send, responses):
         module_name = get_callable_name(module)
         if isinstance(response, Exception):
+            if isinstance(response, asyncio.CancelledError):
+                 logger.warning(f"Task for {module_name} (msg_bcast) was cancelled.")
+            else:
+                logger.error(f"Error in gathered task for {module_name} (msg_bcast): {response}")
             message.set(f"{response_mode}.{module_name}", None)
         else:
             message.set(f"{response_mode}.{module_name}", response)
-    
+
     return message
 
 
 async def _msg_scatter_gather_async(
-    messages: List[Message],
     to_send: List[Callable],
+    messages: List[Message],
     response_mode: Optional[str] = "outputs",
     timeout: Optional[float] = None,
-) -> Tuple[Message]:
+) -> Tuple[Message, ...]:
     """Async version of msg_scatter_gather."""
-    if not messages or not all(isinstance(msg, Message) for msg in messages):
-        raise TypeError("`messages` must be a non-empty list of `msgflow.Message` instances")
-    
-    if not to_send or not all(isinstance(module, Callable) for module in to_send):
-        raise TypeError("`to_send` must be a non-empty list of callable objects")
-    
-    if len(messages) != len(to_send):
-        raise ValueError(f"The size of `messages` ({len(messages)}) "
-                        f"must be equal to that of `to_send`: ({len(to_send)})")
-             
-    if not isinstance(response_mode, str):
-        raise TypeError(f"`response_mode` must be a string, but it was received `{type(response_mode)}`")
-    if response_mode == "":
-        raise ValueError("`response_mode` cannot be an empty string")
-
     tasks = [
         asyncio.create_task(_execute_callable_async(module, msg))
         for module, msg in zip(to_send, messages)
     ]
-    
+
+    responses: List[Any]
     try:
-        responses = await asyncio.wait_for(
-            asyncio.gather(*tasks, return_exceptions=True),
-            timeout=timeout
-        )
+        if timeout is not None:
+            responses = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=timeout
+            )
+        else:
+            responses = await asyncio.gather(*tasks, return_exceptions=True) # CORRIGIDO: Adicionado await
     except asyncio.TimeoutError:
+        logger.warning(f"Message scatter gather timed out after {timeout}s. Cancelling tasks.")
         for task in tasks: # Cancel pending tasks
             if not task.done():
                 task.cancel()
-        responses = [None] * len(tasks)
-    
-    for module, message, response in zip(to_send, messages, responses):
+        responses = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for module, message_item, response in zip(to_send, messages, responses):
         module_name = get_callable_name(module)
         if isinstance(response, Exception):
-            message.set(f"{response_mode}.{module_name}", None)
-            logger.error(f"{module_name}: {response}")
-        else:
-            message.set(f"{response_mode}.{module_name}", response)
-    
-    return tuple(messages)
+            if isinstance(response, asyncio.CancelledError):
+                logger.warning(f"Task for {module_name} with msg id {message_item.id if hasattr(message_item, 'id') else 'N/A'} (msg_scatter) was cancelled.")
+            else:
+                logger.error(f"Error in scattered task for {module_name} with msg id {message_item.id if hasattr(message_item, 'id') else 'N/A'} (msg_scatter): {response}")
 
+            message_item.set(f"{response_mode}.{module_name}", None)
+        else:
+            message_item.set(f"{response_mode}.{module_name}", response)
+
+    return tuple(messages)
 
 # Sync front-ends
 
 @trace("msgflow.nn.F.bcast_gather")
 def bcast_gather(
-    message: Any,
     to_send: List[Callable],
+    *args,
     timeout: Optional[float] = None,
-) -> Tuple[Any]:
+    **kwargs
+) -> Tuple[Any, ...]:
     """
-    Broadcasts a single message to multiple modules and gathers the responses.
-
-    The given message is sent to each callable in `to_send`, and the responses are collected.
-    Then a tuple containing the response of each callable will be returned. If an error occurs, 
-    the response of that callable will be None. Includes exception handling and optional timeout.
-
-    If the value of message is None the module will be called without passing parameters.  
+    Broadcasts arguments to multiple callables and gathers the responses.
 
     Args:
-        message: Any data object to broadcast.
-        to_send: List of callable objects (e.g. functions or `Module` instances).
+        to_send: List of callable objects (e.g. functions or `Module` instances).    
+        *args: Positional arguments.
         timeout: Maximum time (in seconds) to wait for responses.
+        **kwargs: Named arguments.
 
     Returns:
         Tuple containing the responses.
@@ -347,15 +347,19 @@ def bcast_gather(
     Raises:
         TypeError: If `to_send` is not a list of callables.
     """
+    if not to_send or not all(isinstance(f, Callable) for f in to_send):
+        raise TypeError("`to_send` must be a non-empty list of callable objects")
+
     async_pool = get_async_pool()
-    return async_pool.run_async_function(_bcast_gather_async, message, to_send, timeout)
+    return async_pool.run_async_function(_bcast_gather_async, to_send, *args, timeout=timeout, **kwargs)
 
 
 @trace("msgflow.nn.F.msg_bcast_gather")
 def msg_bcast_gather(
-    message: Message,
     to_send: List[Callable],
+    message: Message,
     response_mode: Optional[str] = "outputs",
+    *,
     timeout: Optional[float] = None,
 ) -> Message:
     """
@@ -366,8 +370,8 @@ def msg_bcast_gather(
     exception handling and optional timeout to prevent crashes.
 
     Args:
+        to_send: List of callable objects (e.g. functions or `Module` instances).    
         message: Instance of `msgflow.Message` to broadcast.
-        to_send: List of callable objects (e.g. functions or `Module` instances).
         response_mode: Field in the message where the responses will be stored (default: "outputs").
         timeout: Maximum time (in seconds) to wait for responses (optional).
 
@@ -379,47 +383,112 @@ def msg_bcast_gather(
             of callables, or `response_mode` is not a string.
         ValueError: If `response_mode` is an empty string or `to_send` is empty.
     """
+    if not isinstance(message, Message):
+        raise TypeError("`message` must be an instance of `msgflow.Message`")
+    if not to_send or not all(isinstance(module, Callable) for module in to_send):
+        raise TypeError("`to_send` must be a non-empty list of callable objects")
+    if not isinstance(response_mode, str):
+        raise TypeError(f"`response_mode` must be a string, but it was received `{type(response_mode)}`")
+    if not response_mode:
+        raise ValueError("`response_mode` cannot be an empty string")
+    
     async_pool = get_async_pool()
-    return async_pool.run_async_function(_msg_bcast_gather_async, message, to_send, response_mode, timeout)
+    return async_pool.run_async_function(_msg_bcast_gather_async, to_send, message, response_mode, timeout)
 
 
 @trace("msgflow.nn.F.scatter_gather")
 def scatter_gather(
-    messages: List[Any],
     to_send: List[Callable],
+    args_list: Optional[List[Tuple[Any, ...]]] = None,
+    kwargs_list: Optional[List[Dict[str, Any]]] = None,
+    *,
     timeout: Optional[float] = None,
-) -> Tuple[Any]:
+) -> Tuple[Any, ...]:
     """
-    Scatter a list of messages to a list of modules and gather the responses.
+    Sends different sets of arguments/kwargs to a list of modules (callables)
+    and collects the responses.
 
-    Each message in `messages` is sent to the corresponding callable in `to_send`, 
-    and the responses are collected. Then a tuple containing the response of each 
-    callable will be returned. If an error occurs, the response of that callable 
-    will be None.
-
-    If the value of message is None the module will be called without passing parameters.    
+    Each callable in `to_send` receives the positional arguments of the corresponding `tuple`
+    in `args_list` and the named arguments of the corresponding `dict` in `kwargs_list`.
+    If `args_list` or `kwargs_list` are not provided (or are `None`), the corresponding callables
+    will be called without positional or named arguments, respectively,
+    unless an empty list (`[]`) or empty tuple (`()`) is provided for a specific item.
 
     Args:
-        messages: List of any data object to be distributed.
         to_send: List of callable objects (e.g. functions or `Module` instances).
+        args_list: Optional list of tuples. Each tuple contains the positional arguments
+            for the corresponding callable in `to_send`. If `None`, no positional arguments 
+            are passed unless specified individually by an item in `kwargs_list`.
+        kwargs_list: Optional list of dictionaries. Each dictionary contains the named arguments 
+            for the corresponding callable in `to_send`. If `None`, no named arguments are passed 
+            unless specified individually by an item in `args_list`.
         timeout: Maximum time (in seconds) to wait for responses.
 
     Returns:
-        Tuple containing the responses.
+        Tuple containing the responses for each callable. If an error or timeout occurs for a 
+        specific callable, its corresponding response in the tuple will be `None`.
 
     Raises:
-        TypeError: If `to_send` is not a list of callables.
-        ValueError: If the lengths of `messages` and `to_send` do not match.
+        TypeError: If `to_send` is not a callable list.
+        ValueError: If the lengths of `args_list` (if provided) or `kwargs_list`
+            (if provided) do not match the length of `to_send`.
+
+    Examples:
+        def add(x, y): return x + y
+        def multiply(x, y=2): return x * y
+        callables = [add, multiply, add]
+
+        # Example 1: Using only args_list
+        args = [ (1, 2), (3,), (10, 20) ] # multiply will use its default y
+        results = scatter_gather(callables, args_list=args)
+        print(results) # (3, 6, 30)
+
+        # Example 2: Using args_list e kwargs_list
+        args = [ (1,), (), (10,) ]
+        kwargs = [ {'y': 2}, {'x': 3, 'y': 3}, {'y': 20} ]
+        results = scatter_gather(callables, args_list=args, kwargs_list=kwargs)
+        print(results) # (3, 9, 30)
+
+        # Example 3: Using only kwargs_list (useful if functions have defaults or don't need positional args)
+        def greet(name="World"): return f"Hello, {name}"
+        def farewell(person_name): return f"Goodbye, {person_name}"
+        funcs = [greet, greet, farewell]
+        kwargs_for_funcs = [ {}, {'name': "Earth"}, {'person_name': "Commander"} ]
+        results = scatter_gather(funcs, kwargs_list=kwargs_for_funcs)
+        print(results) # ("Hello, World", "Hello, Earth", "Goodbye, Commander")
+
+        # Example 4: Calling functions that take no arguments (or using all defaults)
+        import random
+        def get_random_num(): return random.randint(0,100)
+        def get_another_random(): return random.random()
+        random_funcs = [get_random_num, get_another_random, get_random_num]
+        results = scatter_gather(random_funcs) # args_list and kwargs_list are None
+        print(len(results))
+        # To be explicit about not passing args/kwargs to each:
+        explicit_args = [(), (), ()]
+        explicit_kwargs = [{}, {}, {}]
+        results_explicit = scatter_gather(random_funcs, args_list=explicit_args, kwargs_list=explicit_kwargs)
+        print(len(results_explicit)) # Saída esperada: 3
     """
+    if not isinstance(to_send, list) or not all(callable(f) for f in to_send):
+        raise TypeError("`to_send` must be a non-empty list of callable objects")
+
     async_pool = get_async_pool()
-    return async_pool.run_async_function(_scatter_gather_async, messages, to_send, timeout)
+    return async_pool.run_async_function(
+        _scatter_gather_async,
+        to_send,
+        args_list=args_list,
+        kwargs_list=kwargs_list,
+        timeout=timeout
+    )
 
 
 @trace("msgflow.nn.F.msg_scatter_gather")
 def msg_scatter_gather(
-    messages: List[Message],
     to_send: List[Callable],
-    response_mode: Optional[str] = "outputs",
+    messages: List[Message],
+    *,
+    response_mode: Optional[str] = "outputs",    
     timeout: Optional[float] = None,
 ) -> Tuple[Message]:
     """
@@ -430,8 +499,8 @@ def msg_scatter_gather(
     respective message. Includes exception handling and optional timeout.
 
     Args:
+        to_send: List of callable objects (e.g. functions or `Module` instances).    
         messages: List of `msgflow.Message` instances to be distributed.
-        to_send: List of callable objects (e.g. functions or `Module` instances).
         response_mode: Field where the responses will be stored (default: "outputs").
         timeout: Maximum time (in seconds) to wait for responses (optional).
 
@@ -444,32 +513,91 @@ def msg_scatter_gather(
         ValueError: If `response_mode` is an empty string, or the lengths of `messages`
             and `to_send` do not match.
     """
+    if not messages or not all(isinstance(msg, Message) for msg in messages):
+        raise TypeError("`messages` must be a non-empty list of `msgflow.Message` instances")
+
+    if not to_send or not all(isinstance(f, Callable) for f in to_send):
+        raise TypeError("`to_send` must be a non-empty list of callable objects")
+
+    if len(messages) != len(to_send):
+        raise ValueError(f"The size of `messages` ({len(messages)}) "
+                        f"must be equal to that of `to_send`: ({len(to_send)})")
+
+    if not isinstance(response_mode, str):
+        raise TypeError(f"`response_mode` must be a string, but it was received `{type(response_mode)}`")
+    if not response_mode:
+        raise ValueError("`response_mode` cannot be an empty string")
+
     async_pool = get_async_pool()    
-    return async_pool.run_async_function(_msg_scatter_gather_async, messages, to_send, response_mode, timeout)
+    return async_pool.run_async_function(_msg_scatter_gather_async, to_send, messages, response_mode, timeout)
 
 
 @trace("msgflow.nn.F.background_task")
 def background_task(
-    message: Any,
     to_send: Callable,
+    *args,    
     timeout: Optional[float] = None,
+    **kwargs
 ) -> None:
     """
-    Executes a task in the background asynchronously without blocking.
-
-    This function is "fire-and-forget" - it starts execution and returns immediately,
-    without waiting for the result. If an error occurs, it just logs and continues.
+    Executes a task in the background asynchronously without blocking, using the AsyncExecutorPool.
+    This function is "fire-and-forget".
 
     Args:
-        message: Data to send to the callable. If None, call without parameters.
-        to_send: Callable object (function or module with .acall() method).
-        timeout: Maximum time (in seconds) to wait for execution.
+        to_send: Callable object (function, async function, or module with .acall() method).
+        *args: Positional arguments.
+        timeout: Maximum time (in seconds) to wait for responses.
+        **kwargs: Named arguments.
 
     Raises:
         TypeError: If `to_send` is not a callable.
+
+    Examples:
+        # Sync fn
+        background_task(my_function, arg1, arg2, timeout=10.0)
+        
+        # Async fn
+        async def async_func(x, y, z=None): ...
+        background_task(async_func, 1, 2, z=3)
+        
+        # One param
+        background_task(my_function, message)    
     """
-    if not isinstance(to_send, Callable):
+    if not callable(to_send):
         raise TypeError("`to_send` must be a callable object")
-    
-    # Fire-and-forget execution
-    _run_background_task_fire_and_forget(message, to_send, timeout)
+
+    async_pool = get_async_pool()
+
+    def run_pooled_background_task():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(_background_task_async(to_send, *args, timeout=timeout, **kwargs))
+        except Exception as e:
+            logger.error(
+                f"Outer exception in pooled background task for {get_callable_name(to_send)}: {e}"
+            )
+        finally:
+            loop.close()
+
+    async_pool.submit_to_pool(run_pooled_background_task)
+
+
+@trace("msgflow.nn.F.wait_for")
+def wait_for(event: asyncio.Event) -> None:
+    """
+    Waits synchronously for an asyncio.Event to be set.
+
+    This function will block until event.set() is called elsewhere.
+
+    Args:
+        event: The asyncio.Event to wait for.
+
+    Raises:
+        TypeError: If `event` is not an instance of asyncio.Event.
+    """
+    if not isinstance(event, asyncio.Event):
+        raise TypeError("`event` must be an instance of asyncio.Event")
+        
+    async_pool = get_async_pool()
+    async_pool.run_async_function(_wait_for_event_async, event)
