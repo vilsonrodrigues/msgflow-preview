@@ -280,6 +280,10 @@ class ModelGateway:
         """
         return self._execute_model(model_preference=model_preference, **kwargs)
 
+    async def acall(self, *args, **kwargs):
+        """ Async interface to __call__ """
+        return self.__call__(*args, **kwargs)
+
     def serialize(self) -> Dict[str, Any]:
         """Serializes the gateway state including time constraints as strings."""
         serialized_models = [model.serialize() for model in self.models]

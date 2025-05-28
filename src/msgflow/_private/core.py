@@ -53,6 +53,10 @@ class BaseClient(ABC, Core):
         """
         raise NotImplementedError
 
+    async def acall(self, *args, **kwargs):
+        """ Async interface to __call__ """
+        return self.__call__(*args, **kwargs)
+
     def serialize(self) -> Dict[str, Any]:
         """
         Serialize the client instance into a dictionary.

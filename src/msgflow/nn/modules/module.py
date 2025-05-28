@@ -1218,6 +1218,10 @@ class Module:
 
     __call__: Callable[..., Any] = _call_impl
 
+    async def acall(self, *args, **kwargs):
+        """ Async interface to __call__ """
+        return self.__call__(*args, **kwargs)
+
     def __getstate__(self):
         state = self.__dict__.copy()
         return state
