@@ -496,8 +496,6 @@ def background_task(
     if not callable(to_send):
         raise TypeError("`to_send` must be a callable object")
 
-    async_pool = get_async_pool()
-
     def run_pooled_background_task():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -510,11 +508,12 @@ def background_task(
         finally:
             loop.close()
 
+    async_pool = get_async_pool()
     async_pool.submit_to_pool(run_pooled_background_task)
 
 
-@trace("msgflow.nn.F.wait_for")
-def wait_for(event: asyncio.Event) -> None:
+@trace("msgflow.nn.F.wait_for_event")
+def wait_fwait_for_eventor(event: asyncio.Event) -> None:
     """
     Waits synchronously for an asyncio.Event to be set.
 

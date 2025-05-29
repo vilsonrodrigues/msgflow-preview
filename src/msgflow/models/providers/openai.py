@@ -289,7 +289,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                 tools=tool_schemas,
                 tool_choice=tool_choice,
             )
-            F.wait_for(stream_response.first_chunk_event)
+            F.wait_for_event(stream_response.first_chunk_event)
             return stream_response
         else:
             response = self._generate(
@@ -411,7 +411,7 @@ class OpenAITTS(_BaseOpenAI, TTSModel):
             stream_response = ModelStreamResponse()
             params["stream_response"] = stream_response
             F.background_task(self._stream_generate, **params)
-            F.wait_for(stream_response.first_chunk_event)          
+            F.wait_for_event(stream_response.first_chunk_event)          
             return stream_response
         else:
             response = self._generate(**params)
@@ -587,7 +587,7 @@ class OpenAIASR(_BaseOpenAI, ASRModel):
             params["stream_response"] = stream_response
             params["stream"] = stream
             F.background_task(self._stream_generate, **params)
-            F.wait_for(stream_response.first_chunk_event)
+            F.wait_for_event(stream_response.first_chunk_event)
             return stream_response
         else:                
             response = self._generate(**params)
