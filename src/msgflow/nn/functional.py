@@ -513,7 +513,7 @@ def background_task(
 
 
 @trace("msgflow.nn.F.wait_for_event")
-def wait_fwait_for_eventor(event: asyncio.Event) -> None:
+def wait_for_event(event: asyncio.Event) -> None:
     """
     Waits synchronously for an asyncio.Event to be set.
 
