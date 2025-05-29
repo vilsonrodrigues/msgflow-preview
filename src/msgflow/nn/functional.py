@@ -9,7 +9,6 @@ from msgflow.nn.modules.module import get_callable_name
 from msgflow.telemetry.span import trace
 
 
-
 async def _execute_callable_async(callable_obj, *args, **kwargs):
     """
     Executes a callable asynchronously.
