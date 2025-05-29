@@ -14,7 +14,6 @@ import msgspec
 from msgflow.generation.reasoning.react import ReAct
 from msgflow.generation.signature import (
     Signature,
-    SIGNATURE_DEFAULT_SYSTEM_MESSAGE,
     SIGNATURE_SYSTEM_MESSAGES,
     create_struct_from_str_signature,
     get_examples_from_signature,
@@ -24,6 +23,7 @@ from msgflow.generation.signature import (
 )
 from msgflow.generation.templates import (
     PromptSpec,
+    SIGNATURE_DEFAULT_SYSTEM_MESSAGE,    
     SYSTEM_PROMPT_TEMPLATE,
     XML_TO_DICT_TEMPLATE,
 )
@@ -36,8 +36,7 @@ from msgflow.nn.modules.tool import ToolLibrary
 from msgflow.nn.parameter import Parameter
 from msgflow.utils.chat import (
     adapt_struct_schema_to_json_schema,
-    chatml_to_steps_format, 
-    download_file,
+    chatml_to_steps_format,
     format_examples,
     get_filename, 
     get_react_tools_prompt_format
