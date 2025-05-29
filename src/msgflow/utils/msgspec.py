@@ -1,20 +1,23 @@
+import ast
 import os
+import re
 from collections import OrderedDict
-from typing import Any, Dict, List, Literal, Optional, Set, Union
+from typing import Any, Dict, List, Literal, Optional, Set, Union, Tuple
 import msgspec
-from msgspec import Meta, defstruct
+from msgspec import Meta, Struct, defstruct
 from typing_extensions import Annotated
+from msgflow.logger import logger
 from msgflow.utils.common import type_mapping
 
 
-class StructRebuilder:
-    """Rebuild msgspec.Struct from a JSON-schema."""
+class StructFactory:
+    """Rebuild msgspec.Struct from a JSON-schema or str signature."""
     
     def __init__(self):
         self.reconstructed_classes = OrderedDict()
     
     @classmethod
-    def reconstruct_from_schema(cls, schema: Dict[str, Any]) -> Dict[str, type]:
+    def from_schema(cls, schema: Dict[str, Any]) -> Struct:
         """
         Rebuild all Struct classes defined in the schema.
 
@@ -197,15 +200,203 @@ class StructRebuilder:
         
         return str  # Fallback
 
+    @classmethod
+    def from_signature(cls, signature: str, struct_name: Optional[str] = "DynamicStruct") -> Struct:
+        annotations = cls._parse_annotations(signature)
+        struct_fields = []
+
+        for name, type_str in annotations:
+            try:
+                parsed_type = cls._parse_type_string(type_str)
+                struct_fields.append((name, parsed_type))
+            except ValueError as e:
+                raise ValueError(f"Error parsing field `{name}` (type='{type_str}'): {e}")
+            except Exception as e:
+                raise RuntimeError(f"Unexpected error parsing field `{name}`: {e}")
+
+        if not struct_fields and signature.strip():
+            raise ValueError("No valid fields parsed from the signature.")
+
+        try:
+            DynamicStruct = msgspec.defstruct(struct_name, struct_fields)
+        except Exception as e:
+            raise RuntimeError(f"Error creating struct `{struct_name}`: {e}")
+
+        return DynamicStruct
+
+    @classmethod
+    def _parse_literal_args(cls, args_str: str) -> Tuple:
+        try:
+            parsed_node = ast.parse(f"[{args_str}]", mode="eval")
+            values = [ast.literal_eval(node) for node in parsed_node.body.elts]
+            return tuple(values)
+        except (SyntaxError, ValueError, TypeError) as e:
+            logger.error(str(e))
+            raise ValueError(f"Invalid literal arguments: `{args_str}`")
+
+    @classmethod
+    def _split_args(cls, args_str: str) -> list[str]:
+        args = []
+        level = 0
+        current_arg_start = 0
+        in_quotes = None
+
+        if not args_str.strip():
+            return []
+
+        for i, char in enumerate(args_str):
+            if char in ("[", "{", "(") and not in_quotes:
+                level += 1
+            elif char in ("]", "}", ")") and not in_quotes:
+                level -= 1
+            elif char in ("'", '"'):
+                if in_quotes == char:
+                    in_quotes = None
+                elif in_quotes is None:
+                    in_quotes = char
+            elif char == "," and level == 0 and not in_quotes:
+                args.append(args_str[current_arg_start:i].strip())
+                current_arg_start = i + 1
+
+        args.append(args_str[current_arg_start:].strip())
+        return [arg for arg in args if arg]
+
+    @classmethod
+    def _parse_type_string(cls, type_str: str) -> type:
+        type_str = type_str.strip()
+        if not type_str:
+            raise ValueError("The type string cannot be empty.")
+
+        type_str_lower = type_str.lower()
+        simple_types_lower = {"str", "int", "float", "bool", "any", "none"}
+        if type_str_lower in simple_types_lower and type_str_lower in type_mapping:
+            return type_mapping[type_str_lower]
+
+        match = re.match(r"^\s*(\w+)\s*\[(.*)\]\s*$", type_str, re.DOTALL)
+        if match:
+            base_type_name, args_str = match.groups()
+            base_type_name_lower = base_type_name.lower()
+
+            if base_type_name_lower not in type_mapping:
+                raise ValueError(f"Base type not supported: `{base_type_name}` in `{type_str}`")
+
+            base_type = type_mapping[base_type_name_lower]
+
+            if base_type is Literal:
+                parsed_args = cls._parse_literal_args(args_str)
+                if not parsed_args:
+                    raise ValueError("Literal[...] cannot be empty")
+                return Literal[parsed_args]
+
+            elif base_type is Optional:
+                arg_strs_list = cls._split_args(args_str)
+                if len(arg_strs_list) != 1:
+                    raise ValueError("Optional[...] requires exactly 1 argument")
+                inner_type = cls._parse_type_string(arg_strs_list[0])
+                return Union[inner_type, type(None)]
+
+            elif base_type in (List, Dict, Union, Tuple):
+                arg_strs_list = cls._split_args(args_str)
+
+                if base_type is Tuple:
+                    if not arg_strs_list:
+                        return Tuple[()]
+                    if len(arg_strs_list) == 2 and arg_strs_list[1] == "...":
+                        item_type = cls._parse_type_string(arg_strs_list[0])
+                        return Tuple[item_type, ...]
+
+                parsed_args = tuple(cls._parse_type_string(arg) for arg in arg_strs_list)
+
+                if base_type is Dict and len(parsed_args) != 2:
+                    raise ValueError("Dict requires exactly 2 arguments")
+                if base_type is List and len(parsed_args) != 1:
+                    raise ValueError("List requires exactly 1 argument")
+                if base_type is Union:
+                    if len(parsed_args) == 0:
+                        raise ValueError("Union[...] cannot be empty")
+                    if len(parsed_args) == 1:
+                        return parsed_args[0]
+
+                return base_type[parsed_args]
+
+        if type_str_lower in type_mapping:
+            return type_mapping[type_str_lower]
+
+        raise ValueError(f"Unsupported or malformed type string: `{type_str}`")
+
+    @classmethod
+    def _parse_annotations(cls, signature: str) -> List[Tuple[str, str]]:
+        fields = []
+        current_pos = 0
+        level = 0
+        in_quotes = None
+        current_field_start = 0
+        signature = signature.strip()
+
+        if not signature:
+            return []
+
+        while current_pos < len(signature):
+            char = signature[current_pos]
+            if char in ("[", "{", "(") and not in_quotes:
+                level += 1
+            elif char in ("]", "}", ")") and not in_quotes:
+                level -= 1
+                if level < 0:
+                    raise ValueError(f"Unbalanced nesting near `{signature[current_pos:]}`")
+            elif char in ("'", '"'):
+                if in_quotes == char:
+                    in_quotes = None
+                elif in_quotes is None:
+                    in_quotes = char
+
+            if char == "," and level == 0 and not in_quotes:
+                field_str = signature[current_field_start:current_pos].strip()
+                if field_str:
+                    fields.append(field_str)
+                current_field_start = current_pos + 1
+            current_pos += 1
+
+        if level != 0:
+            raise ValueError("Unbalanced brackets/parentheses in signature.")
+        if in_quotes:
+            raise ValueError("Unclosed quotation marks in signature.")
+
+        last_field_str = signature[current_field_start:].strip()
+        if last_field_str:
+            fields.append(last_field_str)
+
+        result = []
+        for field_str in fields:
+            parts = field_str.split(":", 1)
+            if len(parts) == 2:
+                key = parts[0].strip()
+                value_type = parts[1].strip()
+                if not key:
+                    raise ValueError(f"Field name cannot be empty in `{field_str}`")
+                if not value_type:
+                    raise ValueError(f"Type cannot be empty after ':' in `{field_str}`")
+            else:
+                key = field_str.strip()
+                value_type = "str"
+                if not key:
+                    raise ValueError(f"Field name cannot be empty in `{field_str}`")
+            result.append((key, value_type))
+
+        return result
+
+
 def export_to_toml(obj, filepath):
     with open(filepath, "wb") as f:
         f.write(msgspec.toml.encode(obj))    
+
 
 def export_to_json(obj, filepath, indent=4):
     with open(filepath, "wb") as f:
         obj_b = msgspec.json.encode(obj)
         formatted_obj_b = msgspec.json.format(obj_b, indent=indent)
         f.write(formatted_obj_b)
+
 
 def save(obj: object, f: Union[str, os.PathLike], format: Optional[Literal["toml", "json"]] = "toml"):
     """
@@ -238,13 +429,16 @@ def save(obj: object, f: Union[str, os.PathLike], format: Optional[Literal["toml
     else:
         raise ValueError(f"Unsupported format: `{format}`. Use `toml` or `json`")
 
+
 def read_json(filepath):
     with open(filepath, "rb") as f:
         return msgspec.json.decode(f.read())
 
+
 def read_toml(filepath):
     with open(filepath, "rb") as f:
         return msgspec.toml.decode(f.read())
+
 
 def load(f: Union[str, os.PathLike]) -> Any:
     """
@@ -275,6 +469,7 @@ def load(f: Union[str, os.PathLike]) -> Any:
         return read_toml(f)
     else:
         raise ValueError(f"Unsupported file extension: `{f}`. Use `.json` or `.toml`")
+
 
 def struct_to_dict(obj):
     """
