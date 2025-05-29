@@ -20,7 +20,6 @@ from code2mermaid import code_to_mermaid
 from jinja2 import Template
 from opentelemetry import trace
 
-import msgflow
 from msgflow.envs import envs
 from msgflow.exceptions import UnsafeModelResponse, UnsafeUserInput
 from msgflow.message import Message
@@ -31,10 +30,7 @@ from msgflow.nn.parameter import Parameter
 from msgflow.utils.convert import convert_camel_snake_to_title
 from msgflow.utils.hooks import RemovableHandle
 from msgflow.utils.mermaid import plot_mermaid
-from msgflow.utils.msgspec import (
-    deserialize_struct, 
-    serialize_msgspec_struct
-)
+from msgflow.utils.msgspec import StructFactory
 from msgflow.utils.validation import is_builtin_type, is_subclass_of
 from msgflow.telemetry.span import spans
 
@@ -1390,7 +1386,7 @@ class Module:
         if is_builtin_type(obj):
             return obj
         elif is_subclass_of(obj, msgspec.Struct):
-            return serialize_msgspec_struct(obj)
+            return msgspec.json.schema(obj)
         elif hasattr(obj, "serialize"):
             return obj.serialize()
         else:            
@@ -1529,7 +1525,7 @@ class Module:
                         self._buffers[name] = instance
                     elif msgflow_type == "generation_schema":
                         state = data.pop("state")
-                        generation_schema = deserialize_struct(state)
+                        generation_schema = StructFactory.from_schema(state)
                         self._buffers[name] = generation_schema
                 else: # Otherwise, load the value directly
                     self._buffers[name] = data
