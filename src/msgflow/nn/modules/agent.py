@@ -15,11 +15,9 @@ from msgflow.generation.reasoning.react import ReAct
 from msgflow.generation.signature import (
     Signature,
     SIGNATURE_SYSTEM_MESSAGES,
-    create_struct_from_str_signature,
     get_examples_from_signature,
     get_expected_output_from_signature,
     get_task_template_from_signature,
-    parse_annotations
 )
 from msgflow.generation.templates import (
     PromptSpec,
@@ -43,6 +41,7 @@ from msgflow.utils.chat import (
 )
 from msgflow.utils.encode import encode_data_to_base64
 from msgflow.utils.inspect import get_mime_type
+from msgflow.utils.msgspec import StructFactory
 from msgflow.utils.validation import is_base64, is_subclass_of
 from msgflow.utils.xml import apply_xml_tags
 from msgflow.telemetry.span import trace_agent_prepare_model_execution
@@ -901,8 +900,8 @@ class Agent(Module):
 
             if isinstance(signature, str):
                 input_str_signature, output_str_signature = signature.split("->")  
-                inputs_desc = parse_annotations(input_str_signature)
-                outputs_desc = parse_annotations(output_str_signature)
+                inputs_desc = StructFactory._parse_annotations(input_str_signature)
+                outputs_desc = StructFactory._parse_annotations(output_str_signature)
 
             elif issubclass(signature, Signature):
                 # Get instructions
@@ -928,7 +927,7 @@ class Agent(Module):
             self._set_instructions(instructions)
 
             # Create generation schema
-            output_struct = create_struct_from_str_signature(output_str_signature, "Outputs")
+            output_struct = StructFactory.from_signature(output_str_signature, "Outputs")
             if generation_schema is not None:            
                 output_struct = generation_schema[output_struct] # Insert as an TypeVar
                 class Output(output_struct, msgspec.Struct): # Convert typing._GenericAlias to Struct

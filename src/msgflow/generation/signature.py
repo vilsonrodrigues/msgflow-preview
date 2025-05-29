@@ -1,12 +1,10 @@
 import ast
-import re
 import xml.etree.ElementTree as ET
 from typing import (
     Any,
     Dict,
     GenericAlias,    
     List,
-    Literal,
     Optional,
     Set,
     Union,    
@@ -24,7 +22,6 @@ from msgflow.generation.reasoning.cot import ChainOfThoughts, COT_SYSTEM_MESSAGE
 from msgflow.generation.reasoning.react import ReAct, REACT_SYSTEM_MESSAGE
 from msgflow.generation.reasoning.self_consistency import SelfConsistency, SELF_CONSISTENCY_SYSTEM_MESSAGE
 from msgflow.generation.reasoning.tot import TreeOfThoughts, TOT_SYSTEM_MESSAGE
-from msgflow.logger import logger
 from msgflow.utils.xml import apply_xml_tags
 
 
@@ -234,11 +231,6 @@ class Signature(metaclass=_SignatureMeta):
             provided for a field, its value will be None.
         """
         return {key: field.ex for key, field in cls._outputs.items()}
-
-# =====================================================================
-
-
-# ================================ NÃO MEXER ==================================
 
 
 def dict_to_typed_xml(data: Dict[str, Any]) -> str:
