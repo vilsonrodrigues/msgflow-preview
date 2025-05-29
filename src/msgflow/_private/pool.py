@@ -57,6 +57,7 @@ class AsyncExecutorPool:
 
 # Global
 _async_pool_lock = threading.Lock()
+global _async_pool
 _async_pool: Optional[AsyncExecutorPool] = None
 
 
