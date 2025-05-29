@@ -57,12 +57,12 @@ class AsyncExecutorPool:
 
 # Global
 _async_pool_lock = threading.Lock()
-global _async_pool
 _async_pool: Optional[AsyncExecutorPool] = None
 
 
 def configure_async_pool():
     """Configures async thread pool."""
+    global _async_pool
     if _async_pool is None:
         with _async_pool_lock:
             _async_pool = AsyncExecutorPool(max_workers=envs.num_threads_async_pool)    
