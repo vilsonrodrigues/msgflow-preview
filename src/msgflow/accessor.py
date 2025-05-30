@@ -1,106 +1,49 @@
 from collections import OrderedDict
 from typing import Any
 
+
 class Accessor:
-    """
-    Auxiliary class to get and set python objects within a class instance using dot-separated strings.
-
-    The `set` method has been modified:
-    - If the target attribute currently holds a list AND the new value being assigned is also a list,
-      the `extend()` method is used to add the elements of the new list to the existing one.
-    - If the target attribute holds a list BUT the new value is NOT a list, the new value is appended
-      to the existing list using `append()`.
-    - Otherwise (if the target attribute is not a list or doesn't exist), the attribute is set or
-      overwritten with the new value.
-
-    Handles creation of nested dictionaries (using OrderedDict for predictable key order) and lists
-    as needed based on the attribute path.
+    """ Auxiliar class to get and set python objects in a class using strings.
 
     !!! example
         ```python
         class ChildClass(Accessor):
             def __init__(self):
                 super().__init__()
-                # Initialize attributes directly or via set
-                self.content = "Default content"
-                self.response = "Default response"
-                self.audios = [] # Initialize as list using direct assignment (__setattr__)
-                # Example for _route tracking (optional)
-                self._route = [] # Initialize private attribute directly
+                    self.content = "Default content"
+                    self.response = "Default response"
+                    self.audios = []
 
         child = ChildClass()
 
-        print(f"Initial audios: {child.get('audios')}")  # []
+        print(child.get("audios"))  # []
 
-        child.set("audios", "[https://audio1.mp3](https://audio1.mp3)")
-        print(f"After setting audio 1: {child.get('audios')}")  # ['[https://audio1.mp3](https://audio1.mp3)']
-        print(f"Accessing audio 0: {child.get('audios.0')}")  # [https://audio1.mp3](https://audio1.mp3)
+        child.set("audios", "https://audio1.mp3")
+        print(child.get("audios"))  # ['https://audio1.mp3']
+        print(child.get("audios.0"))  # https://audio1.mp3
 
-        # Appends because target is list, value is not
-        child.set("audios", "[https://audio2.mp3](https://audio2.mp3)")
-        print(f"After setting audio 2: {child.get('audios')}")  # ['[https://audio1.mp3](https://audio1.mp3)', '[https://audio2.mp3](https://audio2.mp3)']
-        print(f"Accessing audio 1: {child.get('audios.1')}")  # [https://audio2.mp3](https://audio2.mp3)
+        child.set("audios", "https://audio2.mp3")
+        print(child.get("audios"))  # ['https://audio1.mp3', 'https://audio2.mp3']
+        print(child.get("audios.1"))  # https://audio2.mp3
 
-        # Sets value at index 2
-        child.set("audios.2", "[https://audio3.mp3](https://audio3.mp3)")
-        print(f"After setting audio at index 2: {child.get('audios')}")  # ['[https://audio1.mp3](https://audio1.mp3)', '[https://audio2.mp3](https://audio2.mp3)', '[https://audio3.mp3](https://audio3.mp3)']
-        print(f"Accessing audio 2: {child.get('audios.2')}")  # [https://audio3.mp3](https://audio3.mp3)
-
-        # Overwrites value at index 0
-        child.set("audios.0", "https://audio0_new.mp3")
-        print(f"After overwriting audio at index 0: {child.get('audios')}") # ['https://audio0_new.mp3', '[https://audio2.mp3](https://audio2.mp3)', '[https://audio3.mp3](https://audio3.mp3)']
-
+        child.set("audios.2", "https://audio3.mp3")
+        print(child.get("audios"))  # ['https://audio1.mp3', 'https://audio2.mp3', 'https://audio3.mp3']
+        print(child.get("audios.2"))  # https://audio3.mp3
 
         child.set("nested.list", [])
-        print(f"\nAfter setting nested.list to []: {child.get('nested.list')}") # []
-        # Appends because target is list, value is not
         child.set("nested.list", "item1")
-        print(f"After setting nested.list to 'item1': {child.get('nested.list')}") # ['item1']
-        # Appends because target is list, value is not
         child.set("nested.list", "item2")
-        print(f"After setting nested.list to 'item2': {child.get('nested.list')}") # ['item1', 'item2']
-        print(f"Accessing nested.list.1: {child.get('nested.list.1')}")  # item2
+        print(child.get("nested.list"))  # ['item1', 'item2']
+        print(child.get("nested.list.1"))  # item2
 
-        # --- List Extension Example ---
-        child.set("chat_history", [])
-        print(f"\nInitial chat_history: {child.get('chat_history')}") # []
-        # Appends because target is list, value is not
-        child.set("chat_history", 1)
-        print(f"After setting chat_history to 1: {child.get('chat_history')}") # [1]
-        # Extends because target is list, value is list
-        child.set("chat_history", [2, 3])
-        print(f"After setting chat_history to [2, 3]: {child.get('chat_history')}") # [1, 2, 3]
-        # Appends because target is list, value is not
-        child.set("chat_history", 4)
-        print(f"After setting chat_history to 4: {child.get('chat_history')}") # [1, 2, 3, 4]
-        # Extends because target is list, value is list
-        child.set("chat_history", [5, 6])
-        print(f"After setting chat_history to [5, 6]: {child.get('chat_history')}") # [1, 2, 3, 4, 5, 6]
-
-        # Example with _route tracking
-        child.set("context.user_query", "hello")
-        print(f"\nRoute after context.user_query: {child.get('_route')}) # ['user_query']
-        child.set("outputs.final_answer", "world")
-        print(f"Route after outputs.final_answer: {child.get('_route')}) # ['user_query', 'final_answer']
-
-        # Example of setting a non-list value, then extending
-        child.set("new_list", 1)
-        print(f"\nAfter setting new_list to 1: {child.get('new_list')}") # 1
-        try:
-            # This will fail because 'new_list' is not a list yet
-            child.set("new_list", [2])
-        except TypeError as e:
-             print(f"Error as expected: {e}") # Should error or handle differently
-
-        # Correct way: initialize as list first if extend/append is desired
-        child.set("new_list_correct", [])
-        child.set("new_list_correct", 1)
-        child.set("new_list_correct", [2,3])
-        print(f"Value of new_list_correct: {child.get('new_list_correct')}") # [1, 2, 3]
+        child.set("list2", [])
+        child.set("list2", 1) # [1]
+        child.set("list2", 2) # [1, 2]
+        print(child.get("list2.1")) # 2
         ```
     """
     def __init__(self):
-        super().__setattr__("_attributes", OrderedDict())
+        super().__setattr__("_attributes", {})
 
     def __setattr__(self, name, value):
         if name == "_attributes":
@@ -108,7 +51,7 @@ class Accessor:
         else:
             self.set(name, value)
 
-    def get(self, attr: str):
+    def get(self, attr: str) -> Any:
         """
         Retrieves an attribute value using a dot-separated string path.
 
@@ -135,9 +78,10 @@ class Accessor:
             
             if value is None:
                 return None
+
         return value
 
-    def set(self, attr: str, value: Any) -> Any:
+    def set(self, attr: str, value: Any):
         parts = attr.split(".")
 
         # Check if path starts with specific prefixes and class has _route attribute
@@ -178,9 +122,6 @@ class Accessor:
                 target.append(value)
         elif isinstance(target, (dict, OrderedDict)):
             if isinstance(target.get(last_part), list):
-                if isinstance(value, list):
-                    target[last_part].extend(value)
-                else:
-                    target[last_part].append(value)
+                target[last_part].append(value)
             else:
                 target[last_part] = value
