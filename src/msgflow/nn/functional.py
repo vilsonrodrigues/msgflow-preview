@@ -33,6 +33,11 @@ async def _execute_callable_async(callable_obj, *args, **kwargs):
 # Async back-ends
 
 
+async def _wait_for(to_send: Callable, *args, **kwargs) -> Any:
+    """Asynchronous helper to wait for an coroutine."""
+    await  _execute_callable_async(to_send, *args, **kwargs)
+
+
 async def _wait_for_event_async(event: asyncio.Event):
     """Asynchronous helper to wait for an asyncio.Event."""
     await event.wait()
@@ -457,7 +462,7 @@ def msg_scatter_gather(
     if not response_mode:
         raise ValueError("`response_mode` cannot be an empty string")
 
-    async_pool = get_async_pool()    
+    async_pool = get_async_pool()
     return async_pool.run_async_function(_msg_scatter_gather_async, to_send, messages, response_mode, timeout)
 
 
@@ -529,3 +534,26 @@ def wait_for_event(event: asyncio.Event) -> None:
         
     async_pool = get_async_pool()
     async_pool.run_async_function(_wait_for_event_async, event)
+
+
+@trace("msgflow.nn.F.wait_for")
+def wait_for(to_send: Callable, *args, **kwargs) -> Any:
+    """
+    Wait for a callable execution.
+
+    Args:
+        to_send: A callable object (e.g. functions or `Module` instances).    
+        *args: Positional arguments.
+        **kwargs: Named arguments.
+
+    Returns:
+        Callable responses.
+
+    Raises:
+        TypeError: If `to_send` is not a callable.
+    """
+    if not callable(to_send):
+        raise TypeError("`to_send` must be a callable object")
+
+    async_pool = get_async_pool()    
+    return async_pool.run_async_function(_wait_for, to_send, *args, **kwargs)
