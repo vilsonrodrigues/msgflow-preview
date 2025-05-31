@@ -8,6 +8,7 @@ from msgspec import Meta, Struct, defstruct
 from typing_extensions import Annotated
 from msgflow.logger import logger
 from msgflow.utils.common import type_mapping
+from msgflow.utils.convert import convert_none_to_string, convert_string_to_none
 
 
 class StructFactory:
@@ -386,9 +387,10 @@ class StructFactory:
         return result
 
 
-def export_to_toml(obj, filepath):
+def export_to_toml(obj, filepath):    
     with open(filepath, "wb") as f:
-        f.write(msgspec.toml.encode(obj))    
+        safe_obj = convert_none_to_string(obj)
+        f.write(msgspec.toml.encode(safe_obj))    
 
 
 def export_to_json(obj, filepath, indent=4):
@@ -437,7 +439,9 @@ def read_json(filepath):
 
 def read_toml(filepath):
     with open(filepath, "rb") as f:
-        return msgspec.toml.decode(f.read())
+        obj = msgspec.toml.decode(f.read())
+        safe_obj = convert_string_to_none(obj)
+        return safe_obj
 
 
 def load(f: Union[str, os.PathLike]) -> Any:
