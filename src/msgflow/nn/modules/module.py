@@ -1306,11 +1306,11 @@ class Module:
                         value = output
                 modules[name] = value
             else:
-                buffers = self.__dict__.get("_buffers")
-                if isinstance(value, Any) or buffers is not None and name in buffers:
-                    self.register_buffer(name, value)
-                else:
-                    super().__setattr__(name, value)
+                #buffers = self.__dict__.get("_buffers")
+                #if buffers is not None and name in buffers:
+                #    self.register_buffer(name, value) # TODO
+                #else:
+                super().__setattr__(name, value)
 
     # NOVA ANALISE
 
