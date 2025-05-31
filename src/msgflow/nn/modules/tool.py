@@ -27,26 +27,31 @@ class ToolBase(Module):
 
 def _convert_module_to_nn_tool(impl: Callable) -> ToolBase:
     """Convert a callable in nn.Tool"""
-    # Case 1: Uninitialized class
-    if inspect.isclass(impl):
+    # Case 1: Uninitialized or initialized class
+    if inspect.isclass(impl) or callable(impl):
         if not hasattr(impl, "__call__"):
             raise NotImplementedError(
                 "To transform a class in `nn.Tool`"
                 " is necessary implement a `def __call__`"
             )
 
-        if hasattr(impl, "__doc__") and impl.__doc__ is not None:
+        if hasattr(impl, "docstring") and impl.docstring is not None:
+            doc = impl.docstring
+        elif hasattr(impl, "__doc__") and impl.__doc__ is not None:
             doc = impl.__doc__
         elif hasattr(impl.__call__, "__doc__") and impl.__call__.__doc__ is not None:
             doc = impl.__call__.__doc__
         else:
             raise NotImplementedError(
                 "To transform a class into a `nn.Tool` "
-                "it is necessary to implement a docstring "
-                "in the class or in `def __call__`"
+                "it is necessary to implement a docstring. "
+                "Can be: a cls attr `self.docstring`, or"
+                "a docstring in the class or in `def __call__`"
             )
 
-        if hasattr(impl, "__annotations__"):
+        if hasattr(impl, "annotations"):
+            annotations = impl.annotations
+        elif hasattr(impl, "__annotations__"):
             annotations = impl.__annotations__
         elif hasattr(impl.__call__, "__annotations__"):
             annotations = impl.__call__.__annotations__
@@ -54,15 +59,16 @@ def _convert_module_to_nn_tool(impl: Callable) -> ToolBase:
             raise NotImplementedError(
                 "To transform a class in `nn.Tool` is necessary "
                 "to implement annotations of types hint in "
-                "`self.__annotations__` or in `def __call__`"
+                "`self.annotations`, `self.__annotations__` or in `def __call__`"
             )
 
         name = convert_camel_to_snake_case(impl.__name__)
 
-        impl = impl()
+        if inspect.isclass(impl):
+            impl = impl() # Initialized
 
     # Case 2: Function
-    elif inspect.isfunction(impl):
+    elif inspect.isfunction(impl) or inspect.iscoroutinefunction(impl):
         if hasattr(impl, "__doc__") and impl.__doc__ is not None:
             doc = impl.__doc__
         else:
@@ -82,33 +88,6 @@ def _convert_module_to_nn_tool(impl: Callable) -> ToolBase:
 
         name = impl.__name__
         
-    # Case 3: Initialized and callable instance
-    elif callable(impl):
-        if not hasattr(impl, "__call__"):
-            raise NotImplementedError(
-                "To transform an instance into a `nn.Tool`, "
-                " is necessary implement a `def __call__`"
-            )
-
-        if hasattr(impl.__call__, "__doc__") and impl.__call__.__doc__ is not None:
-            doc = impl.__call__.__doc__
-        else:
-            raise NotImplementedError(
-                "To transform a class into a `nn.Tool` "
-                "it is necessary to implement a docstring "
-                "in the class or in `def __call__`"
-            )
-
-        if hasattr(impl.__call__, "__annotations__"):
-            annotations = impl.__call__.__annotations__
-        else:
-            raise NotImplementedError(
-                "To transform an instance into a `nn.Tool`, "
-                "it is necessary to implement annotations in `__call__`"
-            )
-
-        name = convert_camel_to_snake_case(impl.__class__.__name__)
-
     else:
         raise ValueError("The given object is not a callable function, class, or instance")
 
@@ -119,10 +98,12 @@ def _convert_module_to_nn_tool(impl: Callable) -> ToolBase:
             self.set_name(name)
             self.set_description(doc)
             self._set_annotations(annotations)    
-            super().__setattr__("impl", impl) # Not a buffer for now      
+            self.impl = impl # Not a buffer for now      
 
         @tool_retry
         def forward(self, *args, **kwargs):
+            if inspect.iscoroutinefunction(self.impl):
+                return F.wait_for(self.impl, *args, **kwargs)
             return self.impl(*args, **kwargs)
 
     return Tool()
@@ -203,7 +184,9 @@ class ToolLibrary(Module):
         tool_ids = []
 
         for id, name, args in tool_callings:
-            if name in tool_names:
+            elif name in tool_names:
+                ...
+            elif name in tool_names:
                 if args:
                     messages.append(**args)
                 else:
