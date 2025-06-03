@@ -1,5 +1,5 @@
 import asyncio
-from typing import Literal
+from typing import Any, AsyncGenerator, Literal, Union
 
 
 class _BaseResponse:
@@ -37,10 +37,10 @@ class ModelResponse(_BaseResponse):
         self.data = None
         self.response_type = None
 
-    def add(self, data):
+    def add(self, data: Any):
         self.data = data
 
-    def consume(self):
+    def consume(self) -> Any:
         return self.data
 
 
@@ -54,11 +54,11 @@ class ModelStreamResponse(_BaseResponse):
         self.queue = asyncio.Queue()
         self.response_type = None        
 
-    def add(self, data):
+    def add(self, data: Any):
         """Add data to the stream queue (async)."""
         self.queue.put_nowait(data)
 
-    async def consume(self):
+    async def consume(self) -> AsyncGenerator[Union[bytes, str], None]:
         """Async generator that yields chunks from the queue until None is received."""
         while True:
             try:
