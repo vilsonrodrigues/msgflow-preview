@@ -260,12 +260,12 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                     if stream_response.response_type is None:
                         stream_response.set_response_type("reasoning_text_generation")
                         stream_response.first_chunk_event.set()
-                    await stream_response.add(chunk.choices[0].delta.reasoning_content)
+                    stream_response.add(chunk.choices[0].delta.reasoning_content)
                 elif chunk.choices[0].delta.content:
                     if stream_response.response_type is None:
                         stream_response.set_response_type("text_generation")
                         stream_response.first_chunk_event.set()
-                    await stream_response.add(chunk.choices[0].delta.content)
+                    stream_response.add(chunk.choices[0].delta.content)
                 elif chunk.choices[0].delta.tool_calls:
                     if stream_response.response_type is None:
                         stream_response.set_response_type("tool_call")
@@ -277,10 +277,10 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                     aggregator.process(call_index, id, name, arguments)
         
         if aggregator.tool_calls:
-            await stream_response.add(aggregator)
+            stream_response.add(aggregator)
             stream_response.first_chunk_event.set()
 
-        await stream_response.add(None)
+        stream_response.add(None)
 
     def __call__(
         self,
