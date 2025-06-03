@@ -10,8 +10,8 @@ INSTRUCTIONS = Annotated[str, Meta(description=PromptSpec.INSTRUCTIONS)]
 SYSTEM_MESSAGE = Annotated[str, Meta(description=PromptSpec.SYSTEM_MESSAGE)]
 
 
-class Analysis(Struct):
-    problem: str
+class Reflection(Struct, kw_only=True):
+    problem: Optional[str]
     plan: str
 
 
@@ -34,7 +34,7 @@ class RemoveMember(Struct):
 
 
 class Coordinator(Struct):
-    analysis: Optional[Analysis]
+    reflection: Optional[Reflection]
     tasks: Optional[List[Task]]
     final_answer: Optional[str]
 
