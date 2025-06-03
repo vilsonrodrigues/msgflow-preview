@@ -114,6 +114,8 @@ class Agent(Module):
     """
 
     _supported_outputs: List[str] = [
+        "reasoning_structured",
+        "reasoning_text_generation",
         "structured",
         "text_generation",
         "audio_generation",
@@ -151,6 +153,7 @@ class Agent(Module):
         # task_messages_mode: Literal["relevant", "recent", "full"] = "relevant",
         fixed_messages: Optional[List[Dict[str, Any]]] = None,
         signature: Optional[Union[str, Signature]] = None,
+        return_reasoning: Optional[bool] = False,        
         #verbose: Optional[bool] = False,
         description: Optional[str] = None,
         _system_prompt_template: Optional[str] = SYSTEM_PROMPT_TEMPLATE,
@@ -211,6 +214,7 @@ class Agent(Module):
         self._set_response_mode(response_mode)
         self._set_stream(stream)
         self._set_response_template(response_template)
+        self._set_return_reasoning(return_reasoning)
         self._set_task_multimodal_inputs(task_multimodal_inputs)
         self._set_task_inputs(task_inputs)
         self._set_tool_choice(tool_choice)        
@@ -262,6 +266,7 @@ class Agent(Module):
             "tool_schemas": tool_schemas,
             "tool_choice": self.tool_choice,
             "generation_schema": self.generation_schema,
+            "return_reasoning": self.return_reasoning,
             "xml_to_dict": self.xml_to_dict
         }
 
@@ -284,7 +289,7 @@ class Agent(Module):
         return guardrail_params
 
     def _process_model_response(self, model_response, model_state, message, model_preference):
-        if model_response.response_type == "tool_call":
+        if "tool_call" in model_response.response_type:
             model_response, model_state = (
                 self._process_tool_call_response(model_response, model_state, model_preference)
             )
@@ -350,7 +355,7 @@ class Agent(Module):
         """
         while True:
             if model_response.response_type == "tool_call":
-                raw_response = self._extract_raw_response(model_response)
+                raw_response = self._extract_raw_response(model_response) # TODO: streaming
                 tool_callings = raw_response.get_calls()
                 tool_responses = self._process_tool_call(tool_callings)
                 raw_response.insert_results(tool_responses)
@@ -746,11 +751,11 @@ class Agent(Module):
     def _set_response_mode(self, response_mode: str):
         if isinstance(response_mode, str):
             if (
-                response_mode in ["plain_response", "steps","response"] 
+                response_mode in ["plain_response", "steps","response"] # deprecated
                 or 
                 response_mode.startswith(("context", "outputs"))
             ):
-                self.register_buffer("response_mode", response_mode)            
+                self.register_buffer("response_mode", response_mode)          
             else:
                 raise ValueError(
                     f"`response_mode={response_mode}` is not supported "
@@ -760,6 +765,13 @@ class Agent(Module):
         else:
             raise TypeError("`response_mode` requires a string "
                             f"given `{type(response_mode)}`")
+
+    def _set_return_reasoning(self, return_reasoning: bool):
+        if isinstance(return_reasoning, bool):
+            self.register_buffer("return_reasoning", return_reasoning)
+        else:
+            raise TypeError("`return_reasoning` requires a bool "
+                            f"given `{type(return_reasoning)}`")
 
     def _set_tools(self, tools: Optional[List[Callable]] = None):
         if (

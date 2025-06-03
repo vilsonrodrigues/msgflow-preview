@@ -170,6 +170,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
     def _generate(self, **kwargs):
         response = ModelResponse()
         
+        return_reasoning = kwargs.pop("return_reasoning")
         xml_to_dict = kwargs.pop("xml_to_dict")
         generation_schema = kwargs.pop("generation_schema")
         if generation_schema is not None and xml_to_dict is False:
@@ -181,9 +182,20 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
 
         choice = model_output.choices[0]
 
+        if (
+            return_reasoning is True and
+            hasattr(choice.message, "reasoning_content") and
+            choice.message.reasoning_content is not None
+        ):
+            reasoning_content = choice.message.reasoning_content
+            prefix_response_type = "reasoning_"
+        else:
+            reasoning_content = None
+            prefix_response_type = ""
+
         if choice.message.tool_calls:
-            aggregator = ToolCallAggregator()
-            response.set_response_type("tool_call")
+            aggregator = ToolCallAggregator(reasoning_content)
+            response.set_response_type("{}tool_call".format(prefix_response_type))
             for call_index, tool_call in enumerate(choice.message.tool_calls):
                 id = tool_call.id
                 name = tool_call.function.name
@@ -192,22 +204,28 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             response.add(aggregator)
         elif choice.message.content:
             if xml_to_dict is True:
-                response.set_response_type("structured")
+                response.set_response_type("{}structured".format(prefix_response_type))
                 dict_parsed = xml_to_typed_dict(choice.message.content)
                 if generation_schema: # Type validation
                     dict_encoded = msgspec.json.encode(dict_parsed)
                     msgspec.json.decode(dict_encoded, type=generation_schema)
+                if reasoning_content is not None: dict_parsed["think"] = reasoning_content
                 response.add(dict_parsed)            
             elif generation_schema is not None:
-                response.set_response_type("structured")
+                response.set_response_type("{}structured".format(prefix_response_type))
                 struct = msgspec.json.decode(
                     choice.message.content, type=generation_schema
                 )
                 struct_parsed = struct_to_dict(struct)
+                if reasoning_content is not None: struct_parsed["think"] = reasoning_content
                 response.add(struct_parsed)
             else:
-                response.set_response_type("text_generation")
-                response.add(choice.message.content)
+                response.set_response_type("{}text_generation".format(prefix_response_type))
+                content = choice.message.content
+                if reasoning_content is not None:
+                    response.add({"think": reasoning_content, "answer": content})
+                else:
+                    response.add(content)
         elif choice.message.audio:
             # To multi turn conversation is necessary persist the audio id
             # https://platform.openai.com/docs/guides/audio#multi-turn-conversations
@@ -226,13 +244,24 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
 
     async def _stream_generate(self, **kwargs):
         aggregator = ToolCallAggregator()
+
+        return_reasoning = kwargs.pop("return_reasoning")
         stream_response = kwargs.pop("stream_response")
 
-        model_output = self._execute_model(**kwargs)        
+        model_output = self._execute_model(**kwargs)
 
-        for chunk in model_output:
+        for chunk in model_output:            
             if chunk.choices:
-                if chunk.choices[0].delta.content:
+                if (
+                    return_reasoning is True and
+                    hasattr(chunk.choices[0].delta, "reasoning_content") and
+                    chunk.choices[0].delta.reasoning_content is not None
+                ):
+                    if stream_response.response_type is None:
+                        stream_response.set_response_type("reasoning_text_generation")
+                        stream_response.first_chunk_event.set()
+                    await stream_response.add(chunk.choices[0].delta.reasoning_content)
+                elif chunk.choices[0].delta.content:
                     if stream_response.response_type is None:
                         stream_response.set_response_type("text_generation")
                         stream_response.first_chunk_event.set()
@@ -264,41 +293,45 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         tool_schemas: Optional[Dict] = None,
         tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
         xml_to_dict: Optional[bool] = False,
+        return_reasoning: Optional[bool] = False
     ) -> Union[ModelResponse, ModelStreamResponse]:
         if isinstance(messages, str):
             messages = [{"role": "user", "content": messages}]
         if isinstance(system_prompt, str):
             messages.insert(0, {"role": "system", "content": system_prompt})
-        
+
+        generation_params = dict(
+            messages=messages,
+            prefilling=prefilling,
+            generation_schema=generation_schema,
+            tool_choice=tool_choice,
+            tools=tool_schemas,
+            return_reasoning=return_reasoning,
+        )
+
         if stream is True:
             if generation_schema is not None:
                 raise ValueError("`generation_schema` is not `stream=True` compatible")
 
             if xml_to_dict is True:
                 raise ValueError("`xml_to_dict=True` is not `stream=True` compatible")
+            
+            if return_reasoning is True and tool_schemas is not None:
+                raise ValueError("`tool_schemas` is not `return_reasoning=True` compatible"
+                                 " when `stream=True`")
 
             stream_response = ModelStreamResponse()
             F.background_task(
                 self._stream_generate,
-                messages=messages,
-                prefilling=prefilling,
+                **generation_params,
                 stream=stream,
                 stream_response=stream_response,
                 stream_options={"include_usage": True},
-                generation_schema=generation_schema,
-                tools=tool_schemas,
-                tool_choice=tool_choice,
             )
             F.wait_for_event(stream_response.first_chunk_event)
             return stream_response
         else:
-            response = self._generate(
-                messages=messages,
-                prefilling=prefilling,
-                generation_schema=generation_schema,
-                tool_choice=tool_choice,
-                tools=tool_schemas,
-            )
+            response = self._generate(**generation_params)
             return response
 
 

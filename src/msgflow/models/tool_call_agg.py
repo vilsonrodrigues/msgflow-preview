@@ -5,7 +5,8 @@ import msgspec
 
 class ToolCallAggregator:
     
-    def __init__(self):
+    def __init__(self, reasoning: str = None):
+        self.reasoning = reasoning
         self.tool_calls = OrderedDict()
 
     def process(self, call_index: int, id: str, name: str, arguments: str):
@@ -85,4 +86,8 @@ class ToolCallAggregator:
                     }
                 )
 
+        if self.reasoning is not None:
+            messages.insert(0, {"role": "assistant", "content": self.reasoning})            
+
         return messages
+    
