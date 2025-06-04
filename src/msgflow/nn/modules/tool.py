@@ -1,6 +1,7 @@
 import inspect
-from typing import Any, Callable, Dict, Iterator, List, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Union, Tuple
 
+from msgflow.logger import logger
 from msgflow.nn.modules.container import ModuleDict
 from msgflow.nn import functional as F
 from msgflow.nn.modules.module import Module
@@ -17,6 +18,7 @@ from msgflow.telemetry.span import trace_tool_library_call
 # TODO: maximum number of functions
 # TODO: provide the option of special functions that make the model have control over its own functions
 # TODO: mcp
+
 
 class ToolBase(Module):
     """Tool class description"""
@@ -117,29 +119,41 @@ class ToolLibrary(Module):
         self,
         name: str,
         tools: List[Callable],
-        # special_tools: Optional[List[str]] = None
+        special_tools: Optional[List[str]] = None
     ):
         super().__init__()
         self.set_name(f"{name}_tool_library")
         self.library = ModuleDict()
+        self.register_buffer("special_library", [])
         for tool in tools:
             self.add(tool)
+        if special_tools:
+            for special_tool in special_tools:
+                self.special_add(special_tool)
 
-    def add(self, tool: Callable):
-        if tool.__name__ in self.library.keys():
-            raise ValueError(f"The tool name `{tool.__name__}` is already in tool library")
-        if not isinstance(tool, ToolBase):
-            tool = _convert_module_to_nn_tool(tool)
-        self.library.update({tool.name: tool})
+    def add(self, tool: Union[str, Callable]):
+        if isinstance(tool, str):
+            if tool in self.special_library.keys():
+                raise ValueError(f"The special tool name `{tool}` is already in special tool library")
+            self.special_library.append(tool)
+        else:
+            if tool.__name__ in self.library.keys():
+                raise ValueError(f"The tool name `{tool.__name__}` is already in tool library")
+            if not isinstance(tool, ToolBase):
+                tool = _convert_module_to_nn_tool(tool)
+            self.library.update({tool.name: tool})
 
     def remove(self, tool_name: str):
         if tool_name in self.library.keys():
             self.library.pop(tool_name)
+        elif tool_name in self.special_library:
+            self.special_library.remove(tool_name)            
         else:
             raise ValueError(f"The tool name `{tool_name}` is not in tool library")
 
     def clear(self):
         self.library.clear()
+        self.special_library.clear()
 
     def get_tools(self) -> Iterator[Dict[str, ToolBase]]:
         return self.library.items()
@@ -183,12 +197,17 @@ class ToolLibrary(Module):
         to_send = []
         tool_ids = []
 
-        for id, name, args in tool_callings:
+        for id, name, kwargs in tool_callings:
+            if name in self.special_library:
+                #special_tool = SPECIAL_TOOLS.get(name, None) TODO
+                #if special_tool is None:
+                #    logger.warning(f"The special tool `{name}` is not implemented")
+                #else:
+                #    special_tool(**kwargs) # No return
+                pass
             elif name in tool_names:
-                ...
-            elif name in tool_names:
-                if args:
-                    messages.append(**args)
+                if kwargs:
+                    messages.append(**kwargs)
                 else:
                     messages.append(None)
                 to_send.append(self.library[name])
