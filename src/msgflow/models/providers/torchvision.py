@@ -11,7 +11,7 @@ from msgflow.models.providers.base import (
     BaseVision,     
 )    
 from msgflow.models.response import ModelResponse
-from msgflow.models.base import BaseClient
+from msgflow.models.base import BaseModel
 from msgflow.models.types import (
     ImageClassifierModel, 
     ImageSegmenterModel, 
@@ -21,7 +21,7 @@ from msgflow.models.types import (
 from msgflow.utils.torch import TORCH_DTYPE_MAP
 # TODO span
 
-class _BaseTorchVision(BaseClient, BaseVision):
+class _BaseTorchVision(BaseModel, BaseVision):
 
     provider: str = "torchvision"
 

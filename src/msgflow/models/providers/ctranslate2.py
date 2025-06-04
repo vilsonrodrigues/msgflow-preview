@@ -9,7 +9,7 @@ except:
     raise ImportError("`ctranslate2` not detected, please install"
                       "using `pip install msgflow[ctranslate2]`")    
 from msgflow.models.response import ModelResponse
-from msgflow.models.base import BaseClient
+from msgflow.models.base import BaseModel
 from msgflow.models.types import (
     TextClassifierModel,
     TextEmbedderModel,
@@ -26,7 +26,7 @@ def _ct2_transformers_converter(model_id: str, output_dir: str):
 CT2_DTYPE = Literal["int8", "int8_float32", "int8_float16", "int8_bfloat16", 
                     "int16", "float16", "bfloat16", "float32"]
 
-class _BaseCTranslate2(BaseClient):
+class _BaseCTranslate2(BaseModel):
 
     provider: str = "ctranslate2"
 

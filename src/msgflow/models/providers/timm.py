@@ -8,12 +8,12 @@ except:
 
 from msgflow.models.providers.base import BaseVision, BaseVisionClassifier
 from msgflow.models.response import ModelResponse
-from msgflow.models.base import BaseClient
+from msgflow.models.base import BaseModel
 from msgflow.models.types import ImageClassifierModel, ImageEmbedderModel
 from msgflow.utils.torch import TORCH_DTYPE_MAP
 
 
-class _BaseTimm(BaseClient, BaseVision):
+class _BaseTimm(BaseModel, BaseVision):
 
     provider: str = "timm"
 

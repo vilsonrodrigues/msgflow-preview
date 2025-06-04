@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from typing import Dict
-from msgflow._private.core import BaseClient
+from msgflow._private.client import BaseClient
 
 
 class BaseDB(BaseClient):

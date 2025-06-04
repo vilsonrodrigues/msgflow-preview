@@ -7,13 +7,13 @@ except:
     raise ImportError("`torchaudio` not detected, please install"
                       "using `pip install msgflow[torchaudio]`")
 from msgflow.models.response import ModelResponse
-from msgflow.models.base import BaseClient
+from msgflow.models.base import BaseModel
 from msgflow.models.types import AudioEmbedderModel
 from msgflow.utils.pooling import apply_pooling
 from msgflow.utils.torch import TORCH_DTYPE_MAP
 
 
-class _BaseTorchAudio(BaseClient):
+class _BaseTorchAudio(BaseModel):
 
     provider: str = "torchaudio"
 

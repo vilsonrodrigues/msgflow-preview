@@ -1,6 +1,6 @@
+import os
 import pickle
 import platform
-import os
 from typing import Dict, List, Optional, Union
 try:
     import faiss
