@@ -17,8 +17,8 @@ class ModelResponse(_BaseResponse):
         "audio_embedding",
         "audio_generation",
         "audio_text_generation",
-        "image_embedding",        
-        "image_generation",       
+        "image_embedding",
+        "image_generation",
         "image_text_generation",
         "moderation",
         "structured",
@@ -28,7 +28,7 @@ class ModelResponse(_BaseResponse):
         "tool_call",
         "transcript",
         "translate",
-        "text_classification",        
+        "text_classification",
         "text_embedding",
         "text_generation",
     ]
@@ -52,7 +52,7 @@ class ModelStreamResponse(_BaseResponse):
     def __init__(self):
         self.first_chunk_event = asyncio.Event()
         self.queue = asyncio.Queue()
-        self.response_type = None        
+        self.response_type = None
 
     def add(self, data: Any):
         """Add data to the stream queue (async)."""
