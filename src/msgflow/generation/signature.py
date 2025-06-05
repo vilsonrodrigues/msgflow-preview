@@ -3,16 +3,15 @@ import xml.etree.ElementTree as ET
 from typing import (
     Any,
     Dict,
-    GenericAlias,    
     List,
     Optional,
     Set,
-    Union,    
+    Union,
     Tuple,
     Type,
     get_args,
     get_origin,
-    get_type_hints,    
+    get_type_hints,
 )
 from xml.dom import minidom
 
@@ -33,7 +32,19 @@ SIGNATURE_SYSTEM_MESSAGES = {
 }
 
 
-class InputField:
+class Field:
+    def __init__(self, desc: Optional[str] = None, ex: Optional[str] = None):
+        if isinstance(desc, str) or desc is None:
+            self.desc = desc
+        else:
+            raise TypeError("desc must be a string or None")
+        if isinstance(ex, str) or ex is None:
+            self.ex = ex
+        else:
+            raise TypeError("ex must be a string or None")
+
+
+class InputField(Field):
     """
     Represents an input field in a model signature.
 
@@ -42,12 +53,8 @@ class InputField:
         ex: Input parameter example.
     """
 
-    def __init__(self, desc: Optional[str] = None, ex: Optional[str] = None):
-        self.desc = desc
-        self.ex = ex
 
-
-class OutputField:
+class OutputField(Field):
     """
     Represents an output field in a model signature.
 
@@ -55,10 +62,6 @@ class OutputField:
         desc: A description of the output field. Defaults to an empty string.
         ex: Output parameter example.
     """
-
-    def __init__(self, desc: Optional[str] = None, ex: Optional[str] = None):
-        self.desc = desc
-        self.ex = ex
         
 
 class _SignatureMeta(type):
@@ -99,7 +102,7 @@ class Signature(metaclass=_SignatureMeta):
 
             context: str = InputField(desc="Facts here are assumed to be true")
             text: str = InputField()
-            faithfulness: bool = OutputField()
+            faithfulness: bool = OutputField(ex="True")
             evidence: dict[str, list[str]] = OutputField(
                 desc="Supporting evidence for claims"
             )
@@ -114,11 +117,11 @@ class Signature(metaclass=_SignatureMeta):
 
         # Get input descriptions
         print(CheckCitationFaithfulness.get_input_descriptions())
-        # Output: [('context', 'str', 'Facts here are assumed to be true'), ('text', 'str', '')]
+        # Output: [('context', 'str', 'Facts here are assumed to be true', None), ('text', 'str', '', None)]
 
         # Get output descriptions
         print(CheckCitationFaithfulness.get_output_descriptions())
-        # Output: [('faithfulness', 'bool', ''), ('evidence', 'dict[str, list[str]]', 'Supporting evidence for claims')]
+        # Output: [('faithfulness', 'bool', '', "True"), ('evidence', 'dict[str, list[str]]', 'Supporting evidence for claims', None)]
         ```
     """
 
@@ -133,9 +136,24 @@ class Signature(metaclass=_SignatureMeta):
         Returns:
             A string representation of the type.
         """
-        if isinstance(type_obj, GenericAlias):  # For generic types
+        origin = get_origin(type_obj)
+        if origin is not None:
+            args = get_args(type_obj)
+            if origin is Union:
+                # Checks if it is an Optional (Union with None)
+                if len(args) == 2 and type(None) in args:
+                    # Get the type that is not None
+                    non_none_type = next(arg for arg in args if arg is not type(None))
+                    return f"Optional[{cls._type_to_str(non_none_type)}]"
+                else:
+                    return " | ".join(cls._type_to_str(arg) for arg in args)
+            else:
+                arg_strs = [cls._type_to_str(arg) for arg in args]
+                return f"{origin.__name__}[{', '.join(arg_strs)}]"
+        elif hasattr(type_obj, "__name__"):
+            return type_obj.__name__
+        else:
             return str(type_obj)
-        return type_obj.__name__
 
     @classmethod
     def _get_inputs(cls) -> Dict[str, str]:
@@ -271,6 +289,7 @@ def dict_to_typed_xml(data: Dict[str, Any]) -> str:
     # Combine all parts with newlines
     return "\n".join(pretty_xml_parts)
 
+
 def _parse_example_str(example_str: str, target_type: Type) -> Any:
     """
     Attempts to parse an example string into the target Python type.
@@ -324,6 +343,7 @@ def _parse_example_str(example_str: str, target_type: Type) -> Any:
             return ast.literal_eval(example_str)
         except (ValueError, SyntaxError, TypeError, MemoryError):
              raise ValueError(f"Unsupported type `{target_type}` for automatic parsing of example string '{example_str}'")
+
 
 def get_examples_from_signature(
     signature_cls: Type[Signature],
@@ -408,6 +428,7 @@ def get_expected_output_from_signature(
         expected_output += f"{part}\n"
     expected_output += "\nBe consise in choosing your answers. Write an encoded JSON."
     return expected_output
+
 
 def get_task_template_from_signature(
     inputs_desc: List[Tuple[str, str, str, Union[str, None]]]
