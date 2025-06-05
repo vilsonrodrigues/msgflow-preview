@@ -2,7 +2,9 @@ import weakref
 from collections import OrderedDict
 from typing import Any, Tuple
 
+
 __all__ = ["RemovableHandle"]
+
 
 class RemovableHandle:
     r"""

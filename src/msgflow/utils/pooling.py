@@ -1,6 +1,7 @@
 from typing import Literal
 import numpy as np
 
+
 def apply_pooling(
     embeddings: np.ndarray, 
     strategy: Literal["mean", "max", "cls"]

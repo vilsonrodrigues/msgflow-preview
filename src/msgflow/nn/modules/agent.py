@@ -4,7 +4,6 @@ from typing import (
     Callable, 
     Dict, 
     List,
-    Literal,
     Optional, 
     Union
 )
@@ -150,7 +149,6 @@ class Agent(Module):
         tools: Optional[List[Callable]] = None,
         tool_choice: Optional[str] = None,
         response_template: Optional[str] = None,
-        # task_messages_mode: Literal["relevant", "recent", "full"] = "relevant",
         fixed_messages: Optional[List[Dict[str, Any]]] = None,
         signature: Optional[Union[str, Signature]] = None,
         return_reasoning: Optional[bool] = False,        
