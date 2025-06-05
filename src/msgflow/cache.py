@@ -4,6 +4,7 @@ from msgflow.data.databases.base import BaseDB
 from msgflow.message import Message
 from msgflow.models.types import TextEmbedderModel
 
+
 def response_cache(
     db: BaseDB, 
     task_inputs: Optional[str] = None, 
