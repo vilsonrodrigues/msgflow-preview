@@ -2,7 +2,7 @@
 import asyncio
 import concurrent.futures
 from typing import Any, Callable, Dict, List, Optional, Tuple
-from msgflow._private.executor import AsyncPoolExecutor
+from msgflow._private.executor import Executor
 from msgflow.logger import logger
 from msgflow.message import Message
 from msgflow.nn.modules.module import get_callable_name
@@ -73,7 +73,7 @@ def scatter_gather(
     if not isinstance(to_send, list) or not all(callable(f) for f in to_send):
         raise TypeError("`to_send` must be a non-empty list of callable objects")
 
-    executor = AsyncPoolExecutor.get_instance()
+    executor = Executor.get_instance()
     futures = []
     for i, f in enumerate(to_send):
         args = args_list[i] if args_list and i < len(args_list) else ()
@@ -136,7 +136,7 @@ def msg_scatter_gather(
     if not response_mode:
         raise ValueError("`response_mode` cannot be an empty string")
 
-    executor = AsyncPoolExecutor.get_instance()
+    executor = Executor.get_instance()
     futures = [
         executor.submit(f, msg)
         for f, msg in zip(to_send, messages)
@@ -178,7 +178,7 @@ def bcast_gather(
     if not to_send or not all(isinstance(f, Callable) for f in to_send):
         raise TypeError("`to_send` must be a non-empty list of callable objects")
 
-    executor = AsyncPoolExecutor.get_instance()
+    executor = Executor.get_instance()
     futures = [executor.submit(f, *args, **kwargs) for f in to_send]
     done, _ = concurrent.futures.wait(futures, timeout=timeout)
 
@@ -230,7 +230,7 @@ def msg_bcast_gather(
     if not response_mode:
         raise ValueError("`response_mode` cannot be an empty string")
 
-    executor = AsyncPoolExecutor.get_instance()
+    executor = Executor.get_instance()
     futures = [executor.submit(f, message) for f in to_send]
 
     done, _ = concurrent.futures.wait(futures, timeout=timeout)
@@ -264,7 +264,7 @@ def wait_for(to_send: Callable, *args, timeout: Optional[float] = None, **kwargs
     if not callable(to_send):
         raise TypeError("`to_send` must be a callable object")
 
-    executor = AsyncPoolExecutor.get_instance()
+    executor = Executor.get_instance()
     future = executor.submit(to_send, *args, **kwargs)
     done, _ = concurrent.futures.wait(future, timeout=timeout)    
     try:        
@@ -290,7 +290,7 @@ def wait_for_event(event: asyncio.Event) -> None:
     if not isinstance(event, asyncio.Event):
         raise TypeError("`event` must be an instance of asyncio.Event")
 
-    executor = AsyncPoolExecutor.get_instance()
+    executor = Executor.get_instance()
     future = executor._submit_to_async_worker(event.wait())
     try:
         future.result()
@@ -330,5 +330,5 @@ def background_task(
     if not callable(to_send):
         raise TypeError("`to_send` must be a callable object")
 
-    executor = AsyncPoolExecutor.get_instance()
+    executor = Executor.get_instance()
     executor.submit(to_send, *args, **kwargs)
