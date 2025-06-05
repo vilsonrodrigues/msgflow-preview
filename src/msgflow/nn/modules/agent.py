@@ -229,7 +229,7 @@ class Agent(Module):
 
     def _execute_model(self, model_state, prefilling=None, model_preference=None):
         model_execution_params = self._prepare_model_execution(model_state, prefilling, model_preference)
-        if self.attr_is_valid(self.input_guardrail):
+        if self.input_guardrail:
             self._execute_input_guardrail(model_execution_params)
         model_response = self.model(**model_execution_params)
         return model_response
@@ -372,7 +372,7 @@ class Agent(Module):
 
     def _prepare_response(self, raw_response, response_type, model_state, message):
         if response_type in ["text_generation", "structured"]:
-            if self.attr_is_valid(self.output_guardrail):
+            if self.output_guardrail:
                 self._execute_output_guardrail(raw_response)        
             if self.response_template:
                 response = self._format_response_template(raw_response)
