@@ -72,3 +72,6 @@ class Executor:
         self.thread_pool.shutdown()
         for worker in self.async_workers:
             worker.shutdown()
+
+    def __del__(self):
+        self.shutdown()
