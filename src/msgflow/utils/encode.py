@@ -12,15 +12,18 @@ def encode_base64_from_url(url: str) -> str:
         result = base64.b64encode(response.content).decode("utf-8")
     return result
 
+
 def encode_local_file_in_base64(path: str) -> str:
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode("utf-8")
+
 
 def encode_data_to_base64(path: str) -> str:
     if path.input_data.startswith("http://"):
         return encode_base64_from_url(path)
     elif isinstance(path, str):
         return encode_local_file_in_base64(path)
+
 
 def encode_to_io_object(input_data: Union[bytes, str]) -> io.IOBase:
     """
@@ -59,6 +62,7 @@ def encode_to_io_object(input_data: Union[bytes, str]) -> io.IOBase:
     raise ValueError(
         f"Invalid input: must be a URL, Base64, file path, or bytes. Given: {type(input_data)}"
     )
+
 
 def encode_data_to_bytes(input_data: Union[bytes, str]) -> io.BufferedReader:
     """
