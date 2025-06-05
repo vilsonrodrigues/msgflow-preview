@@ -1,8 +1,8 @@
 import asyncio
 import threading
-import uvloop
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
+import uvloop
 from msgflow.envs import envs
 
 
