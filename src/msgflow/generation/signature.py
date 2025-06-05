@@ -1,5 +1,4 @@
 import ast
-import xml.etree.ElementTree as ET
 from typing import (
     Any,
     Dict,
@@ -13,7 +12,6 @@ from typing import (
     get_origin,
     get_type_hints,
 )
-from xml.dom import minidom
 
 import msgspec
 
@@ -21,7 +19,7 @@ from msgflow.generation.reasoning.cot import ChainOfThoughts, COT_SYSTEM_MESSAGE
 from msgflow.generation.reasoning.react import ReAct, REACT_SYSTEM_MESSAGE
 from msgflow.generation.reasoning.self_consistency import SelfConsistency, SELF_CONSISTENCY_SYSTEM_MESSAGE
 from msgflow.generation.reasoning.tot import TreeOfThoughts, TOT_SYSTEM_MESSAGE
-from msgflow.utils.xml import apply_xml_tags
+from msgflow.utils.xml import apply_xml_tags, dict_to_typed_xml
 
 
 SIGNATURE_SYSTEM_MESSAGES = {
@@ -249,45 +247,6 @@ class Signature(metaclass=_SignatureMeta):
             provided for a field, its value will be None.
         """
         return {key: field.ex for key, field in cls._outputs.items()}
-
-
-def dict_to_typed_xml(data: Dict[str, Any]) -> str:
-    """Converts a dictionary into a typed XML string without a root tag, formatted readably."""
-    def build_element(name: str, value: Any) -> ET.Element:
-        """Helper function to build an XML element from a key-value pair."""
-        if isinstance(value, dict):
-            elem = ET.Element(name, dtype="dict")
-            for k, v in value.items():
-                elem.append(build_element(k, v))
-            return elem
-        elif isinstance(value, list):
-            elem = ET.Element(name, dtype="list")
-            for item in value:
-                elem.append(build_element("item", item))
-            return elem
-        else:
-            type_str = type(value).__name__
-            elem = ET.Element(name, dtype=type_str)
-            elem.text = str(value)
-            return elem
-
-    # Generate a list of top-level elements
-    root_elements = [build_element(key, value) for key, value in data.items()]
-    
-    # Format each element individually and collect the results
-    pretty_xml_parts = []
-    for elem in root_elements:
-        # Convert the element to a string
-        xml_str = ET.tostring(elem, encoding="unicode")
-        # Parse and format it pretty
-        parsed = minidom.parseString(xml_str)
-        pretty_xml = parsed.toprettyxml(indent="  ")
-        # Remove the XML declaration (<?xml ...>) and strip empty lines
-        pretty_xml = "\n".join(line for line in pretty_xml.splitlines() if "<?xml" not in line)
-        pretty_xml_parts.append(pretty_xml.strip())
-    
-    # Combine all parts with newlines
-    return "\n".join(pretty_xml_parts)
 
 
 def _parse_example_str(example_str: str, target_type: Type) -> Any:

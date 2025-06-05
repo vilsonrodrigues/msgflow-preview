@@ -1,6 +1,7 @@
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from typing import Any, Dict, Optional
+from xml.dom import minidom
 
 
 _type_converters = {
@@ -12,10 +13,12 @@ _type_converters = {
     "list": lambda x: x
 }
 
+
 def apply_xml_tags(id: str, content: str, output_id: Optional[str] = None) -> str:
     if output_id is None:
         output_id = id
     return f"<{id}>\n{content}\n</{output_id}>"
+
 
 def _xml_to_typed_value(element: ET.Element) -> Any:
     """Convert an XML element to a Python value based on type."""    
@@ -33,6 +36,7 @@ def _xml_to_typed_value(element: ET.Element) -> Any:
         return converter(element.text)
     else:
         raise ValueError(f"Unknown dtype: {dtype_attr}")
+
 
 def xml_to_typed_dict(xml_string: str) -> Dict[str, Any]:
     """Converts an XML into a typed dictionary, returning direct values ​​for single tags.
@@ -77,3 +81,42 @@ def xml_to_typed_dict(xml_string: str) -> Dict[str, Any]:
         else:
             result[tag] = values     # Return list
     return result
+
+
+def dict_to_typed_xml(data: Dict[str, Any]) -> str:
+    """Converts a dictionary into a typed XML string without a root tag, formatted readably."""
+    def build_element(name: str, value: Any) -> ET.Element:
+        """Helper function to build an XML element from a key-value pair."""
+        if isinstance(value, dict):
+            elem = ET.Element(name, dtype="dict")
+            for k, v in value.items():
+                elem.append(build_element(k, v))
+            return elem
+        elif isinstance(value, list):
+            elem = ET.Element(name, dtype="list")
+            for item in value:
+                elem.append(build_element("item", item))
+            return elem
+        else:
+            type_str = type(value).__name__
+            elem = ET.Element(name, dtype=type_str)
+            elem.text = str(value)
+            return elem
+
+    # Generate a list of top-level elements
+    root_elements = [build_element(key, value) for key, value in data.items()]
+    
+    # Format each element individually and collect the results
+    pretty_xml_parts = []
+    for elem in root_elements:
+        # Convert the element to a string
+        xml_str = ET.tostring(elem, encoding="unicode")
+        # Parse and format it pretty
+        parsed = minidom.parseString(xml_str)
+        pretty_xml = parsed.toprettyxml(indent="  ")
+        # Remove the XML declaration (<?xml ...>) and strip empty lines
+        pretty_xml = "\n".join(line for line in pretty_xml.splitlines() if "<?xml" not in line)
+        pretty_xml_parts.append(pretty_xml.strip())
+    
+    # Combine all parts with newlines
+    return "\n".join(pretty_xml_parts)
