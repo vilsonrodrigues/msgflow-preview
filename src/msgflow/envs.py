@@ -98,6 +98,6 @@ class EnvironmentVariables(BaseSettings):
     executor_num_threads: int = 2
 
     # Num async workers. Each worker has an own eventloop
-    executor_num_async_workers: int = 2
+    executor_num_async_workers: int = 1
 
 envs = EnvironmentVariables()
