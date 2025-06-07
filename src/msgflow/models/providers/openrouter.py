@@ -1,8 +1,8 @@
 from os import getenv
-from msgflow.models.providers.openai import OpenAIChatCompletation
+from msgflow.models.providers.openai import OpenAIChatCompletion
 
 
-class OpenRouterChatCompletation(OpenAIChatCompletation):
+class OpenRouterChatCompletion(OpenAIChatCompletion):
     r""""""
     provider: str = "openrouter"
 
