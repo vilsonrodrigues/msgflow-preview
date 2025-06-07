@@ -295,6 +295,35 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         xml_to_dict: Optional[bool] = False,
         return_reasoning: Optional[bool] = False
     ) -> Union[ModelResponse, ModelStreamResponse]:
+        """
+        Args:
+            messages: 
+                Conversation history. Can be simple string or list of messages.
+            system_prompt:
+                A set of instructions that defines the overarching behavior and role of the model across all interactions.
+            prefilling:
+                Forces an initial message from the model. From that message it will continue its response from there.
+            stream:
+                Whether generation should be in streaming mode.
+            generation_schema:
+                Schema that defines how the output should be structured.
+            tool_schemas:
+                JSON schema containing available tools.
+            tool_choices:
+                By default the model will determine when and how many tools to use. 
+                You can force specific behavior with the tool_choice parameter.
+                    1. Auto: 
+                        (Default) Call zero, one, or multiple functions. tool_choice: "auto"
+                    2. Required: 
+                        Call one or more functions. tool_choice: "required"
+                    3. Forced Function: 
+                        Call exactly one specific function. tool_choice: {"type": "function", "function": {"name": "get_weather"}}    
+            xml_to_dict:
+                Converts the model output, which should be typed-XML, into a typed-dict.
+            return_reasoning:
+                If the model returns the `reasoning` field it will be added along with the response.
+                TODO: falar como fica o formato
+        """        
         if isinstance(messages, str):
             messages = [{"role": "user", "content": messages}]
         if isinstance(system_prompt, str):
