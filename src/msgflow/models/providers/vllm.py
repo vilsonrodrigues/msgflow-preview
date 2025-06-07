@@ -1,8 +1,8 @@
 from os import getenv
-from msgflow.models.providers.openai import OpenAIChatCompletation
+from msgflow.models.providers.openai import OpenAIChatCompletion
 
 
-class VLLMChatCompletation(OpenAIChatCompletation):
+class VLLMChatCompletion(OpenAIChatCompletion):
     r""""""
     provider: str = "vllm"
 
