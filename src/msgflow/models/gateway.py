@@ -14,15 +14,24 @@ class ModelGateway:
 
     Args:
         models: 
-            A list of BaseModel instances (at least 1).
+            List of instances of the same model type (at least 1).
         max_model_failures: 
-            Maximum number of *consecutive* model failures before raising a ModelRouterError.
+            Maximum retries before throwing error..
         time_constraints: 
-            An optional dictionary mapping model_id to a list of string tuples (start_time, 
-            end_time).The listed models will NOT be used if the current time is within any 
-            of the specified ranges. Strings must be in the format "HH:MM" (e.g. "22:00", "06:00").
+            Model availability constraints based on time. The dictionary maps model 
+            IDs to a list of tuples (start_time, end_time) as strings in "HH:MM" format.
+            The listed models will NOT be used if the current time is within any of the
+            specified ranges. Strings must be in the format "HH:MM" (e.g. "22:00", "06:00").
             Example: {'model-A': [('22:00', '06:00')]}
-            prohibits 'model-A' between 22:00 and 06:00.        
+            limits 'model-A' between 22:00 and 06:00.
+
+    Raises:
+        ModelRouterError: 
+            Raised when all models fail or are restricted.
+        ValueError:
+            Raised for misconfiguration in time formats or duplicate model IDs.
+        TypeError: 
+            Raised for invalid argument types.
     """
     msgflow_type = "model_gateway"
     model_types = None
