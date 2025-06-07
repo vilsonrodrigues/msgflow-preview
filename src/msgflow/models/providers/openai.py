@@ -309,7 +309,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                 Schema that defines how the output should be structured.
             tool_schemas:
                 JSON schema containing available tools.
-            tool_choices:
+            tool_choice:
                 By default the model will determine when and how many tools to use. 
                 You can force specific behavior with the tool_choice parameter.
                     1. Auto: 
