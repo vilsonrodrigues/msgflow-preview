@@ -106,12 +106,6 @@ class _BaseOpenAI(BaseModel):
             self.current_key_index = 0
             raise e
 
-Modes = Union[
-    List[Literal["text"]],
-    List[Literal["audio"]],
-    List[Literal["text", "audio"]]
-]
-
 # TODO: if provider is openai change max_tokens to max_completion_tokens
 class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
     r"""OpenAI Chat Completions
@@ -121,6 +115,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             Model ID in provider.
         modalities:
             Types of output you would like the model to generate.
+            Can be: ["text"], ["audio"] or ["text", "audio"].
         audio:
             Audio configurations. Define voice and output format.
         max_tokens:
@@ -147,7 +142,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
     def __init__(
         self,
         model_id: str,
-        modalities: Optional[Modes] = ["text"],
+        modalities: Optional[List[str]] = ["text"],
         audio: Optional[Dict[str, str]] = None,
         max_tokens: Optional[int] = 512,
         reasoning_effort: Optional[Literal["low", "medium", "high"]] = None,
