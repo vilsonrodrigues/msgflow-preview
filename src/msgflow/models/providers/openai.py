@@ -114,7 +114,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         model_id: str,
         modalities: Optional[List[str]] = ["text"],
         audio: Optional[Dict[str, str]] = None,
-        max_tokens: Optional[int] = 512,
+        max_tokens: Optional[int] = 8192,
         reasoning_effort: Optional[str] = None,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
