@@ -1,10 +1,11 @@
 from datetime import time, datetime
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from msgflow.exceptions import ModelRouterError
 from msgflow.logger import logger
 from msgflow.models.base import BaseModel
 from msgflow.models.model import Model
+from msgflow.models.response import ModelResponse, ModelStreamResponse
 
 
 class ModelGateway:
@@ -271,14 +272,15 @@ class ModelGateway:
         logger.error(error_message)
         raise ModelRouterError(exceptions_encountered, model_info_on_failure, message=error_message)
 
-    def __call__(self, *, model_preference: Optional[str] = None, **kwargs: Any) -> Any:
+    def __call__(self, *, model_preference: Optional[str] = None, **kwargs: Any) -> Union[ModelResponse, ModelStreamResponse]:
         """
         Executes the call on the gateway.
 
         Args:
-            model_preference: The ID of the model that should be tried first.
-            If None, starts from the last model used or the first one.
-                **kwargs: Arguments to pass to the __call__ method of the selected model.
+            model_preference: 
+                The ID of the model that should be tried first.
+                If None, starts from the last model used or the first one.
+            kwargs: Arguments to pass to the __call__ method of the selected model.
 
         Returns:
             The response of the first model that executes successfully.
