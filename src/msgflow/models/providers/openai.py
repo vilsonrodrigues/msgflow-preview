@@ -50,7 +50,6 @@ class _BaseOpenAI(BaseModel):
         timeout = getenv("OPENAI_TIMEOUT", None)
         base_url = self._get_base_url()
         self.client = OpenAI(
-            **self.sampling_params,
             base_url=base_url,
             api_key="",
             timeout=timeout,
@@ -107,47 +106,62 @@ class _BaseOpenAI(BaseModel):
             self.current_key_index = 0
             raise e
 
+Modes = Union[
+    List[Literal["text"]],
+    List[Literal["audio"]],
+    List[Literal["text", "audio"]]
+]
 
+# TODO: if provider is openai change max_tokens to max_completion_tokens
 class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
     r"""OpenAI Chat Completions
 
     Args:
-        model_id: Optional[str] = "gpt-4o-mini",
-        modalities: Optional[List[str]] = None,
-        audio: Optional[Dict[str, str]] = None,
-        max_tokens: Optional[int] = 512,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        function_choice: Optional[Literal["auto", "required"]] = "auto",
-        parallel_tool_calls: Optional[bool] = True,
-        base_url: Optional[str] = None,
-        organization: Optional[str] = None,
-        project: Optional[str] = None,
-
-    voice: Optional[Literal["alloy", "echo", "fable", "onyx", "nova", "shimmer"]] = "alloy",
-    modalities=["text", "audio"],
-    audio={"voice": "alloy", "format": "wav"}
+        model_id: 
+            Model ID in provider.
+        modalities:
+            Types of output you would like the model to generate.
+        audio:
+            Audio configurations. Define voice and output format.
+        max_tokens:
+            An upper bound for the number of tokens that can be 
+            generated for a completion, including visible output 
+            tokens and reasoning tokens.
+        reasoning_effort:
+            Constrains effort on reasoning for reasoning models. 
+            Currently supported values are low, medium, and high. 
+            Reducing reasoning effort can result in faster responses 
+            and fewer tokens used on reasoning in a response.
+        temperature:
+            What sampling temperature to use, between 0 and 2. 
+            Higher values like 0.8 will make the output more random,
+            while lower values like 0.2 will make it more focused and 
+            deterministic.
+        top_p:
+            An alternative to sampling with temperature, called nucleus 
+            sampling, where the model considers the results of the tokens 
+            with top_p probability mass. So 0.1 means only the tokens 
+            comprising the top 10% probability mass are considered.
     """
 
     def __init__(
         self,
         model_id: str,
-        modalities: Optional[List[str]] = ["text"],
+        modalities: Optional[Modes] = ["text"],
         audio: Optional[Dict[str, str]] = None,
         max_tokens: Optional[int] = 512,
+        reasoning_effort: Optional[Literal["low", "medium", "high"]] = None,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
-        organization: Optional[str] = None,
-        project: Optional[str] = None,
     ):
         super().__init__()        
         self.model_id = model_id
-        self.sampling_params = {"organization": organization, "project": project}
         self.sampling_run_params = {
             "max_tokens": max_tokens,
             "temperature": temperature,
             "top_p": top_p,
             "modalities": modalities,
+            "reasoning_effort": reasoning_effort,
             "audio": audio,
         }
         self._initialize()
@@ -162,6 +176,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             kwargs.get("messages").append(
                 {"role": "assistant", "content": prefilling}
             )
+        # TODO: adapt params
         model_output = self.client.chat.completions.create(
             model=self.model_id, **kwargs, **self.sampling_run_params,
         )
@@ -381,17 +396,14 @@ class OpenAITTS(_BaseOpenAI, TTSModel):
 
     def __init__(
         self,
-        model_id: Optional[str] = "gpt-4o-mini-tts",
+        model_id: str,
         voice: Optional[
             Literal["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
         ] = "alloy",
         speed: Optional[float] = 1.0,
-        organization: Optional[str] = None,
-        project: Optional[str] = None,
     ):
         super().__init__()
         self.model_id = model_id
-        self.sampling_params = {"organization": organization, "project": project}
         self.sampling_run_params = {
             "voice": voice,
             "speed": speed,
@@ -486,17 +498,14 @@ class OpenAIImageTextToImage(_BaseOpenAI, ImageTextToImageModel):
     def __init__(
         self,
         *,
-        model_id: Optional[str] = "dall-e-2",
+        model_id: str,
         size: Optional[
             Literal["256x256", "512x512", "1024x1024", "1024x1792", "1792x1024"]
         ] = "1024x1024",
         quality: Optional[Literal["standard", "hd"]] = "hd",
-        organization: Optional[str] = None,
-        project: Optional[str] = None,
     ):
         super().__init__()
         self.model_id = model_id
-        self.sampling_params = {"organization": organization, "project": project}        
         self.sampling_run_params = {"size": size, "quality": quality}
         self._initialize()
         self._get_api_key()
@@ -553,14 +562,11 @@ class OpenAIASR(_BaseOpenAI, ASRModel):
     def __init__(
         self,
         *,
-        model_id: Optional[str] = "gpt-4o-mini-transcribe",
+        model_id: str,
         temperature: Optional[float] = 0.0,
-        organization: Optional[str] = None,
-        project: Optional[str] = None,
     ):
         super().__init__()        
         self.model_id = model_id
-        self.sampling_params = {"organization": organization, "project": project}        
         self.sampling_run_params = {"temperature": temperature}
         self._initialize()        
         self._get_api_key()
@@ -661,13 +667,10 @@ class OpenAITextEmbedder(_BaseOpenAI, TextEmbedderModel):
     def __init__(
         self,
         *,
-        model_id: Optional[str] = "text-embedding-3-small",
-        organization: Optional[str] = None,
-        project: Optional[str] = None,
+        model_id: str,
     ):
         super().__init__()        
         self.model_id = model_id
-        self.sampling_params = {"organization": organization, "project": project}
         self._initialize()        
         self._get_api_key()
 
@@ -699,15 +702,12 @@ class OpenAIModeration(_BaseOpenAI, ModerationModel):
     def __init__(
         self,
         *,
-        model_id: Optional[str] = "omni-moderation-latest",
-        organization: Optional[str] = None,
-        project: Optional[str] = None,
+        model_id: str,
     ):
         super().__init__()        
         self.model_id = model_id
-        self.sampling_params = {"organization": organization, "project": project}
-        self._initialize()        
         self._get_api_key()
+        self._initialize()
 
     @model_retry
     def _execute(self, **kwargs):
