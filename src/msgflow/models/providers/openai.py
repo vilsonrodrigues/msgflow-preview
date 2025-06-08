@@ -108,7 +108,7 @@ class _BaseOpenAI(BaseModel):
 
 # TODO: if provider is openai change max_tokens to max_completion_tokens
 class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
-    r"""OpenAI Chat Completions
+    """OpenAI Chat Completions
 
     Args:
         model_id: 
