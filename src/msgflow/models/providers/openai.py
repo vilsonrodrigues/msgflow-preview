@@ -127,6 +127,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             Currently supported values are low, medium, and high. 
             Reducing reasoning effort can result in faster responses 
             and fewer tokens used on reasoning in a response.
+            Can be: "low", "medium" or "high".
         temperature:
             What sampling temperature to use, between 0 and 2. 
             Higher values like 0.8 will make the output more random,
@@ -145,7 +146,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         modalities: Optional[List[str]] = ["text"],
         audio: Optional[Dict[str, str]] = None,
         max_tokens: Optional[int] = 512,
-        reasoning_effort: Optional[Literal["low", "medium", "high"]] = None,
+        reasoning_effort: Optional[str] = None,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
     ):
