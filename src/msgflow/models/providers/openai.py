@@ -108,38 +108,7 @@ class _BaseOpenAI(BaseModel):
 
 # TODO: if provider is openai change max_tokens to max_completion_tokens
 class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
-    """OpenAI Chat Completions
-
-    Args:
-        model_id: 
-            Model ID in provider.
-        modalities:
-            Types of output you would like the model to generate.
-            Can be: ["text"], ["audio"] or ["text", "audio"].
-        audio:
-            Audio configurations. Define voice and output format.
-        max_tokens:
-            An upper bound for the number of tokens that can be 
-            generated for a completion, including visible output 
-            tokens and reasoning tokens.
-        reasoning_effort:
-            Constrains effort on reasoning for reasoning models. 
-            Currently supported values are low, medium, and high. 
-            Reducing reasoning effort can result in faster responses 
-            and fewer tokens used on reasoning in a response.
-            Can be: "low", "medium" or "high".
-        temperature:
-            What sampling temperature to use, between 0 and 2. 
-            Higher values like 0.8 will make the output more random,
-            while lower values like 0.2 will make it more focused and 
-            deterministic.
-        top_p:
-            An alternative to sampling with temperature, called nucleus 
-            sampling, where the model considers the results of the tokens 
-            with top_p probability mass. So 0.1 means only the tokens 
-            comprising the top 10% probability mass are considered.
-    """
-
+    """OpenAI Chat Completions"""
     def __init__(
         self,
         model_id: str,
@@ -150,6 +119,36 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
     ):
+        """
+        Args:
+            model_id: 
+                Model ID in provider.
+            modalities:
+                Types of output you would like the model to generate.
+                Can be: ["text"], ["audio"] or ["text", "audio"].
+            audio:
+                Audio configurations. Define voice and output format.
+            max_tokens:
+                An upper bound for the number of tokens that can be 
+                generated for a completion, including visible output 
+                tokens and reasoning tokens.
+            reasoning_effort:
+                Constrains effort on reasoning for reasoning models. 
+                Currently supported values are low, medium, and high. 
+                Reducing reasoning effort can result in faster responses 
+                and fewer tokens used on reasoning in a response.
+                Can be: "low", "medium" or "high".
+            temperature:
+                What sampling temperature to use, between 0 and 2. 
+                Higher values like 0.8 will make the output more random,
+                while lower values like 0.2 will make it more focused and 
+                deterministic.
+            top_p:
+                An alternative to sampling with temperature, called nucleus 
+                sampling, where the model considers the results of the tokens 
+                with top_p probability mass. So 0.1 means only the tokens 
+                comprising the top 10% probability mass are considered.
+        """
         super().__init__()        
         self.model_id = model_id
         self.sampling_run_params = {
