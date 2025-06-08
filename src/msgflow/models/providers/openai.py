@@ -131,7 +131,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
 
     def __init__(
         self,
-        model_id: Optional[str] = "gpt-4o-mini",
+        model_id: str,
         modalities: Optional[List[str]] = ["text"],
         audio: Optional[Dict[str, str]] = None,
         max_tokens: Optional[int] = 512,
