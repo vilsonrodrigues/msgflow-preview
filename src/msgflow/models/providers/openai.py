@@ -119,6 +119,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         reasoning_effort: Optional[str] = None,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
+        web_search_options: Optional[Dict[str, Any]] = None
     ):
         """
         Args:
@@ -149,6 +150,9 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                 sampling, where the model considers the results of the tokens 
                 with top_p probability mass. So 0.1 means only the tokens 
                 comprising the top 10% probability mass are considered.
+            web_search_options:
+                This tool searches the web for relevant results to use in a response.
+                OpenAI-only.
         """
         super().__init__()        
         self.model_id = model_id
@@ -159,9 +163,20 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             "modalities": modalities,
             "reasoning_effort": reasoning_effort,
             "audio": audio,
+            "web_search_options": web_search_options
         }
         self._initialize()
         self._get_api_key()
+
+    def _adapt_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        if self.provider == "openai":
+            params["max_completion_tokens"] = params.pop("max_tokens")
+            tools = params.pop("tools", None)
+            if tools: # OpenAI supports 'strict' mode to tools
+                for tool in tools:
+                    tool["function"]["strict"] = True
+                params["tools"] = tools
+        return params
 
     @model_retry
     def _execute(self, **kwargs):
@@ -172,9 +187,10 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             kwargs.get("messages").append(
                 {"role": "assistant", "content": prefilling}
             )
-        # TODO: adapt params
+        params = {**kwargs, **self.sampling_run_params}
+        adapted_params = self._adapt_params(params)
         model_output = self.client.chat.completions.create(
-            model=self.model_id, **kwargs, **self.sampling_run_params,
+            model=self.model_id, **adapted_params,
         )
         return model_output
 
@@ -334,6 +350,17 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             return_reasoning:
                 If the model returns the `reasoning` field it will be added along with the response.
                 TODO: falar como fica o formato
+        
+        Raises:
+            ValueError("`generation_schema` is not `stream=True` compatible")
+
+            if xml_to_dict is True:
+                raise ValueError("`xml_to_dict=True` is not `stream=True` compatible")
+            
+            if return_reasoning is True and tool_schemas is not None:
+                raise ValueError("`tool_schemas` is not `return_reasoning=True` compatible"
+                                 " when `stream=True`")
+
         """        
         if isinstance(messages, str):
             messages = [{"role": "user", "content": messages}]
