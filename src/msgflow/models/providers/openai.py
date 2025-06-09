@@ -598,7 +598,8 @@ class OpenAIImageTextToImage(OpenAITextToImage, ImageTextToImageModel):
         *,        
         mask: Optional[str] = None,
         response_format: Optional[Literal["url", "base64"]] = None,
-    ):
+        n: Optional[int] = 1,        
+    ) -> ModelResponse:
         """
         Args:
             prompt:
@@ -618,7 +619,7 @@ class OpenAIImageTextToImage(OpenAITextToImage, ImageTextToImageModel):
         if response_format == "base64":
             response_format = "b64_json"        
         inputs = self._prepare_inputs(image, mask, response_format)
-        response = self._generate(prompt, **inputs)
+        response = self._generate(prompt, **inputs, response_format=response_format, n=n)
         return response
 
 
