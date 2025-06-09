@@ -25,6 +25,7 @@ from msgflow.models.types import (
     ImageTextToImageModel,
     ModerationModel,
     TextEmbedderModel,
+    TextToImageModel,
     TTSModel,
 )
 from msgflow.nn import functional as F
@@ -487,21 +488,123 @@ class OpenAITTS(_BaseOpenAI, TTSModel):
             return response
 
 
-class OpenAIImageTextToImage(_BaseOpenAI, ImageTextToImageModel):
+class OpenAITextToImage(_BaseOpenAI, TextToImageModel):
     """OpenAI Image Generation"""
 
     def __init__(
         self,
         *,
         model_id: str,
-        size: Optional[
-            Literal["256x256", "512x512", "1024x1024", "1024x1792", "1792x1024"]
-        ] = "1024x1024",
-        quality: Optional[Literal["standard", "hd"]] = "hd",
+        size: Optional[str] = "auto",
+        quality: Optional[str] = "auto",
+        background: Optional[Literal["transparent", "opaque", "auto"]] = None,
+        moderation: Optional[Literal["auto", "low"]] = None,
     ):
+        """
+        Args:
+            model_id:
+                Model ID in provider.
+            size:
+                The size of the generated images.
+            quality:
+                The quality of the image that will be generated.
+            background:
+                Allows to set transparency for the background of the generated image(s).
+            moderation:
+                Control the content-moderation level for images generated.
+        """
         super().__init__()
         self.model_id = model_id
-        self.sampling_run_params = {"size": size, "quality": quality}
+        self.sampling_run_params = {
+            "size": size, 
+            "quality": quality,
+            "background": background,
+            "moderation": moderation
+        }
+        self._initialize()
+        self._get_api_key()
+
+    @model_retry
+    def _execute(self, **kwargs):
+        model_output = self.client.images.generate(
+            model=self.model_id, **kwargs, **self.sampling_run_params
+        )
+        return model_output
+
+    def _generate(self, **kwargs):
+        response = ModelResponse()
+        response.set_response_type("image_generation")
+        
+        model_output = self._execute_model(**kwargs)
+
+        images = []
+        for item in model_output.data:
+            if item.url:
+                images.append(item.url)
+            if item.b64_json:
+                images.append(item.b64_json)
+        
+        if len(images) == 1:
+            images = images[0]
+        response.add(images)
+
+        return response
+
+    def __call__(
+        self,
+        prompt: str,
+        *,
+        response_format: Optional[Literal["url", "base64"]] = None,
+        n: Optional[int] = 1,
+    ) -> ModelResponse:
+        """
+        Args:
+            prompt:
+                A text description of the desired image(s).
+            response_format:
+                Format in which images are returned.
+            n:
+                The number of images to generate.                
+        """
+        if response_format == "base64":
+            response_format = "b64_json"
+        response = self._generate(prompt=prompt, response_format=response_format, n=n)
+        return response
+
+
+class OpenAIImageTextToImage(_BaseOpenAI, ImageTextToImageModel):
+    """OpenAI Image Edit"""
+
+    def __init__(
+        self,
+        *,
+        model_id: str,
+        size: Optional[str] = "auto",
+        quality: Optional[str] = "auto",
+        background: Optional[Literal["transparent", "opaque", "auto"]] = None,
+        moderation: Optional[Literal["auto", "low"]] = None,
+    ):
+        """
+        Args:
+            model_id:
+                Model ID in provider.
+            size:
+                The size of the generated images.
+            quality:
+                The quality of the image that will be generated.
+            background:
+                Allows to set transparency for the background of the generated image(s).
+            moderation:
+                Control the content-moderation level for images generated.
+        """
+        super().__init__()
+        self.model_id = model_id
+        self.sampling_run_params = {
+            "size": size, 
+            "quality": quality,
+            "background": background,
+            "moderation": moderation
+        }
         self._initialize()
         self._get_api_key()
 
@@ -531,11 +634,11 @@ class OpenAIImageTextToImage(_BaseOpenAI, ImageTextToImageModel):
 
         return response
 
-    def _prepare_inputs(image, mask, response_format):
+    def _prepare_inputs(image, mask):
         inputs = {}
-        inputs["inputs"] = "b64_json" if response_format else response_format
-        if image:
-            inputs["image"] = encode_data_to_bytes(image) # TODO: validate
+        if isinstance(image, str):
+            image = [image]
+        inputs["image"] = [encode_data_to_bytes(item) for item in image]
         if mask:
             inputs["mask"] = encode_data_to_bytes(mask)
         return inputs
@@ -543,11 +646,29 @@ class OpenAIImageTextToImage(_BaseOpenAI, ImageTextToImageModel):
     def __call__(
         self,
         prompt: str,
-        *,
-        image: Optional[str] = None,
+        image: Union[str, List[str]],
+        *,        
         mask: Optional[str] = None,
-        response_format: Optional[Literal["url", "base64"]] = "base64",
+        response_format: Optional[Literal["url", "base64"]] = None,
     ):
+        """
+        Args:
+            prompt:
+                A text description of the desired image(s).
+            image:
+                The image(s) to edit.
+            mask:
+                An additional image whose fully transparent areas 
+                (e.g. where alpha is zero) indicate where image 
+                should be edited. If there are multiple images provided, 
+                the mask will be applied on the first image.
+            response_format:
+                Format in which images are returned.
+            n:
+                The number of images to generate.                
+        """        
+        if response_format == "base64":
+            response_format = "b64_json"        
         inputs = self._prepare_inputs(image, mask, response_format)
         response = self._generate(prompt, **inputs)
         return response
