@@ -572,67 +572,15 @@ class OpenAITextToImage(_BaseOpenAI, TextToImageModel):
         return response
 
 
-class OpenAIImageTextToImage(_BaseOpenAI, ImageTextToImageModel):
+class OpenAIImageTextToImage(OpenAITextToImage, ImageTextToImageModel):
     """OpenAI Image Edit"""
-
-    def __init__(
-        self,
-        *,
-        model_id: str,
-        size: Optional[str] = "auto",
-        quality: Optional[str] = "auto",
-        background: Optional[Literal["transparent", "opaque", "auto"]] = None,
-        moderation: Optional[Literal["auto", "low"]] = None,
-    ):
-        """
-        Args:
-            model_id:
-                Model ID in provider.
-            size:
-                The size of the generated images.
-            quality:
-                The quality of the image that will be generated.
-            background:
-                Allows to set transparency for the background of the generated image(s).
-            moderation:
-                Control the content-moderation level for images generated.
-        """
-        super().__init__()
-        self.model_id = model_id
-        self.sampling_run_params = {
-            "size": size, 
-            "quality": quality,
-            "background": background,
-            "moderation": moderation
-        }
-        self._initialize()
-        self._get_api_key()
 
     @model_retry
     def _execute(self, **kwargs):
-        if kwargs.get("image"):
-            model_output = self.client.images.edit(
-                model=self.model_id, **kwargs, **self.sampling_run_params
-            )
-        else:
-            model_output = self.client.images.generate(
-                model=self.model_id, **kwargs, **self.sampling_run_params
-            )
+        model_output = self.client.images.edit(
+            model=self.model_id, **kwargs, **self.sampling_run_params
+        )
         return model_output
-
-    def _generate(self, **kwargs):
-        response = ModelResponse()
-
-        model_output = self._execute_model(**kwargs)
-
-        response.set_response_type("image_generation")
-
-        if model_output.data[0].url:
-            response.add(model_output.data[0].url)
-        elif model_output.data[0].b64_json:
-            response.add(model_output.data[0].b64_json)
-
-        return response
 
     def _prepare_inputs(image, mask):
         inputs = {}
