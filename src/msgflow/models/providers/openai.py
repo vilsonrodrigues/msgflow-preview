@@ -201,6 +201,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         return_annotations = kwargs.pop("return_annotations")        
         xml_to_dict = kwargs.pop("xml_to_dict")
         generation_schema = kwargs.pop("generation_schema")
+
         if generation_schema is not None and xml_to_dict is False:
             schema = msgspec.json.schema(generation_schema)
             json_schema = adapt_struct_schema_to_json_schema(schema)
@@ -234,52 +235,45 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                 name = tool_call.function.name
                 arguments = tool_call.function.arguments
                 aggregator.process(call_index, id, name, arguments)
-            response.add(aggregator)
+            response_content = aggregator
         elif choice.message.content:
             if xml_to_dict is True:
                 response.set_response_type("{}structured".format(prefix_response_type))
                 dict_parsed = xml_to_typed_dict(choice.message.content)
                 if generation_schema: # Type validation
-                    dict_encoded = msgspec.json.encode(dict_parsed)
-                    msgspec.json.decode(dict_encoded, type=generation_schema)
-                if reasoning_content is not None: dict_parsed["think"] = reasoning_content
-                if annotations_content is not None: dict_parsed["annotations"] = annotations_content
-                response.add(dict_parsed)     
+                    response_content = msgspec.json.encode(dict_parsed)
+                    msgspec.json.decode(response_content, type=generation_schema)
             elif generation_schema is not None:
                 response.set_response_type("{}structured".format(prefix_response_type))
                 struct = msgspec.json.decode(
                     choice.message.content, type=generation_schema
                 )
-                struct_parsed = struct_to_dict(struct)
-                if reasoning_content is not None: struct_parsed["think"] = reasoning_content
-                if annotations_content is not None: struct_parsed["annotations"] = annotations_content
-                response.add(struct_parsed)
+                response_content = struct_to_dict(struct)
             else:
-                response.set_response_type("{}text_generation".format(prefix_response_type))
-                content = choice.message.content
-                if reasoning_content is not None:
-                    response.add({"think": reasoning_content, "answer": content})
-                if annotations_content is not None:
-                    response.add({"annotations": annotations_content, "answer": content})                    
+                response.set_response_type("{}text_generation".format(prefix_response_type))                
+                if reasoning_content is not None or annotations_content is not None:
+                    response_content = {"answer": choice.message.content}
                 else:
-                    response.add(content)
+                    response_content = choice.message.content
         elif choice.message.audio:
             # To multi turn conversation is necessary persist the audio id
             # https://platform.openai.com/docs/guides/audio#multi-turn-conversations
-            audio_response = {
+            response_content = {
                 "id": choice.message.audio.id,
                 "audio": base64.b64decode(choice.message.audio.data),
             }
             if choice.message.audio.transcript:
                 response.set_response_type("audio_text_generation")
-                audio_response["text"] = choice.message.audio.transcript
+                response_content["text"] = choice.message.audio.transcript
             else:
                 response.set_response_type("audio_generation")
-            response.add(audio_response)
 
-        # ...... response_content
-        #response.add(audio_response)
+        if reasoning_content is not None:
+            response_content["think"] = reasoning_content
+        if annotations_content is not None: 
+            response_content["annotations"] = annotations_content        
 
+        response.add(response_content)
         return response
 
     async def _stream_generate(self, **kwargs):
