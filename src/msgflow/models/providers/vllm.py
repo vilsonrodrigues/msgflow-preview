@@ -1,4 +1,5 @@
 from os import getenv
+from typing import Any, Dict
 from msgflow.models.providers.openai import OpenAIChatCompletion
 
 
@@ -18,6 +19,12 @@ class VLLMChatCompletion(OpenAIChatCompletion):
         self._api_key = [key.strip() for key in keys.split(",")]
         if not self._api_key:
             raise ValueError("No valid API keys found")
+
+    def _adapt_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        response_format = params.pop("response_format", None)
+        if response_format:
+            params["extra_body"] = {"guided_json": response_format}
+        return params
 
 # TODO: moderation based on ChatCompletion
 # llama guard prompt models
