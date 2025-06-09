@@ -25,7 +25,7 @@ dependencies = [
 
 [project.optional-dependencies]
 openai = [
-    "openai>=1.63.2",
+    "openai==1.85.0",
     "opentelemetry-instrumentation-openai>=0.38.12",
 ]
 data = [
