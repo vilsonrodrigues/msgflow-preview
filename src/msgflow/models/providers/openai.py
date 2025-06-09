@@ -198,6 +198,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         response = ModelResponse()
         
         return_reasoning = kwargs.pop("return_reasoning")
+        return_annotations = kwargs.pop("return_annotations")        
         xml_to_dict = kwargs.pop("xml_to_dict")
         generation_schema = kwargs.pop("generation_schema")
         if generation_schema is not None and xml_to_dict is False:
@@ -209,16 +210,21 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
 
         choice = model_output.choices[0]
 
+        prefix_response_type = ""
+
+        reasoning_content = None
         if (
             return_reasoning is True and
             hasattr(choice.message, "reasoning_content") and
             choice.message.reasoning_content is not None
         ):
             reasoning_content = choice.message.reasoning_content
-            prefix_response_type = "reasoning_"
-        else:
-            reasoning_content = None
-            prefix_response_type = ""
+            prefix_response_type = "reasoning_"        
+
+        annotations_content = None # Extra params (e.g web search references)
+        if choice.message.annotations and return_annotations is True:
+            annotations_content = [item.model_dump() for item in choice.message.annotations]
+            prefix_response_type = "annotations_"
 
         if choice.message.tool_calls:
             aggregator = ToolCallAggregator(reasoning_content)
@@ -237,7 +243,8 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                     dict_encoded = msgspec.json.encode(dict_parsed)
                     msgspec.json.decode(dict_encoded, type=generation_schema)
                 if reasoning_content is not None: dict_parsed["think"] = reasoning_content
-                response.add(dict_parsed)            
+                if annotations_content is not None: dict_parsed["annotations"] = annotations_content
+                response.add(dict_parsed)     
             elif generation_schema is not None:
                 response.set_response_type("{}structured".format(prefix_response_type))
                 struct = msgspec.json.decode(
@@ -245,12 +252,15 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                 )
                 struct_parsed = struct_to_dict(struct)
                 if reasoning_content is not None: struct_parsed["think"] = reasoning_content
+                if annotations_content is not None: struct_parsed["annotations"] = annotations_content
                 response.add(struct_parsed)
             else:
                 response.set_response_type("{}text_generation".format(prefix_response_type))
                 content = choice.message.content
                 if reasoning_content is not None:
                     response.add({"think": reasoning_content, "answer": content})
+                if annotations_content is not None:
+                    response.add({"annotations": annotations_content, "answer": content})                    
                 else:
                     response.add(content)
         elif choice.message.audio:
@@ -266,13 +276,17 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             else:
                 response.set_response_type("audio_generation")
             response.add(audio_response)
-        
+
+        # ...... response_content
+        #response.add(audio_response)
+
         return response
 
     async def _stream_generate(self, **kwargs):
         aggregator = ToolCallAggregator()
 
         return_reasoning = kwargs.pop("return_reasoning")
+        return_annotations = kwargs.pop("return_annotations")
         stream_response = kwargs.pop("stream_response")
 
         model_output = self._execute_model(**kwargs)
@@ -302,7 +316,12 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                     name = tool_call.function.name
                     arguments = tool_call.function.arguments
                     aggregator.process(call_index, id, name, arguments)
-        
+                elif (
+                    return_annotations is True and
+                    chunk.choices[0].delta.annotations is not None
+                ):
+                    stream_response.add(chunk.choices[0].delta.annotations)
+                            
         if aggregator.tool_calls:
             stream_response.add(aggregator)
             stream_response.first_chunk_event.set()
@@ -320,7 +339,8 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         tool_schemas: Optional[Dict] = None,
         tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
         xml_to_dict: Optional[bool] = False,
-        return_reasoning: Optional[bool] = False
+        return_reasoning: Optional[bool] = False,
+        return_annotations: Optional[bool] = False
     ) -> Union[ModelResponse, ModelStreamResponse]:
         """
         Args:
@@ -349,18 +369,14 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                 Converts the model output, which should be typed-XML, into a typed-dict.
             return_reasoning:
                 If the model returns the `reasoning` field it will be added along with the response.
-                TODO: falar como fica o formato
-        
+
         Raises:
-            ValueError("`generation_schema` is not `stream=True` compatible")
-
-            if xml_to_dict is True:
-                raise ValueError("`xml_to_dict=True` is not `stream=True` compatible")
-            
-            if return_reasoning is True and tool_schemas is not None:
-                raise ValueError("`tool_schemas` is not `return_reasoning=True` compatible"
-                                 " when `stream=True`")
-
+            ValueError:
+                Raised if `generation_schema` and `stream=True`.
+            ValueError:                
+                Raised if `xml_to_dict=True` and `stream=True`.
+            ValueError:                
+                Raised if `tool_schemas`, `return_reasoning=True` and `stream=True`.
         """        
         if isinstance(messages, str):
             messages = [{"role": "user", "content": messages}]
@@ -374,6 +390,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             tool_choice=tool_choice,
             tools=tool_schemas,
             return_reasoning=return_reasoning,
+            return_annotations=return_annotations
         )
 
         if stream is True:
