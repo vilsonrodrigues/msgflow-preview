@@ -904,9 +904,8 @@ class Agent(Module):
         if isinstance(xml_to_dict, bool):
             if xml_to_dict:
                 json_schema = None
-                generation_schema = self.generation_schema
-                if generation_schema:
-                    schema = msgspec.json.schema(generation_schema)                  
+                if self.generation_schema:
+                    schema = msgspec.json.schema(self.generation_schema)                  
                     json_schema = adapt_struct_schema_to_json_schema(schema)                    
                 template_inputs = {
                     "instructions": self.instructions,
