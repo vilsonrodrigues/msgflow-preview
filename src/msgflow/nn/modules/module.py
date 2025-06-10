@@ -405,7 +405,7 @@ class Module:
         return mermaid
 
     def plot(self, title: Optional[str] = None, orientation: Optional[str] = "TD"):
-        mermaid = self.get_mermaid(title, orientation)
+        mermaid = self._get_mermaid(title, orientation)
         return plot_mermaid(mermaid)
 
     def _get_content_from_or_input(self, path: str, message: Message) -> Any:
