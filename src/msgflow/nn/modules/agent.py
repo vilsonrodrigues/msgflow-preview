@@ -874,6 +874,13 @@ class Agent(Module):
             raise TypeError("`system_extra_message` requires a string or None "
                             f"given `{type(system_extra_message)}`")
 
+    def _set_xml_to_dict_template(self, xml_to_dict_template: str):
+        if isinstance(xml_to_dict_template, str):
+            self.register_buffer("xml_to_dict_template", xml_to_dict_template)
+        else:
+            raise TypeError("`xml_to_dict_template` requires a string "
+                            f"given `{type(xml_to_dict_template)}`")        
+
     def _set_xml_to_dict(self, xml_to_dict: Optional[bool] = False):
         if isinstance(xml_to_dict, bool):
             if xml_to_dict:
