@@ -908,7 +908,7 @@ class Agent(Module):
                     schema = msgspec.json.schema(self.generation_schema)                  
                     json_schema = adapt_struct_schema_to_json_schema(schema)                    
                 template_inputs = {
-                    "instructions": self.instructions,
+                    "instructions": self.instructions.data,
                     "json_schema": json_schema
                 }
                 xml_instructions = self._format_template(
@@ -992,10 +992,10 @@ class Agent(Module):
         Returns an empty string if no segments are provided.
         """
         template_inputs = {
-            "system_message": self.system_message,
-            "instructions": self.instructions,
-            "expected_output": self.expected_output,
-            "examples": self.examples,
+            "system_message": self.system_message.data,
+            "instructions": self.instructions.data,
+            "expected_output": self.expected_output.data,
+            "examples": self.examples.data,
             "system_extra_message": self.system_extra_message,
         }
         if self.team_members:
