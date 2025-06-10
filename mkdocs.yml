@@ -2,7 +2,7 @@
 site_name: msgFlow
 site_author: Vilson Rodrigues
 site_description: >-
-  Build Multimodal Agentic Workflows
+  Engine for Build Multimodal AI Workflows
 copyright: Copyright &copy; 2025 Vilson Rodrigues
 
 theme: 
@@ -77,21 +77,43 @@ nav:
   - Home: 
     - index.md
   - Docs:
-    - Getting Started:
-      - Agent: getting-started/agent.md
-      - MultiModal Agent: getting-started/multimodal-agent.md
-      - RAG: getting-started/rag.md    
-    - Core:
-      - Models: 
-        - core/model.md
-        - Chat Completation: models/chat_completation.md
-        - Image Gen: models/image_gen.md
-      - DataBase: 
+    - QuickStart: quickstart.md
+    - Learn:
+      - ✧ Models:
+        - models/model.md
+        - models/model_gateway.md
+        - models/chat_completion.md
+        - models/moderation.md
+        - models/text_embedder.md        
+        - models/tts.md
+        - models/asr.md        
+        - models/text_to_image.md
+        - models/image_text_to_image.md
+      - ⛁ DataBases: 
         - core/database.md
         - Vector: databases/vector.md
-    - Guides:
-      - Using Sequential Process: guides/sequential.md
-    - API Reference: api-reference.md
+      - ⟳ Retrievers:
+        - retrievers/retriever.md
+      - ⎙ Parsers: parsers/parser.md
+      - ⟢ nn:
+        - module.md      
+    - ⇄ Dependency Management: dependency-management.md
+    - API Reference:
+        Models:
+          - api-reference/models/model.md
+          - api-reference/models/model_gateway.md
+          - Types:
+              - ChatCompletion: api-reference/models/types/chat_completion.md
+        DataBases:
+          - api-reference/databases/database.md
+          - Types:
+              - KV: api-reference/databases/types/kv.md
+              - Vector: api-reference/databases/types/vector.md
+        nn:
+          - api-reference/nn/functional.md
+          - api-reference/nn/modules/agent.md
+          - api-reference/nn/modules/coordinator.md          
+    - Changelog: changelog.md
   - Blog:
     - blog/index.md
 

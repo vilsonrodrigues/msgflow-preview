@@ -1,0 +1,1 @@
+::: src.msgflow.nn.modules.transcriber.Transcriber
