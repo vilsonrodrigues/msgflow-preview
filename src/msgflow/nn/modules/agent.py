@@ -466,6 +466,25 @@ class Agent(Module):
                 return multimodal_content
         return content
 
+    def _context_manager(self, message: Message) -> Optional[str]:
+        """
+        Manage agent context and task content, combining cache, 
+        inputs, and templates, and applying XML tags.
+        """
+        content_parts = ""
+
+        if self.context_cache:
+            content_parts += self.context_cache
+
+        msg_context = self._process_context_inputs(message)
+        if msg_context:
+            content_parts += msg_context
+
+        if content_parts:
+            content = "\n\n".join(str(part) for part in content_parts)
+            return apply_xml_tags("context", content)
+        return None
+
     def _extract_message_values(self, inputs: Any, message: Message) -> Union[str, Dict[str, Any], List[Any], None]:
         """Process inputs based on their type (str, dict, list) by extracting content from the message."""
         if isinstance(inputs, str):
