@@ -385,7 +385,7 @@ def get_expected_output_from_signature(
         if len(output_desc) == 3 and output_desc[2] is not None:
             part += f": {output_desc[2]}" 
         expected_output += f"{part}\n"
-    expected_output += "\nBe consise in choosing your answers. Write an encoded JSON."
+    expected_output += "\nBe consise in choosing your answers."
     return expected_output
 
 

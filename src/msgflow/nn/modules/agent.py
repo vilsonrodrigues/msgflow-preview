@@ -975,6 +975,8 @@ class Agent(Module):
 
             # Create expected outputs
             expected_output = get_expected_output_from_signature(inputs_desc, outputs_desc)
+            if xml_to_dict is False:
+                expected_output += "\nWrite an encoded JSON."
             self._set_expected_output(expected_output)
 
             # Create examples
