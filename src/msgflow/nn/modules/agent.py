@@ -862,7 +862,7 @@ class Agent(Module):
 
     def _set_system_prompt_template(self, system_prompt_template: Optional[str] = None):
         if isinstance(system_prompt_template, str) or system_prompt_template is None:
-            self.system_prompt_template = Parameter(system_prompt_template, PromptSpec.SYSTEM_PROMPT_TEMPLATE)
+            self.register_buffer("system_prompt_template", system_prompt_template)
         else:
             raise TypeError("`system_prompt_template` requires a string given "
                             f"`{type(system_prompt_template)}`")
