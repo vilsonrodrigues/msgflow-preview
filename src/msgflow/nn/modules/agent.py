@@ -139,7 +139,7 @@ class Agent(Module):
         task_template: Optional[str] = None,
         context_inputs: Optional[Union[str, List[str]]] = None,
         context_cache: Optional[str] = None,
-        context_template: Optional[str] = ...,
+        context_template: Optional[str] = None, # TODO
         system_extra_message: Optional[str] = None,
         xml_to_dict: Optional[bool] = False,
         model_preference: Optional[str] = None,
