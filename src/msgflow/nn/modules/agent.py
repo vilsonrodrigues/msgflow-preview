@@ -215,6 +215,7 @@ class Agent(Module):
         self._set_return_reasoning(return_reasoning)
         self._set_task_multimodal_inputs(task_multimodal_inputs)
         self._set_task_inputs(task_inputs)
+        self._set_team_members()
         self._set_tool_choice(tool_choice)        
         self._set_tools(tools)
 
