@@ -903,11 +903,13 @@ class Agent(Module):
     def _set_xml_to_dict(self, xml_to_dict: Optional[bool] = False):
         if isinstance(xml_to_dict, bool):
             if xml_to_dict:
-                json_schema = self.generation_schema
-                if json_schema:
-                    json_schema = adapt_struct_schema_to_json_schema(json_schema)
+                generation_schema = self.generation_schema
+                if generation_schema:
+                    json_schema = adapt_struct_schema_to_json_schema(generation_schema)
+                else:
+                    json_schema = None
                 template_inputs = {
-                    "instructions": self.instructions.data,
+                    "instructions": self.instructions,
                     "json_schema": json_schema
                 }
                 xml_instructions = self._format_template(
@@ -991,15 +993,15 @@ class Agent(Module):
         Returns an empty string if no segments are provided.
         """
         template_inputs = {
-            "system_message": self.system_message.data,
-            "instructions": self.instructions.data,
-            "expected_output": self.expected_output.data,
-            "examples": self.examples.data,
+            "system_message": self.system_message,
+            "instructions": self.instructions,
+            "expected_output": self.expected_output,
+            "examples": self.examples,
             "system_extra_message": self.system_extra_message,
         }
         if self.team_members:
             template_inputs["team_members"] = self.team_members
         system_prompt = self._format_template(
-            template_inputs, self.system_prompt_template.data
+            template_inputs, self.system_prompt_template
         )
         return system_prompt
