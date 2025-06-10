@@ -17,7 +17,7 @@ class ModelGateway:
         models: 
             List of instances of the same model type (at least 1).
         max_model_failures: 
-            Maximum retries before throwing error..
+            Maximum retries before throwing error.
         time_constraints: 
             Model availability constraints based on time. The dictionary maps model 
             IDs to a list of tuples (start_time, end_time) as strings in "HH:MM" format.
@@ -313,7 +313,7 @@ class ModelGateway:
         Creates a ModelGateway instance from serialized data.
 
         Args:
-            data: The dictionary of serialized models
+            data: The dictionary of serialized models.
         """
         if data.get("msgflow_type") != cls.msgflow_type:
              raise ValueError(f"Incorrect msgflow type. Expected `{cls.msgflow_type}`, given `{data.get('msgflow_type')}`")
@@ -338,7 +338,7 @@ class ModelGateway:
         return [model.get_model_info() for model in self.models]
 
     def get_available_models(self) -> List[BaseModel]:
-        """Returns a list of models that are NOT currently time-restricted"""
+        """Returns a list of models that are NOT currently time-restricted."""
         available = []
         for model in self.models:
             if not self._is_time_restricted(model.model_id):

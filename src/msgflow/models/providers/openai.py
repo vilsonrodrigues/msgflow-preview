@@ -107,7 +107,7 @@ class _BaseOpenAI(BaseModel):
             self.current_key_index = 0
             raise e
 
-# TODO: if provider is openai change max_tokens to max_completion_tokens
+
 class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
     """OpenAI Chat Completions"""
     def __init__(
