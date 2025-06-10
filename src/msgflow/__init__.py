@@ -1,4 +1,3 @@
-from ._private.pool import configure_async_pool
 from .cache import response_cache
 from .data.databases.database import DataBase
 from .data.retrievers.retriever import Retriever
@@ -28,5 +27,3 @@ __all__ = [
     "save",
     "set_envs",     
 ]
-
-configure_async_pool()
