@@ -4,7 +4,7 @@ from msgflow.models.providers.openai import OpenAIChatCompletion
 
 
 class VLLMChatCompletion(OpenAIChatCompletion):
-    r""""""
+    """vLLM Chat Completion."""
     provider: str = "vllm"
 
     def _get_base_url(self):

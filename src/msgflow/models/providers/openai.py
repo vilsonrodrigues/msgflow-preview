@@ -49,9 +49,8 @@ class _BaseOpenAI(BaseModel):
         self.current_key_index = 0
         max_retries = getenv("OPENAI_MAX_RETRIES", openai.DEFAULT_MAX_RETRIES)
         timeout = getenv("OPENAI_TIMEOUT", None)
-        base_url = self._get_base_url()
         self.client = OpenAI(
-            base_url=base_url,
+            **self.sampling_params,
             api_key="",
             timeout=timeout,
             max_retries=max_retries,
@@ -109,7 +108,7 @@ class _BaseOpenAI(BaseModel):
 
 
 class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
-    """OpenAI Chat Completions"""
+    """OpenAI Chat Completion."""
     def __init__(
         self,
         model_id: str,
@@ -119,7 +118,8 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         reasoning_effort: Optional[str] = None,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
-        web_search_options: Optional[Dict[str, Any]] = None
+        web_search_options: Optional[Dict[str, Any]] = None,
+        base_url: Optional[str] = None,
     ):
         """
         Args:
@@ -153,9 +153,12 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             web_search_options:
                 This tool searches the web for relevant results to use in a response.
                 OpenAI-only.
+            base_url:
+                URL to model provider.
         """
         super().__init__()        
         self.model_id = model_id
+        self.sampling_params = {"base_url": base_url or self._get_base_url()}
         self.sampling_run_params = {
             "max_tokens": max_tokens,
             "temperature": temperature,
@@ -435,9 +438,11 @@ class OpenAITTS(_BaseOpenAI, TTSModel):
             Literal["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
         ] = "alloy",
         speed: Optional[float] = 1.0,
+        base_url: Optional[str] = None,
     ):
         super().__init__()
         self.model_id = model_id
+        self.sampling_params = {"base_url": base_url or self._get_base_url()}
         self.sampling_run_params = {
             "voice": voice,
             "speed": speed,
@@ -537,6 +542,7 @@ class OpenAITextToImage(_BaseOpenAI, TextToImageModel):
         quality: Optional[str] = "auto",
         background: Optional[Literal["transparent", "opaque", "auto"]] = None,
         moderation: Optional[Literal["auto", "low"]] = None,
+        base_url: Optional[str] = None,
     ):
         """
         Args:
@@ -550,9 +556,12 @@ class OpenAITextToImage(_BaseOpenAI, TextToImageModel):
                 Allows to set transparency for the background of the generated image(s).
             moderation:
                 Control the content-moderation level for images generated.
+            base_url:
+                URL to model provider.
         """
         super().__init__()
         self.model_id = model_id
+        self.sampling_params = {"base_url": base_url or self._get_base_url()}
         self.sampling_run_params = {
             "size": size, 
             "quality": quality,
@@ -667,9 +676,11 @@ class OpenAIASR(_BaseOpenAI, ASRModel):
         *,
         model_id: str,
         temperature: Optional[float] = 0.0,
+        base_url: Optional[str] = None,        
     ):
-        super().__init__()        
+        super().__init__()
         self.model_id = model_id
+        self.sampling_params = {"base_url": base_url or self._get_base_url()}        
         self.sampling_run_params = {"temperature": temperature}
         self._initialize()        
         self._get_api_key()
@@ -771,9 +782,11 @@ class OpenAITextEmbedder(_BaseOpenAI, TextEmbedderModel):
         self,
         *,
         model_id: str,
+        base_url: Optional[str] = None,        
     ):
-        super().__init__()        
+        super().__init__()
         self.model_id = model_id
+        self.sampling_params = {"base_url": base_url or self._get_base_url()}
         self._initialize()        
         self._get_api_key()
 
@@ -806,11 +819,13 @@ class OpenAIModeration(_BaseOpenAI, ModerationModel):
         self,
         *,
         model_id: str,
+        base_url: Optional[str] = None,
     ):
-        super().__init__()        
+        super().__init__()
         self.model_id = model_id
-        self._get_api_key()
+        self.sampling_params = {"base_url": base_url or self._get_base_url()}        
         self._initialize()
+        self._get_api_key()
 
     @model_retry
     def _execute(self, **kwargs):

@@ -3,7 +3,7 @@ from msgflow.models.providers.openai import OpenAIChatCompletation
 
 
 class TogetherChatCompletation(OpenAIChatCompletation):
-    r""""""
+    """Together Chat Completion."""
     provider: str = "together"
 
     def _get_base_url(self):
