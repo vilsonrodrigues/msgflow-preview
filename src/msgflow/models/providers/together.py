@@ -1,13 +1,13 @@
 from os import getenv
+from typing import Any, Dict
 from msgflow.models.providers.openai import OpenAIChatCompletation
 
 
-class TogetherChatCompletation(OpenAIChatCompletation):
-    """Together Chat Completion."""
+class _BaseTogether:
     provider: str = "together"
 
     def _get_base_url(self):
-        base_url = getenv("TOGETHER_BASE_URL")
+        base_url = getenv("TOGETHER_BASE_URL", "https://api.together.xyz/v1")
         if base_url is None:
             raise ValueError("Please set `TOGETHER_BASE_URL`")
         return base_url  
@@ -17,3 +17,15 @@ class TogetherChatCompletation(OpenAIChatCompletation):
         self._api_key = [key.strip() for key in keys.split(",")]
         if not self._api_key:
             raise ValueError("No valid API keys found")
+
+
+class TogetherChatCompletation(OpenAIChatCompletation, _BaseTogether):
+    """Together Chat Completion."""
+
+    def _adapt_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        response_format = params.pop("response_format", None)
+        if response_format:
+            params["response_format"] = {
+                "type": "json_object", "schema": response_format
+            }
+        return params
