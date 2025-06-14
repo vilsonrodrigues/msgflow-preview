@@ -31,6 +31,7 @@ class ModelResponse(_BaseResponse):
         "text_classification",
         "text_embedding",
         "text_generation",
+        "text_reranked"
     ]
 
     def __init__(self):
