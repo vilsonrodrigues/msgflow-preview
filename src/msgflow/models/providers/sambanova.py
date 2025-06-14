@@ -1,4 +1,5 @@
 from os import getenv
+from typing import Any, Dict
 from msgflow.models.providers.openai import OpenAIChatCompletion
 
 
@@ -18,3 +19,10 @@ class SambaNovaChatCompletion(OpenAIChatCompletion):
         self._api_key = [key.strip() for key in keys.split(",")]
         if not self._api_key:
             raise ValueError("No valid API keys found")
+
+    def _adapt_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        response_format = params.pop("response_format", None)
+        if response_format: # SambaNova NOT support strict=True
+            response_format["json_schema"]["strict"] = False
+            params["response_format"] = response_format
+        return params
