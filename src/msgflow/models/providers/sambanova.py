@@ -3,8 +3,8 @@ from typing import Any, Dict
 from msgflow.models.providers.openai import OpenAIChatCompletion
 
 
-class SambaNovaChatCompletion(OpenAIChatCompletion):
-    """SambaNova Chat Completion."""
+class _BaseSambaNova:
+    """Configurations to use SambaNova models."""    
     provider: str = "sambanova"
 
     def _get_base_url(self):
@@ -19,6 +19,10 @@ class SambaNovaChatCompletion(OpenAIChatCompletion):
         self._api_key = [key.strip() for key in keys.split(",")]
         if not self._api_key:
             raise ValueError("No valid API keys found")
+
+
+class SambaNovaChatCompletion(OpenAIChatCompletion, _BaseSambaNova):
+    """SambaNova Chat Completion."""
 
     def _adapt_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         response_format = params.pop("response_format", None)
