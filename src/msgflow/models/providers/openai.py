@@ -873,7 +873,10 @@ class HTTPXModelClient(BaseModel):
         if hasattr(self, "sampling_run_params"):
             params.update(self.sampling_run_params)
         url = self.sampling_params["base_url"] + self.url_path
-        response = self.client.post(url, headers=self.headers, json=params)
+        headers = self.headers
+        if hasattr(self, "_api_key"):
+           headers["Authorization"] = f"Bearer {self._api_key[0]}" # Not rotate for now
+        response = self.client.post(url, headers=headers, json=params)
         response.raise_for_status()
         model_output = response.json()
         return model_output
