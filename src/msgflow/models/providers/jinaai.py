@@ -1,5 +1,9 @@
 from os import getenv
+from typing import List, Optional, Union
+from msgflow.models.providers.openai import HTTPXModelClient
 from msgflow.models.providers.vllm import VLLMTextReranker
+from msgflow.models.response import ModelResponse
+from msgflow.models.types import ImageEmbedderModel, TextEmbedderModel
 
 
 class _BaseJinaAI:
@@ -22,3 +26,71 @@ class _BaseJinaAI:
 
 class JinaAITextReranker(VLLMTextReranker, _BaseJinaAI):
     """JinaAI Text Reranker."""
+
+
+class JinaAITextEmbedder(TextEmbedderModel, HTTPXModelClient, _BaseJinaAI):
+    """JinaAI Text Embedder."""
+    url_path: str = "/embeddings"
+    batch_support = True
+
+    def __init__(
+        self,
+        *,
+        model_id: str,
+        dimensions: Optional[int] = None,
+        base_url: Optional[str] = None,
+    ):
+        super().__init__()
+        self.model_id = model_id
+        self.sampling_params = {"base_url": base_url or self._get_base_url()}
+        self.sampling_run_params = {"dimensions": dimensions}
+        self._initialize()
+        self._get_api_key()
+
+    def _generate(self, **kwargs):
+        response = ModelResponse()
+        response.set_response_type("text_embedding")
+        model_output = self._execute(**kwargs)
+        data = model_output["data"]
+        embedding = [item["embedding"] for item in data]
+        if len(embedding) == 1: # Compatibility
+            embedding = embedding[0]
+        response.add(embedding)
+        return response
+
+    def __call__(
+        self,
+        data: Union[str, List[str]],
+    ) -> ModelResponse:
+        if isinstance(data, str):
+            data = [data]
+        inputs = [{"text": item} for item in data]
+        response = self._generate(input=inputs)
+        return response
+
+
+class JinaAIImageEmbedder(ImageEmbedderModel, JinaAITextEmbedder):
+    """JinaAI Image Embedder."""
+    url_path: str = "/embeddings"
+    batch_support = True
+
+    def _generate(self, **kwargs):
+        response = ModelResponse()
+        response.set_response_type("image_embedding")
+        model_output = self._execute(**kwargs)
+        data = model_output["data"]
+        embedding = [item["embedding"] for item in data]
+        if len(embedding) == 1: # Compatibility
+            embedding = embedding[0]
+        response.add(embedding)
+        return response
+
+    def __call__(
+        self,
+        data: Union[str, List[str]],
+    ) -> ModelResponse:
+        if isinstance(data, str):
+            data = [data]
+        inputs = [{"image": item} for item in data]
+        response = self._generate(input=inputs)
+        return response
