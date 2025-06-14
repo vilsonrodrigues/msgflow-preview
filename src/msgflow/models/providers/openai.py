@@ -776,13 +776,13 @@ class OpenAIASR(_BaseOpenAI, ASRModel):
 
 
 class OpenAITextEmbedder(_BaseOpenAI, TextEmbedderModel): 
-    """OpenAI Text Embedder"""
+    """OpenAI Text Embedder."""
     def __init__(
         self,
         *,
         model_id: str,
-        dimensions: Optional[int] = 32,
-        base_url: Optional[str] = None,               
+        dimensions: Optional[int] = None,
+        base_url: Optional[str] = None,
     ):
         super().__init__()
         self.model_id = model_id
