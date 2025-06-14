@@ -776,23 +776,25 @@ class OpenAIASR(_BaseOpenAI, ASRModel):
 
 
 class OpenAITextEmbedder(_BaseOpenAI, TextEmbedderModel): 
-    # TODO allow slice embedding
+    """OpenAI Text Embedder"""
     def __init__(
         self,
         *,
         model_id: str,
-        base_url: Optional[str] = None,        
+        dimensions: Optional[int] = 32,
+        base_url: Optional[str] = None,               
     ):
         super().__init__()
         self.model_id = model_id
         self.sampling_params = {"base_url": base_url or self._get_base_url()}
+        self.sampling_run_params = {"dimensions": dimensions}
         self._initialize()        
         self._get_api_key()
 
     @model_retry
     def _execute(self, **kwargs):
         model_output = self.client.embeddings.create(
-            model=self.model_id, **kwargs,
+            model=self.model_id, **kwargs, **self.sampling_run_params,
         )
         return model_output
 
