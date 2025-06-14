@@ -61,7 +61,7 @@ class VLLMTextReranker(_BaseVLLM, HTTPXModelClient, TextRerankerModel):
     def _generate(self, **kwargs):
         response = ModelResponse()
         response.set_response_type("text_reranked")
-        model_output = self._execute_model(**kwargs)
+        model_output = self._execute(**kwargs)
         response.add(model_output["results"])
         return response
 
@@ -89,7 +89,7 @@ class VLLMTextClassifier(_BaseVLLM, HTTPXModelClient, TextClassifierModel):
     def _generate(self, **kwargs):
         response = ModelResponse()
         response.set_response_type("text_classification")
-        model_output = self._execute_model(**kwargs)
+        model_output = self._execute(**kwargs)
         data = model_output["data"]
         results = [item["label"] for item in data]
         response.add(results)
