@@ -867,7 +867,7 @@ class HTTPXModelClient(BaseModel):
 
     @model_retry
     def _execute(self, **kwargs):
-        params = {**kwargs}
+        params = {"model": self.model_id, **kwargs}
         if hasattr(self, "sampling_run_params"):
             params.update(self.sampling_run_params)
         url = self.sampling_params["base_url"] + self.url_path
