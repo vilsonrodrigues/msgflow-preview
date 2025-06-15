@@ -1,7 +1,7 @@
 [project]
 name = "msgflow"
 dynamic = ["version"]
-description = "Messages and Dynamic workflows in Python powered by Pretrained models"
+description = "Messages and Dynamic AI Systems in Python powered by pretrained models"
 readme = "README.md"
 authors = [
     { name = "Vilson Rodrigues", email = "vilsonrodrigues07@hotmail.com" }
