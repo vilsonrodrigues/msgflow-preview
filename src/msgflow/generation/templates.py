@@ -39,6 +39,9 @@ SYSTEM_PROMPT_TEMPLATE =  """
 {% if system_extra_message %}
 {{ system_extra_message }}
 {% endif %}
+{% if current_date %}
+The current date is: {{ current_date }}
+{% endif %}
 </developer_note>
 {% endif %}
 """
