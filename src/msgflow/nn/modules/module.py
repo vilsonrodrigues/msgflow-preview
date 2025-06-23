@@ -418,10 +418,12 @@ class Module:
         return content
 
     def _get_content_from_message(self, path, message):
-        if isinstance(path, tuple): # OR inputs
-            content = self._get_content_from_or_input(path, message)
-        else:
-            content = message.get(path)        
+        content = None
+        if isinstance(message, Message):
+            if isinstance(path, tuple): # OR inputs
+                content = self._get_content_from_or_input(path, message)
+            else:
+                content = message.get(path)        
         return content
 
     def _format_task_template(self, content: Union[str, Dict[str, Any]]) -> str:
@@ -626,7 +628,7 @@ class Module:
             raise UnsafeModelResponse()# TODO
         return
 
-    def get_model_preference(self, message: Message):                
+    def get_model_preference_from_message(self, message: Message):                
         if (
             isinstance(message, Message) 
             and 
