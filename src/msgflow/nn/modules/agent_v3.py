@@ -456,10 +456,10 @@ class Agent(Module):
         return content
 
     def _context_manager(
-        self, message: Union[Message, Dict[str, Any]]
+        self, message: Union[Message, str, Dict[str, Any]]
     ) -> Optional[str]:
         """Process context inputs provided via kwargs"""        
-        if self.context_inputs is None and (isinstance(message, dict) and not message):
+        if message is None or self.context_inputs is None:
             return None
 
         context_content = ""
@@ -497,7 +497,7 @@ class Agent(Module):
         Processes multimodal inputs (image, audio, file) via kwargs or message.
         Returns a list of multimodal content in ChatML format.
         """
-        if self.task_multimodal_inputs is None and (isinstance(message, dict) and not message):
+        if message is None or self.task_multimodal_inputs is None:
             return None
 
         if isinstance(message, Message):
