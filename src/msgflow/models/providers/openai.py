@@ -850,33 +850,3 @@ class OpenAIModeration(_BaseOpenAI, ModerationModel):
     ):
         response = self._generate(input=data)
         return response
-
-
-class HTTPXModelClient(BaseModel):
-    """HTTPX interface for routes not supported by the OpenAI client."""
-    headers = {"accept": "application/json", "Content-Type": "application/json"}
-
-    def _initialize(self):
-        """Initialize the OpenAI client with empty API key."""
-        self.current_key_index = 0
-        max_retries = getenv("OPENAI_MAX_RETRIES", openai.DEFAULT_MAX_RETRIES)
-        timeout = getenv("OPENAI_TIMEOUT", None)
-        self.client = httpx.Client(
-            limits=httpx.Limits(max_connections=1000, max_keepalive_connections=100),
-            timeout=timeout,
-            transport=httpx.HTTPTransport(retries=max_retries)
-        )
-
-    @model_retry
-    def _execute(self, **kwargs):
-        params = {"model": self.model_id, **kwargs}
-        if hasattr(self, "sampling_run_params"):
-            params.update(self.sampling_run_params)
-        url = self.sampling_params["base_url"] + self.url_path
-        headers = self.headers
-        if hasattr(self, "_api_key"):
-           headers["Authorization"] = f"Bearer {self._api_key[0]}" # Not rotate for now
-        response = self.client.post(url, headers=headers, json=params)
-        response.raise_for_status()
-        model_output = response.json()
-        return model_output
