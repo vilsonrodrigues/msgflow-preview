@@ -47,7 +47,7 @@ plugins:
             show_root_full_path: false
             separate_signature: true
 
-markdown_extensions:
+markdown_extensions:  
   - attr_list
   - md_in_html
   - tables
@@ -72,6 +72,8 @@ markdown_extensions:
   - pymdownx.keys
   - pymdownx.mark
   - pymdownx.tilde
+  - pymdownx.tabbed:
+      alternate_style: true
 
 nav:
   - Home: 
