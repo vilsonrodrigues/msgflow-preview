@@ -448,11 +448,11 @@ class Agent(Module):
         content += task_content
         content = content.strip() # Remove whitespace
 
-        if kwargs.get("task_multimodal_inputs", None) or self.task_multimodal_inputs:
-            multimodal_content = self._process_task_multimodal_inputs(message, **kwargs)
-            if multimodal_content:
-                multimodal_content.append({"type": "text", "text": content})
-                return multimodal_content
+        task_multimodal_inputs = kwargs.get("task_multimodal_inputs", None) or message
+        multimodal_content = self._process_task_multimodal_inputs(task_multimodal_inputs)
+        if multimodal_content:
+            multimodal_content.append({"type": "text", "text": content})
+            return multimodal_content
         return content
 
     def _context_manager(
