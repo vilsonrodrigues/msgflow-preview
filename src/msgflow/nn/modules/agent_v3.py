@@ -435,16 +435,16 @@ class Agent(Module):
 
         if self.task_template:
             if task_inputs:
-                content = self._format_task_template(task_inputs)
+                task_content = self._format_task_template(task_inputs)
             # It's possible to use `task_template` as the default task message
             # if no `task_inputs` is selected. This can be useful for multimodal
             # models that require a text message to be sent along with the data                
             else:                
-                content = self.task_template
+                task_content = self.task_template
         else:
-            content = task_inputs
+            task_content = task_inputs
 
-        task_content = apply_xml_tags("task", content)
+        task_content = apply_xml_tags("task", task_content)
         content += task_content
         content = content.strip() # Remove whitespace
 
