@@ -100,4 +100,7 @@ class EnvironmentVariables(BaseSettings):
     # Num async workers. Each worker has an own eventloop
     executor_num_async_workers: int = 1
 
+    # HTTPX max retries
+    httpx_max_retries: int = 5
+
 envs = EnvironmentVariables()
