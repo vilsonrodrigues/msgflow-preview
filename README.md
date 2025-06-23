@@ -1,8 +1,17 @@
 # msgflow-preview
 
-# https://x.com/mattshumer_/status/1917626739649384793
-# developer note
-# poder adicionar notas de desenvolvedor no template
-# se for salvar no history retirar qualquer developer note do user
+For docs:
 
-# https://shumerprompt.com/
+```bash
+pip install uv
+uv run --all-groups mkdocs serve
+```
+
+For build msgflow
+
+```bash
+pip install git+https://github.com/msgflow-ai/msgspec-ext-preview.git
+pip install git+https://github.com/vilsonrodrigues/msgflow-preview.git@feature/some-fix-to-alpha
+pip install openai
+pip install opentelemetry-instrumentation-openai
+```
