@@ -792,6 +792,13 @@ class Agent(Module):
             raise TypeError("`team_members` requires a string or None "
                             f"given `{type(team_members)}`")
 
+    def _set_temp_team_members(self, temp_team_members: Optional[str] = None):
+        if isinstance(temp_team_members, str) or temp_team_members is None:
+            self.register_buffer("temp_team_members", temp_team_members)
+        else:
+            raise TypeError("`temp_team_members` requires a string or None "
+                            f"given `{type(temp_team_members)}`")
+
     def _set_system_prompt_template(self, system_prompt_template: Optional[str] = None):
         if isinstance(system_prompt_template, str) or system_prompt_template is None:
             self.register_buffer("system_prompt_template", system_prompt_template)
