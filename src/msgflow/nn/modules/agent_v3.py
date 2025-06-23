@@ -468,35 +468,32 @@ class Agent(Module):
         if self.context_inputs is None and not message:
             return None
 
-        content_parts = ""
+        context_content = ""
         
         if self.context_cache: # Fixed Context Cache
-            content_parts += self.context_cache        
+            context_content += self.context_cache        
 
         if isinstance(message, Message): # Extract from Message
             context_inputs = self._extract_message_values(self.context_inputs, message)
         else:
             context_inputs = message
 
-        # Runtime Context
-        if isinstance(context_inputs, str):
-            msg_context = context_inputs
-        elif isinstance(context_inputs, list):
-            msg_context = " ".join(str(v) for v in context_inputs if v is not None)
-        elif isinstance(context_inputs, dict):
-            if self.context_inputes_template:
-                msg_context = self._format_template(context_inputs, self.context_inputes_template)
-            else:
-                msg_context = "\n\n".join(str(v) for v in context_inputs.values())
+        msg_context = None
+        if self.context_inputs_template:
+            msg_context = self._format_template(context_inputs, self.context_inputes_template)
         else:
-            msg_context = str(context_inputs) if context_inputs else None
+            if isinstance(context_inputs, str):
+                msg_context = context_inputs
+            elif isinstance(context_inputs, list):
+                msg_context = " ".join(str(v) for v in context_inputs if v is not None)
+            elif isinstance(context_inputs, dict):
+                msg_context = "\n\n".join(str(v) for v in context_inputs.values())
             
         if msg_context:
-            content_parts += msg_context
+            context_content += "\n\n" + msg_context
             
-        if content_parts:
-            content = "\n\n".join(str(part) for part in [content_parts] if part)
-            return apply_xml_tags("context", content)
+        if context_content:
+            return apply_xml_tags("context", context_content)
         return None
 
     def _process_task_multimodal_inputs(
