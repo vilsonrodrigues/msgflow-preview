@@ -81,7 +81,7 @@ class Agent(Module):
         task_template: Optional[str] = None,
         context_inputs: Optional[Union[str, List[str]]] = None,
         context_cache: Optional[str] = None,
-        context_inputes_template: Optional[str] = None,
+        context_inputs_template: Optional[str] = None,
         system_extra_message: Optional[str] = None,
         include_date: Optional[bool] = False,
         xml_to_dict: Optional[bool] = False,
@@ -143,7 +143,7 @@ class Agent(Module):
         self._set_annotations(_annotations)
         self._set_context_cache(context_cache)
         self._set_context_inputs(context_inputs)
-        self._set_context_inputes_template(context_inputes_template)
+        self._set_context_inputs_template(context_inputs_template)
         self._set_fixed_messages(fixed_messages)
         self._set_input_guardrail(input_guardrail)
         self._set_output_guardrail(output_guardrail)
@@ -458,9 +458,8 @@ class Agent(Module):
     def _context_manager(
         self, message: Union[Message, Dict[str, Any]]
     ) -> Optional[str]:
-        """Process context inputs provided via kwargs"""
-
-        if self.context_inputs is None and not message:
+        """Process context inputs provided via kwargs"""        
+        if self.context_inputs is None and (isinstance(message, dict) and not message):
             return None
 
         context_content = ""
@@ -475,7 +474,7 @@ class Agent(Module):
 
         msg_context = None
         if self.context_inputs_template:
-            msg_context = self._format_template(context_inputs, self.context_inputes_template)
+            msg_context = self._format_template(context_inputs, self.context_inputs_template)
         else:
             if isinstance(context_inputs, str):
                 msg_context = context_inputs
@@ -498,8 +497,7 @@ class Agent(Module):
         Processes multimodal inputs (image, audio, file) via kwargs or message.
         Returns a list of multimodal content in ChatML format.
         """
-
-        if self.task_multimodal_inputs is None and not message:
+        if self.task_multimodal_inputs is None and (isinstance(message, dict) and not message):
             return None
 
         if isinstance(message, Message):
@@ -657,12 +655,12 @@ class Agent(Module):
             raise TypeError("`context_cache` requires a string or None"
                             f"given `{type(context_cache)}`")
 
-    def _set_context_inputes_template(self, context_inputes_template: Optional[str] = None):
-        if isinstance(context_inputes_template, str) or context_inputes_template is None:
-            self.register_buffer("context_inputes_template", context_inputes_template)
+    def _set_context_inputs_template(self, context_inputs_template: Optional[str] = None):
+        if isinstance(context_inputs_template, str) or context_inputs_template is None:
+            self.register_buffer("context_inputs_template", context_inputs_template)
         else:
-            raise TypeError("`context_inputes_template` requires a string or None"
-                            f"given `{type(context_inputes_template)}`")
+            raise TypeError("`context_inputs_template` requires a string or None"
+                            f"given `{type(context_inputs_template)}`")
 
     def _set_prefilling(self, prefilling: Optional[str] = None):
         if isinstance(prefilling, str) or prefilling is None:
