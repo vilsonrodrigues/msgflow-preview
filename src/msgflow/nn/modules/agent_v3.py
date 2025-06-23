@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 from typing import (
     Any, 
@@ -46,17 +47,9 @@ from msgflow.utils.xml import apply_xml_tags
 from msgflow.telemetry.span import trace_agent_prepare_model_execution
 
 
-# Context Manager function that will manage the processing of assembling the context
-# new features: context_cache fixed message in the model, in the retrieval
-# initial_assist_msg or prefix_agent_msg this will be a param (prefilling)
 # it is possible to continue generating a model. Just resend to it what it
 # wrote and then it will continue from there
-
 # the system can change the response to the stream if x condition is met. nein
-
-# add time/date to the system prompt (this can be bad if you use prompt cache)
-
-# TODO: context inputs precisam de template?
 
 
 class Agent(Module):
@@ -88,8 +81,9 @@ class Agent(Module):
         task_template: Optional[str] = None,
         context_inputs: Optional[Union[str, List[str]]] = None,
         context_cache: Optional[str] = None,
-        context_inputes_template: Optional[str] = None, # TODO
+        context_inputes_template: Optional[str] = None,
         system_extra_message: Optional[str] = None,
+        include_date: Optional[bool] = False,
         xml_to_dict: Optional[bool] = False,
         model_preference: Optional[str] = None,
         prefilling: Optional[str] = None,
@@ -152,12 +146,13 @@ class Agent(Module):
         self._set_context_inputes_template(context_inputes_template)
         self._set_fixed_messages(fixed_messages)
         self._set_input_guardrail(input_guardrail)
-        self._set_output_guardrail(output_guardrail)        
+        self._set_output_guardrail(output_guardrail)
         self._set_task_messages(task_messages)
         self._set_model(model)
         self._set_model_preference(model_preference)
         self._set_prefilling(prefilling)
-        self._set_system_extra_message(system_extra_message)        
+        self._set_system_extra_message(system_extra_message)
+        self._set_include_date(include_date)
         self._set_system_prompt_template(_system_prompt_template)
         self._set_response_mode(response_mode)
         self._set_stream(stream)
@@ -167,7 +162,7 @@ class Agent(Module):
         self._set_task_inputs(task_inputs)
         self._set_team_members()
         self._set_temp_team_members(temp_team_members)
-        self._set_tool_choice(tool_choice)        
+        self._set_tool_choice(tool_choice)
         self._set_tools(tools)
 
     def forward(self, message: Union[str, Message, Dict[str, str]], **kwargs):
@@ -753,6 +748,13 @@ class Agent(Module):
             raise TypeError("`system_message` requires a string or None "
                             f"given `{type(system_message)}`")
 
+    def _set_include_date(self, include_date: Optional[bool] = False):
+        if isinstance(bool, include_date):
+            self.register_buffer("include_date")
+        else:
+            raise TypeError("`include_date` requires a bool "
+                            f"given `{type(include_date)}`")
+
     def _set_instructions(self, instructions: Optional[str] = None):
         if isinstance(instructions, str) or instructions is None:
             self.instructions = Parameter(instructions, PromptSpec.INSTRUCTIONS)
@@ -911,6 +913,9 @@ class Agent(Module):
             "examples": self.examples.data,
             "system_extra_message": self.system_extra_message,
         }
+
+        if self.include_date:
+            template_inputs["current_date"] = datetime.now().strftime("%m/%d/%Y")
                 
         combined_team_members = [] # Combine team_members with temp_team_members
         if self.team_members:
