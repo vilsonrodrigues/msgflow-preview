@@ -750,7 +750,7 @@ class Agent(Module):
 
     def _set_include_date(self, include_date: Optional[bool] = False):
         if isinstance(bool, include_date):
-            self.register_buffer("include_date")
+            self.register_buffer("include_date", include_date)
         else:
             raise TypeError("`include_date` requires a bool "
                             f"given `{type(include_date)}`")
