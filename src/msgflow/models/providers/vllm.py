@@ -1,13 +1,14 @@
 from os import getenv
 from typing import Any, Dict, List, Optional, Union
+from msgflow.models.httpx import HTTPXModelClient
 from msgflow.models.providers.openai import (
-    HTTPXModelClient, 
     OpenAIASR,
     OpenAIChatCompletion,
     OpenAITextEmbedder
 )
 from msgflow.models.response import ModelResponse
 from msgflow.models.types import TextClassifierModel, TextRerankerModel
+from msgflow.models.providers.jinaai import JinaAITextReranker
 
 
 class _BaseVLLM:
@@ -49,32 +50,8 @@ class VLLMASR(OpenAIASR, _BaseVLLM):
     """vLLM Automatic Speech Recogntion."""
 
 
-class VLLMTextReranker(_BaseVLLM, HTTPXModelClient, TextRerankerModel):
+class VLLMTextReranker(JinaAITextReranker, _BaseVLLM):
     """vLLM Text Reranker."""
-    url_path = "/rerank"
-
-    def __init__(self, model_id: str, base_url: Optional[str] = None):
-        super().__init__()
-        self.model_id = model_id
-        self.sampling_params = {"base_url": base_url or self._get_base_url()}        
-
-    def _generate(self, **kwargs):
-        response = ModelResponse()
-        response.set_response_type("text_reranked")
-        model_output = self._execute(**kwargs)
-        response.add(model_output["results"])
-        return response
-
-    def __call__(self, query: str, documents: List[str]) -> ModelResponse:
-        """
-        Args:
-            query: 
-                Reference text to search for similar.
-            documents:
-                A list of documents to be ranked.
-        """ 
-        response = self._generate(query=query, documents=documents)
-        return response
 
 
 class VLLMTextClassifier(_BaseVLLM, HTTPXModelClient, TextClassifierModel):
