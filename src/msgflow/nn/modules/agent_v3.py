@@ -416,11 +416,10 @@ class Agent(Module):
 
     def _process_task_inputs(
         self, message: Union[str, Message, Dict[str, str]], **kwargs
-    ) -> str:
+    ) -> Union[str, Dict[str, Any]]:
         content = ""
 
-        context_inputs = kwargs.pop("context_inputs", None) or message
-        context_content = self._context_manager(context_inputs)
+        context_content = self._context_manager(message, **kwargs)
         if context_content:
             content += context_content
 
@@ -456,18 +455,20 @@ class Agent(Module):
         return content
 
     def _context_manager(
-        self, message: Union[Message, str, Dict[str, Any]]
+        self, message: Union[str, Message, Dict[str, str]], **kwargs
     ) -> Optional[str]:
         """Mount context."""
         context_content = ""
         
         if self.context_cache: # Fixed Context Cache
             context_content += self.context_cache        
-    
-        if isinstance(message, Message):
+
+        context_inputs = None
+        runtime_context_inputs = kwargs.pop("context_inputs", None)
+        if runtime_context_inputs is not None:
+            context_inputs = runtime_context_inputs
+        elif isinstance(message, Message):
             context_inputs = self._extract_message_values(self.context_inputs, message)
-        else:
-            context_inputs = message
 
         if context_inputs is not None:
             if self.context_inputs_template:
@@ -611,19 +612,23 @@ class Agent(Module):
         """Extract temp_team_members from Message if configured."""
         return self._get_content_from_message(self.temp_team_members, message)
 
-    def _extract_message_values(self, inputs: Union[str, List[str], Dict[str, str]], message: Message) -> Union[str, Dict[str, Any], List[Any], None]:
+    def _extract_message_values(
+        self, 
+        paths: Union[str, List[str], Dict[str, str]], 
+        message: Message
+    ) -> Optional[Union[str, Dict[str, Any], List[Any], None]]:
         """Process inputs based on their type (str, dict, list) by extracting content from the message."""
-        if isinstance(inputs, str):
-            return self._get_content_from_message(inputs, message)
-        elif isinstance(inputs, dict):
+        if isinstance(paths, str):
+            return self._get_content_from_message(paths, message)
+        elif isinstance(paths, dict):
             return {
                 key: self._get_content_from_message(path, message)
-                for key, path in inputs.items()
+                for key, path in paths.items()
             }
-        elif isinstance(inputs, list):
+        elif isinstance(paths, list):
             return [
                 self._get_content_from_message(path, message)
-                for path in inputs
+                for path in paths
                 if self._get_content_from_message(path, message) is not None
             ]
         return None    
