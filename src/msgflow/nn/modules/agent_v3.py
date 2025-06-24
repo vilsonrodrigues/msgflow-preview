@@ -459,7 +459,9 @@ class Agent(Module):
         self, message: Union[Message, str, Dict[str, Any]]
     ) -> Optional[str]:
         """Process context inputs provided via kwargs"""        
-        if message is None or self.context_inputs is None:
+        if isinstance(message, Message) and self.context_inputs is None:
+            return None
+        elif isinstance(message, (str, dict)) and (not message or message is None): # Empty dict
             return None
 
         context_content = ""
@@ -497,7 +499,9 @@ class Agent(Module):
         Processes multimodal inputs (image, audio, file) via kwargs or message.
         Returns a list of multimodal content in ChatML format.
         """
-        if message is None or self.task_multimodal_inputs is None:
+        if isinstance(message, Message) and self.task_multimodal_inputs is None:
+            return None
+        elif isinstance(message, dict) and (not message or message is None): # Empty dict
             return None
 
         if isinstance(message, Message):
@@ -527,31 +531,6 @@ class Agent(Module):
                         content.append(formatted_input)
 
         return content
-
-    def _get_temp_team_members_from_message(self, message: Message) -> Optional[List[str]]:
-        """Extract temp_team_members from Message if configured."""
-        return self._get_content_from_message(self.temp_team_members, message)
-
-    def _extract_message_values(self, inputs: Union[str, List[str], Dict[str, str]], message: Message) -> Union[str, Dict[str, Any], List[Any], None]:
-        """Process inputs based on their type (str, dict, list) by extracting content from the message."""
-        if isinstance(inputs, str):
-            return self._get_content_from_message(inputs, message)
-        elif isinstance(inputs, dict):
-            return {
-                key: self._get_content_from_message(path, message)
-                for key, path in inputs.items()
-            }
-        elif isinstance(inputs, list):
-            return [
-                self._get_content_from_message(path, message)
-                for path in inputs
-                if self._get_content_from_message(path, message) is not None
-            ]
-        return None    
-
-    def _get_task_messages_from_message(self, message: Message) -> Optional[List[Dict[str, Any]]]:
-        """Returns a message history (ChatML format) from message"""        
-        return self._get_content_from_message(self.task_messages, message)
 
     def _prepare_data_uri(self, source: str, force_encode: bool = False) -> str:
         """
@@ -634,6 +613,31 @@ class Agent(Module):
             "type": "file",
             "file": {"filename": filename, "file_data": file_data_uri}
         }
+
+    def _get_temp_team_members_from_message(self, message: Message) -> Optional[List[str]]:
+        """Extract temp_team_members from Message if configured."""
+        return self._get_content_from_message(self.temp_team_members, message)
+
+    def _extract_message_values(self, inputs: Union[str, List[str], Dict[str, str]], message: Message) -> Union[str, Dict[str, Any], List[Any], None]:
+        """Process inputs based on their type (str, dict, list) by extracting content from the message."""
+        if isinstance(inputs, str):
+            return self._get_content_from_message(inputs, message)
+        elif isinstance(inputs, dict):
+            return {
+                key: self._get_content_from_message(path, message)
+                for key, path in inputs.items()
+            }
+        elif isinstance(inputs, list):
+            return [
+                self._get_content_from_message(path, message)
+                for path in inputs
+                if self._get_content_from_message(path, message) is not None
+            ]
+        return None    
+
+    def _get_task_messages_from_message(self, message: Message) -> Optional[List[Dict[str, Any]]]:
+        """Returns a message history (ChatML format) from message"""        
+        return self._get_content_from_message(self.task_messages, message)
 
     def _set_context_inputs(self, context_inputs: Optional[Union[str, List[str]]] = None):
         if isinstance(context_inputs, (str, list)) or context_inputs is None:
