@@ -446,9 +446,8 @@ class Agent(Module):
         task_content = apply_xml_tags("task", task_content)
         content += task_content
         content = content.strip() # Remove whitespace
-
-        task_multimodal_inputs = kwargs.get("task_multimodal_inputs", None) or message
-        multimodal_content = self._process_task_multimodal_inputs(task_multimodal_inputs)
+        
+        multimodal_content = self._process_task_multimodal_inputs(message, **kwargs)
         if multimodal_content:
             multimodal_content.append({"type": "text", "text": content})
             return multimodal_content
@@ -487,21 +486,21 @@ class Agent(Module):
         return None
 
     def _process_task_multimodal_inputs(
-        self, message: Union[Message, Dict[str, Any]]
+        self, message: Union[str, Message, Dict[str, str]], **kwargs
     ) -> Optional[List[Dict[str, Any]]]:
         """
         Processes multimodal inputs (image, audio, file) via kwargs or message.
         Returns a list of multimodal content in ChatML format.
         """
-        if isinstance(message, Message) and self.task_multimodal_inputs is None:
-            return None
-        elif isinstance(message, dict) and (not message or message is None): # Empty dict
-            return None
-
-        if isinstance(message, Message):
+        multimodal_paths = None
+        task_multimodal_inputs = kwargs.get("task_multimodal_inputs", None) or message
+        if task_multimodal_inputs is not None:
+            multimodal_paths = task_multimodal_inputs
+        elif isinstance(message, Message):
             multimodal_paths = self.task_multimodal_inputs
-        else:
-            multimodal_paths = message
+
+        if multimodal_paths is None:
+            return None
 
         content = []
         
