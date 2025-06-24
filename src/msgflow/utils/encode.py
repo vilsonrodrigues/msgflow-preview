@@ -7,23 +7,24 @@ from typing import Union
 
 
 def encode_base64_from_url(url: str) -> str:
-    with requests.get(url) as response:
-        response.raise_for_status()
-        result = base64.b64encode(response.content).decode("utf-8")
-    return result
-
+    try:
+        with requests.get(url) as response:
+            response.raise_for_status()
+            return base64.b64encode(response.content).decode("utf-8")
+    except (requests.RequestException, UnicodeDecodeError):
+        return url  # Fallback
 
 def encode_local_file_in_base64(path: str) -> str:
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode("utf-8")
 
-
 def encode_data_to_base64(path: str) -> str:
-    if path.startswith("http"):
+    if "http" in path:
         return encode_base64_from_url(path)
-    elif isinstance(path, str):
+    elif os.path.exists(path) and not os.path.isdir(path):
         return encode_local_file_in_base64(path)
-
+    else:
+        return path # Fallback
 
 def encode_to_io_object(input_data: Union[bytes, str]) -> io.IOBase:
     """
