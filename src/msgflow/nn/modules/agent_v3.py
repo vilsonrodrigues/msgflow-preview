@@ -458,34 +458,27 @@ class Agent(Module):
     def _context_manager(
         self, message: Union[Message, str, Dict[str, Any]]
     ) -> Optional[str]:
-        """Process context inputs provided via kwargs"""        
-        if isinstance(message, Message) and self.context_inputs is None:
-            return None
-        elif isinstance(message, (str, dict)) and (not message or message is None): # Empty dict
-            return None
-
+        """Mount context."""
         context_content = ""
         
         if self.context_cache: # Fixed Context Cache
             context_content += self.context_cache        
-
-        if isinstance(message, Message): # Extract from Message
+    
+        if isinstance(message, Message):
             context_inputs = self._extract_message_values(self.context_inputs, message)
         else:
             context_inputs = message
 
-        msg_context = None
-        if self.context_inputs_template:
-            msg_context = self._format_template(context_inputs, self.context_inputs_template)
-        else:
-            if isinstance(context_inputs, str):
-                msg_context = context_inputs
-            elif isinstance(context_inputs, list):
-                msg_context = " ".join(str(v) for v in context_inputs if v is not None)
-            elif isinstance(context_inputs, dict):
-                msg_context = "\n\n".join(str(v) for v in context_inputs.values())
-            
-        if msg_context:
+        if context_inputs is not None:
+            if self.context_inputs_template:
+                msg_context = self._format_template(context_inputs, self.context_inputs_template)
+            else:
+                if isinstance(context_inputs, str):
+                    msg_context = context_inputs
+                elif isinstance(context_inputs, list):
+                    msg_context = " ".join(str(v) for v in context_inputs if v is not None)
+                elif isinstance(context_inputs, dict):
+                    msg_context = "\n\n".join(str(v) for v in context_inputs.values())                
             context_content += "\n\n" + msg_context
             
         if context_content:
