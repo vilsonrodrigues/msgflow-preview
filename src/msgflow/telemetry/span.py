@@ -105,12 +105,12 @@ def trace_tool_library_call(forward):
     return wrapper
 
 def trace_agent_prepare_model_execution(_prepare_model_execution):
-    def wrapper(self, model_state):
-        prefix_span = "msgflow.nn.agent"
+    def wrapper(self, *args, **kwargs):
+        prefix_span = "msgflow.nn.Agent"
         attributes = {}
         attributes[f"{prefix_span}.method.name"] = "_prepare_model_execution"
         with self._spans.custom_span("Prepare Model Execution", attributes) as span:            
-            model_execution_params = _prepare_model_execution(self, model_state)
+            model_execution_params = _prepare_model_execution(self, *args, **kwargs)
             if envs.telemetry_capture_agent_prepare_model_execution:
                 encoded_state = msgspec.json.encode(model_execution_params["messages"])
                 encoded_tool_schemas = msgspec.json.encode(model_execution_params["tool_schemas"])
