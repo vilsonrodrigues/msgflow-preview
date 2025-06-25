@@ -532,7 +532,7 @@ class Agent(Module):
         Returns a list of multimodal content in ChatML format.
         """
         multimodal_paths = None
-        task_multimodal_inputs = kwargs.get("task_multimodal_inputs", None) or message
+        task_multimodal_inputs = kwargs.get("task_multimodal_inputs", None)
         if task_multimodal_inputs is not None:
             multimodal_paths = task_multimodal_inputs
         elif isinstance(message, Message):
