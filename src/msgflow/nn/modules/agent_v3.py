@@ -271,7 +271,7 @@ class Agent(Module):
 
         response_type = model_response.response_type
 
-        if model_response.response_type in self._supported_outputs:
+        if response_type in self._supported_outputs:
             response = self._prepare_response(
                 raw_response, response_type, model_state, message
             )
@@ -363,15 +363,15 @@ class Agent(Module):
         model_state: Dict[str, Any], 
         message: Union[str, Dict[str, Any], Message]
     ) -> Union[str, Dict[str, Any], ModelStreamResponse]:
-        if response_type in ["text_generation", "structured"]:
-            if self.output_guardrail:
-                self._execute_output_guardrail(raw_response)        
-            if self.response_template:
-                response = self._format_response_template(raw_response)
-        else:
-            response = raw_response
+        formated_response = None
+        if not isinstance(raw_response, ModelStreamResponse):
+            if "text_generation" in response_type or "structured" in response_type:
+                if self.output_guardrail:
+                    self._execute_output_guardrail(raw_response)        
+                if self.response_template:
+                    formated_response = self._format_response_template(raw_response)
 
-        return self._define_response_mode(response, model_state, message)
+        return self._define_response_mode(formated_response or raw_response, model_state, message)
 
     def _prepare_output_guardrail_execution(
         self, 
