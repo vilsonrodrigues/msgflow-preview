@@ -29,6 +29,7 @@ from msgflow.logger import logger
 from msgflow.message import Message
 from msgflow.models.gateway import ModelGateway
 from msgflow.models.types import ChatCompletionModel
+from msgflow.models.response import ModelStreamResponse
 from msgflow.nn.modules.module import Module
 from msgflow.nn.modules.tool import ToolLibrary
 from msgflow.nn.parameter import Parameter
@@ -341,7 +342,7 @@ class Agent(Module):
 
         return self._define_response_mode(response, model_state, message)
 
-    def _prepare_output_guardrail_execution(self, model_response):
+    def _prepare_output_guardrail_execution(self, model_response: Union[str, Dict[str, Any]]):
         if isinstance(model_response, str):
             data = model_response
         else:
@@ -349,7 +350,12 @@ class Agent(Module):
         guardrail_params = {"data": data}
         return guardrail_params
 
-    def _define_response_mode(self, response, model_state, message):
+    def _define_response_mode(
+        self, 
+        response: Union[str, Dict[str, Any]], 
+        model_state: List[Dict[str, Any]],
+        message: Union[str, Dict[str, Any], Message]
+    ) -> Union[str, Dict[str, Any], Message, ModelStreamResponse]:
         if self.response_mode == "plain_response":
             return response
         elif self.response_mode == "steps":
@@ -364,7 +370,11 @@ class Agent(Module):
                 "`steps` the message object must be of type Message"
             )
 
-    def _apply_steps_format(self, model_state, response):
+    def _apply_steps_format(
+        self, 
+        model_state: List[Dict[str, Any]],
+        response: Union[str, Dict[str, Any]]
+    ) -> Dict[str, Any]:
         steps_response = chatml_to_steps_format(model_state, response)
         return steps_response
 
@@ -372,18 +382,13 @@ class Agent(Module):
         self, message: Union[str, Message, Dict[str, str]], **kwargs
     ) -> Dict[str, Any]:
         """Prepare model input in ChatML format and execution params."""
-
-        runtime_task_messages = kwargs.pop("task_messages", None)
-        runtime_model_preference = kwargs.pop("model_preference", None)
-        runtime_temp_team_members = kwargs.pop("temp_team_members", None)
-        
         task_messages = None
+        runtime_task_messages = kwargs.pop("task_messages", None)        
         
         content = self._process_task_inputs(message, **kwargs)
         
         if isinstance(message, Message):
-            task_messages = self._get_task_messages_from_message(message)
-        
+            task_messages = self._get_task_messages_from_message(message)        
         if runtime_task_messages is not None: # Override with runtime task_messages
             task_messages = runtime_task_messages
         
@@ -400,11 +405,11 @@ class Agent(Module):
         else:
             model_state = task_messages
 
-        model_preference = runtime_model_preference
+        model_preference = kwargs.pop("model_preference", None)
         if model_preference is None and isinstance(message, Message):
             model_preference = self.get_model_preference_from_message(message)
 
-        temp_team_members = runtime_temp_team_members
+        temp_team_members = kwargs.pop("temp_team_members", None)
         if temp_team_members is None and isinstance(message, Message):
             temp_team_members = self._get_temp_team_members_from_message(message)
 
@@ -571,7 +576,7 @@ class Agent(Module):
         base64_audio = self._prepare_data_uri(audio_source, force_encode=True)
 
         if not base64_audio:
-            return None        
+            return None
 
         audio_format_suffix = Path(audio_source).suffix.lstrip(".")
         mime_type = get_mime_type(audio_source)
@@ -610,27 +615,6 @@ class Agent(Module):
     def _get_temp_team_members_from_message(self, message: Message) -> Optional[List[str]]:
         """Extract temp_team_members from Message if configured."""
         return self._get_content_from_message(self.temp_team_members, message)
-
-    def _extract_message_values(
-        self, 
-        paths: Union[str, List[str], Dict[str, str]], 
-        message: Message
-    ) -> Optional[Union[str, Dict[str, Any], List[Any], None]]:
-        """Process inputs based on their type (str, dict, list) by extracting content from the message."""
-        if isinstance(paths, str):
-            return self._get_content_from_message(paths, message)
-        elif isinstance(paths, dict):
-            return {
-                key: self._get_content_from_message(path, message)
-                for key, path in paths.items()
-            }
-        elif isinstance(paths, list):
-            return [
-                self._get_content_from_message(path, message)
-                for path in paths
-                if self._get_content_from_message(path, message) is not None
-            ]
-        return None    
 
     def _get_task_messages_from_message(self, message: Message) -> Optional[List[Dict[str, Any]]]:
         """Returns a message history (ChatML format) from message"""        

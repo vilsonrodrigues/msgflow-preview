@@ -234,7 +234,10 @@ def adapt_struct_schema_to_json_schema(
 
     return adapted_schema
 
-def chatml_to_steps_format(model_state, response):
+def chatml_to_steps_format(
+    model_state: List[Dict[str, Any]],
+    response: Union[str, Dict[str, Any]]
+) -> Dict[str, Any]:
     steps = []
     pending_tool_calls = {}
 

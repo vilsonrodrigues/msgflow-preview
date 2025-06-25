@@ -426,6 +426,27 @@ class Module:
                 content = message.get(path)        
         return content
 
+    def _extract_message_values(
+        self, 
+        paths: Union[str, List[str], Dict[str, str]], 
+        message: Message
+    ) -> Optional[Union[str, Dict[str, Any], List[Any], None]]:
+        """Process inputs based on their type (str, dict, list) by extracting content from the message."""
+        if isinstance(paths, str):
+            return self._get_content_from_message(paths, message)
+        elif isinstance(paths, dict):
+            return {
+                key: self._get_content_from_message(path, message)
+                for key, path in paths.items()
+            }
+        elif isinstance(paths, list):
+            return [
+                self._get_content_from_message(path, message)
+                for path in paths
+                if self._get_content_from_message(path, message) is not None
+            ]
+        return None
+
     def _format_task_template(self, content: Union[str, Dict[str, Any]]) -> str:
         return self._format_template(content, self.task_template)
 
@@ -606,7 +627,7 @@ class Module:
             raise TypeError("`output_guardrail` need be a callable or None, "
                             f"given `{type(output_guardrail)}`")
 
-    def _execute_input_guardrail(self, model_execution_params):
+    def _execute_input_guardrail(self, model_execution_params: Dict[str, Any]):
         guardrail_params = self._prepare_input_guardrail_execution(model_execution_params)
         guardrail_response = self.input_guardrail(guardrail_params)
 
@@ -617,7 +638,7 @@ class Module:
             raise UnsafeUserInput()
         return
 
-    def _execute_output_guardrail(self, model_response):
+    def _execute_output_guardrail(self, model_response: Dict[str, Any]):
         guardrail_params = self._prepare_output_guardrail_execution(model_response)
         guardrail_response = self.output_guardrail(guardrail_params)
 
