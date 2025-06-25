@@ -1,12 +1,13 @@
 from datetime import datetime
 from pathlib import Path
 from typing import (
-    Any, 
-    Callable, 
-    Dict, 
+    Any,
+    Callable,
+    Dict,
     List,
-    Optional, 
-    Union
+    Optional,
+    Union,
+    Tuple
 )
 
 import msgspec
@@ -29,7 +30,7 @@ from msgflow.logger import logger
 from msgflow.message import Message
 from msgflow.models.gateway import ModelGateway
 from msgflow.models.types import ChatCompletionModel
-from msgflow.models.response import ModelStreamResponse
+from msgflow.models.response import ModelResponse, ModelStreamResponse
 from msgflow.nn.modules.module import Module
 from msgflow.nn.modules.tool import ToolLibrary
 from msgflow.nn.parameter import Parameter
@@ -166,15 +167,19 @@ class Agent(Module):
         self._set_tool_choice(tool_choice)
         self._set_tools(tools)
 
-    def forward(self, message: Union[str, Message, Dict[str, str]], **kwargs):
+    def forward(self, message: Union[str, Dict[str, Any], Message], **kwargs):
         inputs = self._prepare_task(message, **kwargs)
         model_response = self._execute_model(prefilling=self.prefilling, **inputs)
         response = self._process_model_response(message, model_response, **inputs)
         return response
 
     def _execute_model(
-        self, model_state, prefilling=None, model_preference=None, temp_team_members=None
-    ):
+        self, 
+        model_state: List[Dict[str, Any]],
+        prefilling: Optional[str] = None,
+        model_preference: Optional[str] = None, 
+        temp_team_members: Optional[str] = None
+    ) -> Union[ModelResponse, ModelStreamResponse]:
         model_execution_params = self._prepare_model_execution(
             model_state, prefilling, model_preference, temp_team_members
         )
@@ -185,8 +190,12 @@ class Agent(Module):
 
     @trace_agent_prepare_model_execution
     def _prepare_model_execution(
-        self, model_state, prefilling=None, model_preference=None, temp_team_members=None
-    ):
+        self, 
+        model_state: List[Dict[str, Any]],
+        prefilling: Optional[str] = None,
+        model_preference: Optional[str] = None, 
+        temp_team_members: Optional[str] = None
+    ) -> Dict[str, Any]:
         agent_state = []
 
         if self.fixed_messages:
@@ -225,7 +234,10 @@ class Agent(Module):
 
         return model_execution_params
 
-    def _prepare_input_guardrail_execution(self, model_execution_params):
+    def _prepare_input_guardrail_execution(
+        self, 
+        model_execution_params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         model_state = model_execution_params.get("model_state")
         last_message = model_state[-1]
         if isinstance(last_message.get("content"), list):
@@ -239,8 +251,13 @@ class Agent(Module):
         return guardrail_params
 
     def _process_model_response(
-        self, message, model_response, model_state, model_preference, temp_team_members
-    ):
+        self, 
+        message: Union[str, Dict[str, str], Message],
+        model_response: Union[ModelResponse, ModelStreamResponse], 
+        model_state: List[Dict[str, Any]],
+        model_preference: Optional[str] = None,
+        temp_team_members: Optional[str] = None        
+    ) -> Union[str, Dict[str, str], Message, ModelStreamResponse]:
         if "tool_call" in model_response.response_type:
             model_response, model_state = self._process_tool_call_response(
                 model_response, model_state, model_preference, temp_team_members
@@ -263,9 +280,13 @@ class Agent(Module):
             raise ValueError(f"Unsupported `response_type={response_type}`")
 
     def _process_react_response(
-        self, model_response, model_state, model_preference=None, temp_team_members=None
-    ):
-        while True:            
+        self,
+        model_response: Union[ModelResponse, ModelStreamResponse],
+        model_state: Optional[Dict[str, Any]],
+        model_preference: Optional[str] = None,
+        temp_team_members: Optional[str] = None
+    ) -> Tuple[Union[str, Dict[str, Any], ModelStreamResponse], Dict[str, Any]]:
+        while True:
             raw_response = self._extract_raw_response(model_response)
 
             if raw_response.get("current_step"):
@@ -302,8 +323,12 @@ class Agent(Module):
             )
 
     def _process_tool_call_response(
-        self, model_response, model_state, model_preference=None, temp_team_members=None
-    ):
+        self,
+        model_response: Union[ModelResponse, ModelStreamResponse],
+        model_state: Optional[Dict[str, Any]],
+        model_preference: Optional[str] = None,
+        temp_team_members: Optional[str] = None
+    ) -> Tuple[Union[str, Dict[str, Any], ModelStreamResponse], Dict[str, Any]]:
         """
         ToolCall example: [{'role': 'assistant', 'tool_calls': [{'id': 'call_1YLHAVwHwDPjEBuMpWQfSktO',
         'type': 'function', 'function': {'arguments': '{"order_id":"order_12345"}',
@@ -327,11 +352,17 @@ class Agent(Module):
                 temp_team_members=temp_team_members
             )
 
-    def _process_tool_call(self, tool_callings):        
+    def _process_tool_call(self, tool_callings: Dict[str, Any]) -> Dict[str, str]: 
         tool_responses = self.tool_library(tool_callings)
         return tool_responses
 
-    def _prepare_response(self, raw_response, response_type, model_state, message):
+    def _prepare_response(
+        self, 
+        raw_response: Union[str, Dict[str, Any], ModelStreamResponse], 
+        response_type: str, 
+        model_state: Dict[str, Any], 
+        message: Union[str, Dict[str, Any], Message]
+    ) -> Union[str, Dict[str, Any], ModelStreamResponse]:
         if response_type in ["text_generation", "structured"]:
             if self.output_guardrail:
                 self._execute_output_guardrail(raw_response)        
@@ -342,7 +373,10 @@ class Agent(Module):
 
         return self._define_response_mode(response, model_state, message)
 
-    def _prepare_output_guardrail_execution(self, model_response: Union[str, Dict[str, Any]]):
+    def _prepare_output_guardrail_execution(
+        self, 
+        model_response: Union[str, Dict[str, Any]]
+    ) -> Dict[str, Any]:
         if isinstance(model_response, str):
             data = model_response
         else:
@@ -530,7 +564,7 @@ class Agent(Module):
 
         return content
 
-    def _prepare_data_uri(self, source: str, force_encode: bool = False) -> str:
+    def _prepare_data_uri(self, source: str, force_encode: bool = False) -> Optional[str]:
         """
         Prepares a data string (URL or Data URI base64).
         If force_encode=True, always tries to download and encode URL.
@@ -558,7 +592,7 @@ class Agent(Module):
             logger.error(f"Failed to encode source {source}: {e}")
             return None
 
-    def _format_image_input(self, image_source: str) -> Dict[str, Any]:
+    def _format_image_input(self, image_source: str) -> Optional[Dict[str, Any]]:
         """Formats the image input for the model"""
         base64_image = self._prepare_data_uri(image_source, force_encode=True)
 
@@ -571,7 +605,7 @@ class Agent(Module):
         
         return {"type": "image_url", "image_url": {"url": image_data_url}}
 
-    def _format_audio_input(self, audio_source: str) -> Dict[str, Any]:
+    def _format_audio_input(self, audio_source: str) -> Optional[Dict[str, Any]]:
         """Formats the audio input for the model"""
         base64_audio = self._prepare_data_uri(audio_source, force_encode=True)
 
@@ -592,7 +626,7 @@ class Agent(Module):
             "input_audio": {"data": base64_audio, "format": format_key},
         }
 
-    def _format_file_input(self, file_source: str) -> Dict[str, Any]:
+    def _format_file_input(self, file_source: str) -> Optional[Dict[str, Any]]:
         """Formats the file input for the model"""
         base64_file = self._prepare_data_uri(file_source, force_encode=True)
 
@@ -657,7 +691,7 @@ class Agent(Module):
     def _set_response_mode(self, response_mode: str):
         if isinstance(response_mode, str):
             if (
-                response_mode in ["plain_response", "steps","response"] # deprecated
+                response_mode in ["plain_response", "steps", "response"] # deprecated
                 or 
                 response_mode.startswith(("context", "outputs"))
             ):
