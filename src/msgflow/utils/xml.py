@@ -2,6 +2,7 @@ import xml.etree.ElementTree as ET
 from collections import defaultdict
 from typing import Any, Dict, Optional
 from xml.dom import minidom
+from msgflow.dotdict import dotdict
 
 
 _type_converters = {
@@ -80,6 +81,7 @@ def xml_to_typed_dict(xml_string: str) -> Dict[str, Any]:
             result[tag] = values[0]  # Return single value
         else:
             result[tag] = values     # Return list
+    result = dotdict(result)
     return result
 
 

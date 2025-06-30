@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Literal, Optional, Set, Union, Tuple
 import msgspec
 from msgspec import Meta, Struct, defstruct
 from typing_extensions import Annotated
+from msgflow.dotdict import dotdict
 from msgflow.logger import logger
 from msgflow.utils.common import type_mapping
 from msgflow.utils.convert import convert_none_to_string, convert_string_to_none
@@ -487,6 +488,6 @@ def struct_to_dict(obj):
         return [struct_to_dict(item) for item in obj]
     elif isinstance(obj, dict):
         # If it is a dictionary, recursively convert its values
-        return {k: struct_to_dict(v) for k, v in obj.items()}
+        return dotdict({k: struct_to_dict(v) for k, v in obj.items()})
     else: # Returns the value as is for simple types
         return obj
