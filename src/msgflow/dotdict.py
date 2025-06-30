@@ -93,7 +93,7 @@ class dotdict(dict):
         if self._frozen:
             raise AttributeError("Cannot modify frozen dotdict")
 
-        keys = path.split('.')
+        keys = path.split(".")
         current = self
         for i, key in enumerate(keys):
             if isinstance(current, list):
@@ -116,6 +116,32 @@ class dotdict(dict):
                 if key not in current or not isinstance(current[key], (dict, dotdict, list)):
                     current[key] = dotdict()
                 current = current[key]
+
+    def update(self, *args, **kwargs):
+        """Extends dict.update to support nested keys while maintaining DotDict."""
+        if self._frozen:
+            raise AttributeError("Cannot modify frozen DotDict")
+
+        # Collects all key–value pairs
+        other = {}
+        if args:
+            if len(args) > 1:
+                raise TypeError(f"update expected at most 1 arguments, given `{len(args)}`")
+            other.update(args[0])
+        other.update(kwargs)
+
+        for key, value in other.items():
+            # Nested key with dot?
+            if isinstance(key, str) and "." in key:
+                self.set(key, value)
+
+            # value is dict and there is already a DotDict on that key? Merge recursively
+            elif isinstance(value, dict) and key in self and isinstance(self[key], dotdict):
+                self[key].update(value)
+
+            # General case: normal assignment (call __setitem__ e wrap)
+            else:
+                self[key] = value
 
     def to_dict(self):
         def unwrap(value):
