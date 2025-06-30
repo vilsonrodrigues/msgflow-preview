@@ -4,6 +4,9 @@ from typing import Any, AsyncGenerator, Literal, Union
 
 class _BaseResponse:
 
+    def set_metadata(self, metadata: Any):
+        self.metadata = metadata
+
     def set_response_type(self, response_type: str):
         if isinstance(response_type, str):
             self.response_type = response_type
@@ -36,6 +39,7 @@ class ModelResponse(_BaseResponse):
 
     def __init__(self):
         self.data = None
+        self.metadata = None        
         self.response_type = None
 
     def add(self, data: Any):
@@ -53,6 +57,7 @@ class ModelStreamResponse(_BaseResponse):
     def __init__(self):
         self.first_chunk_event = asyncio.Event()
         self.queue = asyncio.Queue()
+        self.metadata = None
         self.response_type = None
 
     def add(self, data: Any):
