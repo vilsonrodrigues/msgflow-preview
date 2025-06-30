@@ -12,6 +12,7 @@ from typing import (
 
 import msgspec
 
+from msgflow.dotdict import dotdict
 from msgflow.generation.reasoning.react import ReAct
 from msgflow.generation.signature import (
     Signature,
@@ -217,7 +218,7 @@ class Agent(Module):
                 system_prompt = react_tools            
             tool_schemas = None # Disable tool_schemas to react controlflow preference
 
-        model_execution_params = {
+        model_execution_params = dotdict({
             "messages": agent_state,
             "system_prompt": system_prompt or None,
             "prefilling": prefilling,
@@ -227,10 +228,10 @@ class Agent(Module):
             "generation_schema": self.generation_schema,
             "return_reasoning": self.return_reasoning,
             "xml_to_dict": self.xml_to_dict
-        }
+        })
 
         if model_preference:
-            model_execution_params["model_preference"] = model_preference
+            model_execution_params.model_preference = model_preference
 
         return model_execution_params
 
@@ -282,22 +283,22 @@ class Agent(Module):
     def _process_react_response(
         self,
         model_response: Union[ModelResponse, ModelStreamResponse],
-        model_state: Optional[Dict[str, Any]],
+        model_state: Dict[str, Any],
         model_preference: Optional[str] = None,
         temp_team_members: Optional[str] = None
     ) -> Tuple[Union[str, Dict[str, Any], ModelStreamResponse], Dict[str, Any]]:
         while True:
             raw_response = self._extract_raw_response(model_response)
 
-            if raw_response.get("current_step"):
-                actions = raw_response["current_step"]["actions"]
+            if raw_response.current_step:
+                actions = raw_response.current_step.actions
                 tool_callings = [
-                    (act["id"], act["name"], act["arguments"]) for act in actions
+                    (act.id, act.name, act.arguments) for act in actions
                 ]
                 tool_responses = self._process_tool_call(tool_callings)
 
                 for act in actions:
-                    act["result"] = tool_responses[[act["id"]]]
+                    act.result = tool_responses[[act.id]]
 
                 if model_state[-1]["role"] == "assistant":
                     last_react_msg = model_state[-1]["content"]
@@ -313,7 +314,7 @@ class Agent(Module):
                         [{"role": "assistant", "content": react_state_encoded}]
                     )
 
-            elif raw_response.get("final_answer", None):
+            elif raw_response.final_answer:
                 return model_response, model_state
 
             model_response = self._execute_model(
@@ -330,9 +331,9 @@ class Agent(Module):
         temp_team_members: Optional[str] = None
     ) -> Tuple[Union[str, Dict[str, Any], ModelStreamResponse], Dict[str, Any]]:
         """
-        ToolCall example: [{'role': 'assistant', 'tool_calls': [{'id': 'call_1YLHAVwHwDPjEBuMpWQfSktO',
+        ToolCall example: [{'role': 'assistant', 'tool_calls': [{'id': 'call_1YL',
         'type': 'function', 'function': {'arguments': '{"order_id":"order_12345"}',
-        'name': 'get_delivery_date'}}]}, {'role': 'tool', 'tool_call_id': 'call_1YLHAVwHwDPjEBuMpWQfSktO',
+        'name': 'get_delivery_date'}}]}, {'role': 'tool', 'tool_call_id': 'call_HA',
         'content': '2024-10-15'}]
         """
         while True:
@@ -370,7 +371,6 @@ class Agent(Module):
                     self._execute_output_guardrail(raw_response)        
                 if self.response_template:
                     formated_response = self._format_response_template(raw_response)
-
         return self._define_response_mode(formated_response or raw_response, model_state, message)
 
     def _prepare_output_guardrail_execution(
@@ -447,11 +447,11 @@ class Agent(Module):
         if temp_team_members is None and isinstance(message, Message):
             temp_team_members = self._get_temp_team_members_from_message(message)
 
-        return {
+        return dotdict({
             "model_state": model_state,
             "model_preference": model_preference,
             "temp_team_members": temp_team_members
-        }
+        })
 
     def _process_task_inputs(
         self, message: Union[str, Message, Dict[str, str]], **kwargs
