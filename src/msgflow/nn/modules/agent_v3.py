@@ -447,11 +447,11 @@ class Agent(Module):
         if temp_team_members is None and isinstance(message, Message):
             temp_team_members = self._get_temp_team_members_from_message(message)
 
-        return dotdict({
+        return {
             "model_state": model_state,
             "model_preference": model_preference,
             "temp_team_members": temp_team_members
-        })
+        }
 
     def _process_task_inputs(
         self, message: Union[str, Message, Dict[str, str]], **kwargs
@@ -535,8 +535,8 @@ class Agent(Module):
         task_multimodal_inputs = kwargs.get("task_multimodal_inputs", None)
         if task_multimodal_inputs is not None:
             multimodal_paths = task_multimodal_inputs
-        elif isinstance(message, Message):
-            multimodal_paths = self.task_multimodal_inputs
+        elif isinstance(message, Message) and self.task_multimodal_inputs is not None:
+            multimodal_paths = self._extract_message_values(self.task_multimodal_inputs, message)
 
         if multimodal_paths is None:
             return None
