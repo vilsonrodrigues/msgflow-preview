@@ -22,16 +22,18 @@ from opentelemetry import trace
 
 from msgflow.envs import envs
 from msgflow.exceptions import UnsafeModelResponse, UnsafeUserInput
+from msgflow.logger import logger
 from msgflow.message import Message
 from msgflow.models.gateway import ModelGateway
 from msgflow.models.model import Model
 from msgflow.models.response import ModelResponse, ModelStreamResponse
 from msgflow.nn.parameter import Parameter
 from msgflow.utils.convert import convert_camel_snake_to_title
+from msgflow.utils.encode import encode_data_to_base64
 from msgflow.utils.hooks import RemovableHandle
 from msgflow.utils.mermaid import plot_mermaid
 from msgflow.utils.msgspec import StructFactory
-from msgflow.utils.validation import is_builtin_type, is_subclass_of
+from msgflow.utils.validation import is_base64, is_builtin_type, is_subclass_of
 from msgflow.telemetry.span import spans
 
 
@@ -446,6 +448,34 @@ class Module:
                 if self._get_content_from_message(path, message) is not None
             ]
         return None
+
+    def _prepare_data_uri(self, source: str, force_encode: bool = False) -> Optional[str]:
+        """
+        Prepares a data string (URL or Data URI base64).
+        If force_encode=True, always tries to download and encode URL.
+        Otherwise, keeps the URL if it is HTTP and not base64.
+        Returns None in case of encoding/download error.
+        """
+        if not source:
+            return None
+
+        if is_base64(source):
+            # If it is already base64, assume it is ready (no prefix)
+            # Prefix will be added by formatter if needed
+            return source
+
+        is_url = source.startswith("http")
+
+        if is_url and not force_encode:
+             # Keep the URL as is if you don't force the encoding
+             return source
+
+        # Need to encode (either local or force_encode=True for URL)
+        try:
+            return encode_data_to_base64(source)
+        except Exception as e:
+            logger.error(f"Failed to encode source {source}: {e}")
+            return None
 
     def _format_task_template(self, content: Union[str, Dict[str, Any]]) -> str:
         return self._format_template(content, self.task_template)

@@ -42,10 +42,9 @@ from msgflow.utils.chat import (
     get_filename, 
     get_react_tools_prompt_format
 )
-from msgflow.utils.encode import encode_data_to_base64
 from msgflow.utils.inspect import get_mime_type
 from msgflow.utils.msgspec import StructFactory
-from msgflow.utils.validation import is_base64, is_subclass_of
+from msgflow.utils.validation import is_subclass_of
 from msgflow.utils.xml import apply_xml_tags
 from msgflow.telemetry.span import trace_agent_prepare_model_execution
 
@@ -563,34 +562,6 @@ class Agent(Module):
                         content.append(formatted_input)
 
         return content
-
-    def _prepare_data_uri(self, source: str, force_encode: bool = False) -> Optional[str]:
-        """
-        Prepares a data string (URL or Data URI base64).
-        If force_encode=True, always tries to download and encode URL.
-        Otherwise, keeps the URL if it is HTTP and not base64.
-        Returns None in case of encoding/download error.
-        """
-        if not source:
-            return None
-
-        if is_base64(source):
-            # If it is already base64, assume it is ready (no prefix)
-            # Prefix will be added by formatter if needed
-            return source
-
-        is_url = source.startswith("http")
-
-        if is_url and not force_encode:
-             # Keep the URL as is if you don't force the encoding
-             return source
-
-        # Need to encode (either local or force_encode=True for URL)
-        try:
-            return encode_data_to_base64(source)
-        except Exception as e:
-            logger.error(f"Failed to encode source {source}: {e}")
-            return None
 
     def _format_image_input(self, image_source: str) -> Optional[Dict[str, Any]]:
         """Formats the image input for the model"""
