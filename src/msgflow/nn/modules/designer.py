@@ -1,7 +1,10 @@
 from typing import Any, Callable, Dict, Literal, Optional, Union
+
+from msgflow.dotdict import dotdict
 from msgflow.message import Message
 from msgflow.models.base import BaseModel
 from msgflow.models.gateway import ModelGateway
+from msgflow.models.response import ModelResponse
 from msgflow.models.types import (
     ImageTextTo3DModel,
     ImageTextToImageModel,
@@ -77,36 +80,55 @@ class Designer(Module):
         self._set_task_inputs(task_inputs)
         self._set_task_multimodal_inputs(task_multimodal_inputs)        
 
-    def forward(self, message: Union[str, Message]):
-        model_preference = self.get_model_preference(message)
-        params = self._prepare_task(message)
-        model_response = self._execute_model(params, model_preference)
+    def forward(self, message: Union[str, Message], **kwargs) -> Union[str, Message]:
+        inputs = self._prepare_task(message, **kwargs)
+        model_response = self._execute_model(**inputs)
         response = self._process_model_response(model_response, message)
         return response
 
-    def _execute_model(self, params, model_preference=None):
-        model_execution_params = self._prepare_model_execution(params, model_preference)
+    def _execute_model(
+        self, 
+        prompt: str,
+        image: Optional[str] = None,
+        mask: Optional[str] = None,
+        model_preference: Optional[str] = None
+    ) -> ModelResponse:
+        model_execution_params = self._prepare_model_execution(
+            prompt, image, mask, model_preference
+        )
         if self.guardrail is not None:
             self._execute_guardrail(model_execution_params)
         model_response = self.model(**model_execution_params)
         return model_response
 
-    def _prepare_model_execution(self, params, model_preference=None):        
-        model_execution_params = self.execution_kwargs or {}
-        model_execution_params.update(params)
-        if self.negative_prompt:
-            model_execution_params["negative_prompt"] = self.negative_prompt
-        if self.fps:
-            model_execution_params["fps"] = self.fps
-        if self.duration_seconds:
-            model_execution_params["duration_seconds"] = self.duration_seconds
+    def _prepare_model_execution(
+        self,
+        prompt: str,
+        image: Optional[str] = None,
+        mask: Optional[str] = None,
+        model_preference: Optional[str] = None
+    ) -> Dict[str, Any]:
+        model_execution_params = self.execution_kwargs or dotdict()
+        model_execution_params.prompt = prompt
+        if image:
+            model_execution_params.image = image
+        if mask:
+            model_execution_params.mask = mask
         if model_preference:
-            model_execution_params["model_preference"] = model_preference
+            model_execution_params.model_preference = model_preference            
+        if self.negative_prompt:
+            model_execution_params.negative_prompt = self.negative_prompt
+        if self.fps:
+            model_execution_params.fps = self.fps
+        if self.duration_seconds:
+            model_execution_params.duration_seconds = self.duration_seconds
         return model_execution_params
 
-    def _prepare_guardrail_execution(self, model_execution_params):
-        prompt = model_execution_params.get("prompt")
-        image = model_execution_params.get("image", None)
+    def _prepare_guardrail_execution(
+        self, model_execution_params: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        prompt = model_execution_params.prompt
+        image = model_execution_params.image
         if image is not None:
             messages = [
                 {"type": "text", "text": prompt},
@@ -118,7 +140,9 @@ class Designer(Module):
         guardrail_params = data
         return guardrail_params
 
-    def _process_model_response(self, model_response, message):
+    def _process_model_response(
+        self, model_response: ModelResponse, message: Union[str, Message]
+    ) -> str:
         if model_response.response_type == "audio_generation":
             raw_response = self._extract_raw_response(model_response)
             response = self._prepare_response(raw_response, message)
@@ -128,50 +152,52 @@ class Designer(Module):
                 f"Unsupported model response type `{model_response.response_type}`"
             )
 
-    def _prepare_task(self, message):
-        if isinstance(message, str):
-            params = {"prompt": message}
-        elif isinstance(message, Message):
-            params = self._process_message_task(message)             
-        return params
+    def _prepare_task(self, message: Union[str, Message], **kwargs) -> Dict[str, Any]:
+        params = dotdict()
 
-    def _process_message_task(self, message: Message):
-        params = {}
-        if self.task_inputs:
-            params["prompt"] = self._process_task_inputs(message)
-        elif self.task_multimodal_inputs:
-            params.update(self._process_task_multimodal_inputs(message))
+        if isinstance(message, Message):
+            prompt = self._extract_message_values(self.task_inputs, message)
         else:
-            raise AttributeError(
-                "A message object was passed but neither `task_inputs` "
-                "nor `multimodal_task_inputs` were defined"
+            prompt = message
+
+        if prompt is None:
+            raise ValueError("`prompt` cannot be None, pass `message` as str or"
+                             "set `task_inputs` and pass a Message")
+        else:
+            params.prompt = prompt
+
+        model_preference = kwargs.pop("model_preference", None)
+        if model_preference is None and isinstance(message, Message):
+            model_preference = self.get_model_preference_from_message(message)
+
+        if model_preference:
+            params.model_preference = model_preference
+
+        multimodal_content = self._process_task_multimodal_inputs(message, **kwargs)
+        if multimodal_content:
+            params.update(multimodal_content)
+        
+        return params
+
+    def _process_task_multimodal_inputs(
+        self, message: Union[str, Message, Dict[str, str]], **kwargs
+    ) -> Dict[str, Any]:
+        """Processes multimodal image inputs."""
+        task_multimodal_inputs = kwargs.pop("task_multimodal_inputs", None)
+        if task_multimodal_inputs is None and isinstance(message, Message):
+            task_multimodal_inputs = self._extract_message_values(
+                self.task_multimodal_inputs, message
             )
-
-        if not params:
-            raise ValueError("No content found in message object")
         
-        return params
+        content = {}
 
-    def _process_task_inputs(self, message: Message):
-        content = self._get_content_from_message(self.task_inputs, message)
+        for media_source in ["image", "mask"]:
+            data = task_multimodal_inputs.get(media_source, None)
+            if data:
+                encoded_data = self._prepare_data_uri(data)
+                content[media_source] = encoded_data
+
         return content
-
-    def _process_task_multimodal_inputs(self, message: Message):
-        params = {}
-        
-        image_path = self.task_multimodal_inputs.get("image", None)
-        mask_path = self.task_multimodal_inputs.get("mask", None)
-
-        if image_path:
-            image = self._get_content_from_message(image_path, message)
-            image_base64 = encode_data_to_base64(image)
-            params["image"] = image_base64
-        if mask_path:
-            mask = self._get_content_from_message(mask_path, message)
-            mask_base64 = encode_data_to_base64(mask)
-            params["mask"] = mask_base64
-
-        return params
 
     def _set_model(self, model: Union[BaseModel, ModelGateway]):
         if isinstance(model, tuple(VISION_GEN_MODEL_TYPES)):
