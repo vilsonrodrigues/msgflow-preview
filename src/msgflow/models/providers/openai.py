@@ -14,8 +14,9 @@ except:
     raise ImportError("`openai` client is not detected, please install"
                       "using `pip install msgflow[openai]`")
 
-from msgflow.logger import logger
+from msgflow.dotdict import dotdict
 from msgflow.exceptions import KeyExhaustedError
+from msgflow.logger import logger
 from msgflow.models.base import BaseModel
 from msgflow.models.response import ModelResponse, ModelStreamResponse
 from msgflow.models.tool_call_agg import ToolCallAggregator
@@ -198,6 +199,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
 
     def _generate(self, **kwargs):
         response = ModelResponse()
+        metadata = dotdict()
         
         return_reasoning = kwargs.pop("return_reasoning")
         return_annotations = kwargs.pop("return_annotations")        
@@ -210,6 +212,8 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             kwargs["response_format"] = json_schema
 
         model_output = self._execute_model(**kwargs)
+
+        metadata.update(model_output.usage.to_dict())
 
         choice = model_output.choices[0]
 
@@ -241,10 +245,10 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         elif choice.message.content:
             if xml_to_dict is True:
                 response.set_response_type("{}structured".format(prefix_response_type))
-                dict_parsed = xml_to_typed_dict(choice.message.content)
+                response_content = xml_to_typed_dict(choice.message.content)
                 if generation_schema: # Type validation
-                    response_content = msgspec.json.encode(dict_parsed)
-                    msgspec.json.decode(response_content, type=generation_schema)
+                    encoded_response_content = msgspec.json.encode(response_content)
+                    msgspec.json.decode(encoded_response_content, type=generation_schema)
             elif generation_schema is not None:
                 response.set_response_type("{}structured".format(prefix_response_type))
                 struct = msgspec.json.decode(
@@ -254,32 +258,34 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             else:
                 response.set_response_type("{}text_generation".format(prefix_response_type))                
                 if reasoning_content is not None or annotations_content is not None:
-                    response_content = {"answer": choice.message.content}
+                    response_content = dotdict({"answer": choice.message.content})
                 else:
                     response_content = choice.message.content
         elif choice.message.audio:
             # To multi turn conversation is necessary persist the audio id
             # https://platform.openai.com/docs/guides/audio#multi-turn-conversations
-            response_content = {
+            response_content = dotdict({
                 "id": choice.message.audio.id,
                 "audio": base64.b64decode(choice.message.audio.data),
-            }
+            })
             if choice.message.audio.transcript:
                 response.set_response_type("audio_text_generation")
                 response_content["text"] = choice.message.audio.transcript
             else:
                 response.set_response_type("audio_generation")
 
-        if reasoning_content is not None:
-            response_content["think"] = reasoning_content
+        if reasoning_content is not None:            
+            response_content.think = reasoning_content
         if annotations_content is not None: 
-            response_content["annotations"] = annotations_content        
+            response_content.annotations = annotations_content        
 
         response.add(response_content)
+        response.set_metadata(metadata)
         return response
 
     async def _stream_generate(self, **kwargs):
         aggregator = ToolCallAggregator()
+        metadata = dotdict()
 
         return_reasoning = kwargs.pop("return_reasoning")
         return_annotations = kwargs.pop("return_annotations")
@@ -287,7 +293,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
 
         model_output = self._execute_model(**kwargs)
 
-        for chunk in model_output:            
+        for chunk in model_output:
             if chunk.choices:
                 if (
                     return_reasoning is True and
@@ -317,11 +323,14 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                     chunk.choices[0].delta.annotations is not None
                 ):
                     stream_response.add(chunk.choices[0].delta.annotations)
-                            
+            elif chunk.usage:
+                metadata.update(chunk.usage.to_dict())
+
         if aggregator.tool_calls:
             stream_response.add(aggregator)
             stream_response.first_chunk_event.set()
 
+        stream_response.set_metadata(metadata)
         stream_response.add(None)
 
     def __call__(
