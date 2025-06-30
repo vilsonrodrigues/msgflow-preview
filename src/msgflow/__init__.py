@@ -1,6 +1,7 @@
 from .cache import response_cache
 from .data.databases.database import DataBase
 from .data.retrievers.retriever import Retriever
+from .dotdict import dotdict
 from .envs import set_envs
 from .generation.signature import InputField, OutputField, Signature
 from .message import Message
@@ -21,6 +22,7 @@ __all__ = [
     "OutputField",
     "Retriever",    
     "Signature",
+    "dotdict",
     "get_fn_name",
     "load",
     "response_cache",
