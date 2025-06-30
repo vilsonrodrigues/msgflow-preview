@@ -167,7 +167,9 @@ class Agent(Module):
         self._set_tool_choice(tool_choice)
         self._set_tools(tools)
 
-    def forward(self, message: Union[str, Dict[str, Any], Message], **kwargs):
+    def forward(
+        self, message: Union[str, Dict[str, Any], Message], **kwargs
+    ) -> Union[str, Dict[str, None], ModelStreamResponse, Message]:
         inputs = self._prepare_task(message, **kwargs)
         model_response = self._execute_model(prefilling=self.prefilling, **inputs)
         response = self._process_model_response(message, model_response, **inputs)
