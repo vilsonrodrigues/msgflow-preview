@@ -20,6 +20,7 @@ from code2mermaid import code_to_mermaid
 from jinja2 import Template
 from opentelemetry import trace
 
+from msgflow.dotdict import dotdict
 from msgflow.envs import envs
 from msgflow.exceptions import UnsafeModelResponse, UnsafeUserInput
 from msgflow.logger import logger
@@ -552,13 +553,15 @@ class Module:
 
     def _set_stream(self, stream: bool):
         if isinstance(stream, bool):
-             self.register_buffer("stream", stream)
+            self.register_buffer("stream", stream)
         else:
             raise TypeError(f"`stream` need be a bool given `{type(stream)}`")
 
     def _set_execution_kwargs(self, execution_kwargs: Optional[Dict[str, Any]] = None):
         if isinstance(execution_kwargs, dict) or execution_kwargs is None:
-             self.register_buffer("execution_kwargs", execution_kwargs)
+            if isinstance(execution_kwargs, dict):
+                execution_kwargs = dotdict(execution_kwargs)
+            self.register_buffer("execution_kwargs", execution_kwargs)
         else:
             raise TypeError(f"`execution_kwargs` need be a dict or None given `{type(stream)}`")
         
@@ -809,7 +812,7 @@ class Module:
             self._parameters[name] = None
         elif not isinstance(param, Parameter):
             raise TypeError(
-                f"cannot assign '{type(param)}' object to parameter '{name}' "
+                f"cannot assign `{type(param)}` object to parameter `{name}` "
                 "(msgflow.nn.Parameter required)"
             )
         else:
@@ -834,7 +837,7 @@ class Module:
         elif not isinstance(name, str):
             raise TypeError(f"module name should be a string. Got {type(name)}")
         elif hasattr(self, name) and name not in self._modules:
-            raise KeyError(f"attribute '{name}' already exists")
+            raise KeyError(f"attribute `{name}` already exists")
         elif "." in name:
             raise KeyError(f"module name can't contain '.', got: {name}")
         elif name == "":
