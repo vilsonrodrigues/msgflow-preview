@@ -153,7 +153,7 @@ class Designer(Module):
             )
 
     def _prepare_task(self, message: Union[str, Message], **kwargs) -> Dict[str, Any]:
-        params = dotdict()
+        inputs = dotdict()
 
         if isinstance(message, Message):
             prompt = self._extract_message_values(self.task_inputs, message)
@@ -164,20 +164,20 @@ class Designer(Module):
             raise ValueError("`prompt` cannot be None, pass `message` as str or"
                              "set `task_inputs` and pass a Message")
         else:
-            params.prompt = prompt
+            inputs.prompt = prompt
 
         model_preference = kwargs.pop("model_preference", None)
         if model_preference is None and isinstance(message, Message):
             model_preference = self.get_model_preference_from_message(message)
 
         if model_preference:
-            params.model_preference = model_preference
+            inputs.model_preference = model_preference
 
         multimodal_content = self._process_task_multimodal_inputs(message, **kwargs)
         if multimodal_content:
-            params.update(multimodal_content)
+            inputs.update(multimodal_content)
         
-        return params
+        return inputs
 
     def _process_task_multimodal_inputs(
         self, message: Union[str, Message, Dict[str, str]], **kwargs
