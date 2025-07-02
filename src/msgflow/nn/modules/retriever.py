@@ -1,4 +1,6 @@
 from typing import Any, Dict, List, Optional, Union
+
+from msgflow.dotdict import dotdict
 from msgflow.message import Message
 from msgflow.data.databases.types import VectorDB
 from msgflow.models.types import (
@@ -14,7 +16,6 @@ from msgflow.data.retrievers.types import (
 from msgflow.models.gateway import ModelGateway
 from msgflow.nn import functional as F
 from msgflow.nn.modules.module import Module
-from msgflow.utils.encode import encode_to_io_object
 
 
 _RETRIVERS = Union[WebRetriever, LexicalRetriever, SemanticRetriever, VectorDB]
@@ -33,7 +34,6 @@ class Retriever(Module):
         *,        
         model: Optional[_MODELS] = None,
         task_inputs: Optional[Union[str, Dict[str, str]]] = None,
-        task_multimodal_inputs: Optional[Dict[str, List[str]]] = None,
         response_mode: Optional[str] = "plain_response",
         response_template: Optional[str] = None,
         top_k: Optional[int] = 4,
@@ -42,15 +42,10 @@ class Retriever(Module):
         dict_key: Optional[str] = None,
     ):
         super().__init__()
-        if task_inputs is None and task_multimodal_inputs is None:
-            raise ValueError(
-                "`nn.Retriever` requires `task_inputs` or `task_multimodal_inputs`"
-            )
         self.set_name(name)
-        self._set_retriever(retriever)        
+        self._set_retriever(retriever)
         self._set_model(model)
         self._set_task_inputs(task_inputs)
-        self._set_task_multimodal_inputs(task_multimodal_inputs)
         self._set_response_mode(response_mode)
         self._set_response_template(response_template)
         self._set_top_k(top_k)
@@ -58,17 +53,20 @@ class Retriever(Module):
         self._set_return_score(return_score)
         self._set_dict_key(dict_key)
 
-    # TODO: allow imgs
-    def forward(self, message: Union[str, List[str], List[Dict[str, Any]], Message]):
-        queries = self._prepare_task(message)
-        retriever_response = self._execute_retriever(queries)
+    def forward(
+        self, message: Union[str, List[str], List[Dict[str, Any]], Message], **kwargs
+    ) -> Dict[str, str]:
+        inputs = self._prepare_task(message, **kwargs)
+        retriever_response = self._execute_retriever(**inputs)
         response = self._prepare_response(retriever_response, message)
         return response
 
-    def _execute_retriever(self, queries) -> List[Dict[str, Any]]:            
+    def _execute_retriever(
+        self, queries: List[str], model_preference: Optional[str] = None
+    ) -> List[Dict[str, Any]]:            
         queries_embed = None
         if self.model:
-            queries_embed = self._execute_model(queries)
+            queries_embed = self._execute_model(queries, model_preference)
     
         retriever_execution_params = self._prepare_retriever_execution(queries_embed or queries)
         retriever_response = self.retriever(**retriever_execution_params)
@@ -88,24 +86,26 @@ class Retriever(Module):
 
         return results
 
-    def _prepare_retriever_execution(self, queries):
-        retriever_execution_params = {
+    def _prepare_retriever_execution(self, queries: List[Union[str, List[float]]]) -> Dict[str, Any]:
+        retriever_execution_params = dotdict({
             "queries": queries,
             "top_k": self.top_k,
             "threshold": self.threshold,
             "return_score": self.return_score,
-        }
+        })
         return retriever_execution_params
 
-    def _execute_model(self, queries):
+    def _execute_model(
+        self, queries: List[str], model_preference: Optional[str] = None
+    ) -> List[List[float]]:
         if "bached" in self.model.model_type or len(queries) == 1:
-            model_execution_params = self._prepare_model_execution(queries)
+            model_execution_params = self._prepare_model_execution(queries, model_preference)
             model_response = self.model(**model_execution_params)
             queries_embed = self._extract_raw_response(model_response)
             if not isinstance(queries_embed, list):
                 queries_embed = [queries_embed]
         else:
-            distributed_params = [self._prepare_model_execution(query) for query in queries]
+            distributed_params = [self._prepare_model_execution(query, model_preference) for query in queries]
             to_send = [self.model for _ in range(len(distributed_params))]
             responses = F.scatter_gather(to_send, kwargs_list=distributed_params)
             raw_resposes = [self._extract_raw_response(model_response) for model_response in responses]
@@ -113,74 +113,56 @@ class Retriever(Module):
 
         return queries_embed
 
-    def _prepare_model_execution(self, queries):
+    def _prepare_model_execution(
+        self, queries: List[str], model_preference: Optional[str] = None
+    ) -> Dict[str, Union[str, List[str]]]:
         if len(queries) == 1:
             queries = queries[0]        
-        model_execution_params = {"data": queries}
+        model_execution_params = dotdict({"data": queries})
+        if isinstance(self.model, ModelGateway) and model_preference is not None:
+            model_execution_params.model_preference = model_preference        
         return model_execution_params
 
     def _prepare_task(
-        self, message: Union[str, List[str], List[Dict[str, Any]], Message]
+        self, message: Union[str, List[str], List[Dict[str, Any]], Message], **kwargs
     ) -> List[str]:
-        if isinstance(message, str):
-            queries = [message]
-        elif isinstance(message, list):
-            if isinstance(message[0], dict):
-                queries = self._process_list_of_dict_inputs(message)
-            else:
-                queries = message
-        elif isinstance(message, Message):
-            queries = self._process_message_task(message)
+        if isinstance(message, Message):
+            queries = self._extract_message_values(self.task_inputs, message)
         else:
-            raise ValueError("Unsupported message type")
-        return queries
+            queries = message
 
-    def _process_list_of_dict_inputs(self, message: List[Dict[str, Any]]) -> List[str]:
-        """Useful to generation schemas
-        [{'name': 'vilsin'}]
-        dict_key='name'
+        if isinstance(queries, str):
+            queries = [queries]
+        elif isinstance(queries, list):
+            if isinstance(queries[0], dict):
+                queries = self._process_list_of_dict_inputs(queries)
+
+        model_preference = kwargs.pop("model_preference", None)
+        if model_preference is None and isinstance(message, Message):
+            model_preference = self.get_model_preference_from_message(message)        
+
+        return dotdict({
+            "queries": queries,
+            "model_preference": model_preference
+        })
+
+    def _process_list_of_dict_inputs(self, queries: List[Dict[str, Any]]) -> List[str]:
+        """ Extract the query value from a dict.
+
+        Example:
+            self.dict_key='name'
+            [{'name': 'clark', 'age': 27}]
         """
         if self.dict_key:
-            queries = [data[self.dict_key] for data in message]
-            return queries
+            queries_list = [data[self.dict_key] for data in queries]
+            return queries_list
         else:
             raise AttributeError(
                 "message that contain `List[Dict[str, Any]]` "
                 "require a `dict_key` to select the key for retrieval"
             )
 
-    def _process_message_task(self, message: Message) -> List[Union[str, ]]:
-        if self.task_inputs:
-            content = self._process_task_inputs(message)
-        elif self.task_multimodal_inputs:
-            content = self._process_task_multimodal_inputs(message)
-        else:
-            raise AttributeError(
-                "a message object was passed but neither `task_inputs` "
-                "nor `task_multimodal_inputs` were defined")        
-        queries = self._prepare_task(content) # Recurssion
-        return queries
-
-    def _process_task_inputs(self, message):
-        content = self._get_content_from_message(self.task_inputs, message)        
-        if content is None:
-            raise ValueError(f"No content found in paths: {self.task_inputs}")
-        return content
-
-    def _process_task_multimodal_inputs(self, message: Message) -> List[Dict[str, Any]]:
-        content = []
-        for image_path in self.task_multimodal_inputs.get("image", []):
-            image_data = self._get_content_from_message(image_path, message)        
-            if image_data:
-                image_bytes_io = encode_to_io_object(image_data)
-                content.append(image_bytes_io)
-        # TODO: another multimodal inputs is not supported yet
-        return content
-
-    def _set_retriever(
-        self,
-        retriever: _RETRIVERS,
-    ):
+    def _set_retriever(self, retriever: _RETRIVERS):
         if isinstance(
             retriever, (WebRetriever, LexicalRetriever, SemanticRetriever, VectorDB)
         ):
@@ -191,10 +173,7 @@ class Retriever(Module):
                 f"`SemanticRetriever` or `VectorDB` instance given `{type(retriever)}`"
             )        
 
-    def _set_model(
-        self,
-        model: Optional[_MODELS] = None,
-    ):
+    def _set_model(self, model: Optional[_MODELS] = None):
         if "embedder" in model.model_type or model == None:
             self.register_buffer("model", model)
         else:
