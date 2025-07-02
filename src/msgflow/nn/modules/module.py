@@ -574,15 +574,18 @@ class Module:
             raise ValueError(f"Unsupported `model_response={type(model_response)}`")
         return raw_response
 
-    def _prepare_response(self, raw_response, message):
-        if self.response_template is not None and not isinstance(raw_response, ModelStreamResponse):
+    def _prepare_response(self, raw_response: Any, message: Any) -> Any:
+        if (
+            not isinstance(raw_response, ModelStreamResponse)
+            or
+            (hasattr(self, "response_template") and self.response_template is not None)
+        ):
             response = self._format_response_template(raw_response)
         else:
             response = raw_response
-            
         return self._define_response_mode(response, message)
 
-    def _define_response_mode(self, response, message):        
+    def _define_response_mode(self, response: Any, message: Any) -> Any:
         if self.response_mode == "plain_response":
             return response
         elif isinstance(message, Message):
@@ -682,14 +685,8 @@ class Module:
             raise UnsafeModelResponse()# TODO
         return
 
-    def get_model_preference_from_message(self, message: Message):                
-        if (
-            isinstance(message, Message) 
-            and 
-            self.model_preference
-            and
-            isinstance(self.model, ModelGateway)
-        ):
+    def get_model_preference_from_message(self, message: Message) -> Optional[str]: 
+        if isinstance(message, Message) and isinstance(self.model_preference, str):
             return message.get(self.model_preference)
         else:
             return None
