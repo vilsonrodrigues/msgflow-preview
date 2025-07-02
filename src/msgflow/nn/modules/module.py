@@ -438,10 +438,10 @@ class Module:
         if isinstance(paths, str):
             return self._get_content_from_message(paths, message)
         elif isinstance(paths, dict):
-            return {
+            return dotdict({
                 key: self._get_content_from_message(path, message)
                 for key, path in paths.items()
-            }
+            })
         elif isinstance(paths, list):
             return [
                 self._get_content_from_message(path, message)
@@ -565,14 +565,13 @@ class Module:
         else:
             raise TypeError(f"`execution_kwargs` need be a dict or None given `{type(stream)}`")
         
-    def _extract_raw_response(self, model_response):
+    def _extract_raw_response(self, model_response: Union[ModelResponse, ModelStreamResponse]) -> Any:
         if isinstance(model_response, ModelResponse):
-            raw_response = model_response.consume()
+            return model_response.consume()
         elif isinstance(model_response, ModelStreamResponse):
-            raw_response = model_response
+            return model_response
         else:
             raise ValueError(f"Unsupported `model_response={type(model_response)}`")
-        return raw_response
 
     def _prepare_response(self, raw_response: Any, message: Any) -> Any:
         if (
