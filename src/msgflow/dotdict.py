@@ -157,3 +157,9 @@ class dotdict(dict):
 
     def to_json(self):
         return msgspec.json.encode(self.__json__)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.to_dict()!r})"
+
+    def __str__(self):
+        return str(self.to_dict())
