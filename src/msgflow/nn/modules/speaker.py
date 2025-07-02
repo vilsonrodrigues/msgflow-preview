@@ -1,6 +1,8 @@
-from typing import Callable, Literal, Optional, Union
+from typing import Any, Callable, Dict, Literal, Optional, Union
+from msgflow.dotdict import dotdict
 from msgflow.message import Message
 from msgflow.models.gateway import ModelGateway
+from msgflow.models.response import ModelResponse, ModelStreamResponse
 from msgflow.models.types import TTSModel
 from msgflow.nn.modules.module import Module
 
@@ -47,37 +49,48 @@ class Speaker(Module):
         self._set_stream(stream)
         self._set_task_inputs(task_inputs)
 
-    def forward(self, message: Union[str, Message]):
-        model_preference = self.get_model_preference(message)
-        data = self._prepare_task(message)
-        model_response = self._execute_model(data, model_preference)
+    def forward(
+        self, message: Union[str, Message], **kwargs
+    ) -> Union[str, ModelStreamResponse]:
+        inputs = self._prepare_task(message, **kwargs)
+        model_response = self._execute_model(**inputs)
         response = self._process_model_response(model_response, message)
         return response
 
-    def _execute_model(self, data, model_preference=None):
+    def _execute_model(
+        self, data: str, model_preference: Optional[str] = None
+    ) -> Union[ModelResponse, ModelStreamResponse]:
         model_execution_params = self._prepare_model_execution(data, model_preference)
         if self.input_guardrail is not None:
             self._execute_input_guardrail(model_execution_params)        
         model_response = self.model(**model_execution_params)
         return model_response
 
-    def _prepare_model_execution(self, data, model_preference=None):
-        model_execution_params = {
+    def _prepare_model_execution(
+        self, data: str, model_preference: Optional[str] = None
+    ) -> Dict[str, Union[str, bool]]:
+        model_execution_params = dotdict({
             "data": data,
             "response_format": self.response_format,
             "prompt": self.prompt,
-        }
+        })
         if self.stream:
-            model_execution_params["stream"] = self.stream
-        if model_preference:
-            model_execution_params["model_preference"] = model_preference
+            model_execution_params.stream = self.stream
+        if isinstance(self.model, ModelGateway) and model_preference is not None:
+            model_execution_params.model_preference = model_preference
         return model_execution_params        
 
-    def _prepare_guardrail_execution(self, model_execution_params):
-        guardrail_params = {"data": model_execution_params.get("data")}
+    def _prepare_guardrail_execution(
+        self, model_execution_params: Dict[str, Union[str, bool]]
+    ) -> Dict[str, str]:
+        guardrail_params = {"data": model_execution_params.data}
         return guardrail_params
 
-    def _process_model_response(self, model_response, message):
+    def _process_model_response(
+        self, 
+        model_response: Union[ModelResponse, ModelStreamResponse], 
+        message: Union[str, Message]
+    ) -> Union[str, Message, ModelStreamResponse]:
         if model_response.response_type == "audio_generation":
             raw_response = self._extract_raw_response(model_response)
             response = self._prepare_response(raw_response, message)
@@ -87,24 +100,24 @@ class Speaker(Module):
                 f"Unsupported model response type `{model_response.response_type}`"
             )
 
-    def _prepare_task(self, message):
-        if isinstance(message, str):
+    def _prepare_task(self, message: Union[str, Message], **kwargs) -> Dict[str, str]:
+        if isinstance(message, Message):
+            data = self._get_content_from_message(self.task_inputs, message)
+            if data is None:
+                raise ValueError(f"No text found in paths: `{self.task_inputs}`")
+        elif isinstance(message, str):
             data = message
-        elif isinstance(message, Message):
-            data = self._process_message_task(message)
         else:
             raise ValueError(f"Unsupported message type: `{type(message)}`")
-        return data
 
-    def _process_message_task(self, message: Message):         
-        content = self._process_task_inputs(message)
-        return content
+        model_preference = kwargs.pop("model_preference", None)
+        if model_preference is None and isinstance(message, Message):
+            model_preference = self.get_model_preference_from_message(message)
 
-    def _process_task_inputs(self, message: Message):
-        content = self._get_content_from_message(self.task_inputs, message)
-        if content is None:
-            raise ValueError(f"No text found in paths: `{self.task_inputs}`")
-        return content
+        return {
+            "data": data,
+            "model_preference": model_preference
+        }
 
     def _set_model(self, model: Union[TTSModel, ModelGateway]):
         if model.model_type == "tts":
