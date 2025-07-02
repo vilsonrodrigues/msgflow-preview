@@ -1,6 +1,8 @@
-from typing import Dict, Optional, Union
+from typing import Any, Dict, Optional, Union
+from msgflow.dotdict import dotdict
 from msgflow.message import Message
 from msgflow.models.gateway import ModelGateway
+from msgflow.models.response import ModelResponse, ModelStreamResponse
 from msgflow.models.types import ASRModel
 from msgflow.nn.modules.module import Module
 from msgflow.utils.encode import encode_data_to_bytes
@@ -61,34 +63,43 @@ class Transcriber(Module):
         self._set_task_multimodal_inputs(task_multimodal_inputs)
         self._set_timestamp_granularities(timestamp_granularities)
 
-    def forward(self, message: Union[str, Message]):
-        model_preference = self.get_model_preference(message)
-        data = self._prepare_task(message)
-        model_response = self._execute_model(data, model_preference)
+    def forward(
+        self, message: Union[bytes, str, Dict[str, str], Message], **kwargs
+    ) -> Union[str, Dict[str, str], Message, ModelStreamResponse]:
+        inputs = self._prepare_task(message, **kwargs)
+        model_response = self._execute_model(**inputs)
         response = self._process_model_response(model_response, message)
         return response
 
-    def _execute_model(self, data, model_preference=None):
+    def _execute_model(
+        self, data: bytes, model_preference: Optional[str] = None
+    ) -> Union[ModelResponse, ModelStreamResponse]:
         model_execution_params = self._prepare_model_execution(data, model_preference)
         model_response = self.model(**model_execution_params)
         return model_response
 
-    def _prepare_model_execution(self, data, model_preference=None):
-        model_execution_params = {
+    def _prepare_model_execution(
+        self, data: bytes, model_preference: Optional[str] = None
+    ) -> Dict[str, Any]:
+        model_execution_params = dotdict({
             "data": data,
             "language": self.language,
             "response_format": self.response_format,
             "timestamp_granularities": self.timestamp_granularities,
             "prompt": self.prompt,
             "stream": self.stream,
-        }
-        if model_preference:
-            model_execution_params["model_preference"] = model_preference   
+        })
+        if isinstance(self.model, ModelGateway) and model_preference is not None:
+            model_execution_params.model_preference = model_preference
         return model_execution_params
 
-    def _process_model_response(self, model_response, message):
+    def _process_model_response(
+        self, 
+        model_response: Union[ModelResponse, ModelStreamResponse],
+        message: Union[str, Message]
+    ) -> Union[str, Dict[str, str], Message, ModelStreamResponse]:        
         if model_response.response_type == "transcript":
-            raw_response = self._extract_raw_response(model_response) # TODO validar stream
+            raw_response = self._extract_raw_response(model_response)
             response = self._prepare_response(raw_response, message)
             return response
         else:
@@ -96,37 +107,35 @@ class Transcriber(Module):
                 f"Unsupported model response type `{model_response.response_type}`"
             )
 
-    def _prepare_task(self, message):
-        if isinstance(message, str):
-            audio_data = message
-        elif isinstance(message, Message):
-            audio_data = self._process_message_task(message)
+    def _prepare_task(
+        self, message: Union[bytes, str, Dict[str, str], Message], **kwargs
+    ) -> Dict[str, Union[bytes, str]]:
+        data = self._process_task_multimodal_inputs(message)
+
+        model_preference = kwargs.pop("model_preference", None)
+        if model_preference is None and isinstance(message, Message):
+            model_preference = self.get_model_preference_from_message(message)
+
+        return {
+            "data": data,
+            "model_preference": model_preference
+        }
+
+    def _process_task_multimodal_inputs(
+        self, message: Union[bytes, str, Dict[str, str], Message]
+    ) -> bytes:
+        if isinstance(message, Message):
+            audio_content = self._extract_message_values(self.task_multimodal_inputs, message)
         else:
-            raise ValueError(f"Unsupported message type: `{type(message)}`")
-        
-        data = encode_data_to_bytes(audio_data)        
+            audio_content = message
+
+        if isinstance(audio_content, bytes):
+            return message
+        elif isinstance(audio_content, dict):
+            audio_content = audio_content.get("audio")
+
+        data = encode_data_to_bytes(audio_content)
         return data
-
-    def _process_message_task(self, message: Message):
-        if self.task_multimodal_inputs:
-            content = self._process_task_multimodal_inputs(message)
-        else:
-            raise AttributeError(
-                "A message object was passed but neither `multimodal_task_inputs` "
-                "were defined"
-            )            
-        return content        
-
-    def _process_task_multimodal_inputs(self, message: Message) -> bytes:
-        content = None
-        audio_path = self.task_multimodal_inputs.get("audio", None)
-
-        if audio_path:
-            content = self._get_content_from_message(audio_path, message)
-            
-        if content is None:
-            raise ValueError(f"No audio found in paths: `{self.task_inputs}`")            
-        return content
 
     def _set_model(self, model: Union[ASRModel, ModelGateway]):
         if model.model_type == "asr":
