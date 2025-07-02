@@ -51,7 +51,7 @@ class Speaker(Module):
 
     def forward(
         self, message: Union[str, Message], **kwargs
-    ) -> Union[str, ModelStreamResponse]:
+    ) -> Union[bytes, ModelStreamResponse]:
         inputs = self._prepare_task(message, **kwargs)
         model_response = self._execute_model(**inputs)
         response = self._process_model_response(model_response, message)
@@ -78,7 +78,7 @@ class Speaker(Module):
             model_execution_params.stream = self.stream
         if isinstance(self.model, ModelGateway) and model_preference is not None:
             model_execution_params.model_preference = model_preference
-        return model_execution_params        
+        return model_execution_params
 
     def _prepare_guardrail_execution(
         self, model_execution_params: Dict[str, Union[str, bool]]
@@ -90,7 +90,7 @@ class Speaker(Module):
         self, 
         model_response: Union[ModelResponse, ModelStreamResponse], 
         message: Union[str, Message]
-    ) -> Union[str, Message, ModelStreamResponse]:
+    ) -> Union[bytes, Message, ModelStreamResponse]:
         if model_response.response_type == "audio_generation":
             raw_response = self._extract_raw_response(model_response)
             response = self._prepare_response(raw_response, message)
