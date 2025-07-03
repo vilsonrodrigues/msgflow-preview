@@ -152,7 +152,8 @@ class dotdict(dict):
             return value
         return unwrap(self)
 
-    def to_json(self):
+    def to_json(self) -> bytes:
+        """Returns a encoded-JSON"""
         return msgspec.json.encode(self.to_dict())
 
     def __repr__(self):
