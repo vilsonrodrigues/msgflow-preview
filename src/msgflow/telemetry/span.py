@@ -92,9 +92,9 @@ def trace(
     return decorator                         
 
 def trace_tool_library_call(forward):
-    def wrapper(self, tool_callings, *args):
+    def wrapper(self, tool_callings, model_state):
         with self._spans.tool_usage(tool_callings) as span:
-            tool_execution_result = forward(self, tool_callings)
+            tool_execution_result = forward(self, tool_callings, model_state)
             if envs.telemetry_capture_tool_call_responses:
                 span.set_attribute("msgflow.nn.tool.responses", tool_execution_result.to_json())
             return tool_execution_result
