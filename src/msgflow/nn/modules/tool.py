@@ -190,7 +190,7 @@ class ToolLibrary(Module):
     def forward(
         self, 
         tool_callings: List[Tuple[str, str, Any]],
-        model_state: List[Dict[str, Any]]
+        model_state: List[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Executes tool calls with logic for `handoff`, `return_direct` and serialization.
 
