@@ -152,11 +152,8 @@ class dotdict(dict):
             return value
         return unwrap(self)
 
-    def __json__(self):
-        return self.to_dict()
-
     def to_json(self):
-        return msgspec.json.encode(self.__json__)
+        return msgspec.json.encode(self.to_dict())
 
     def __repr__(self):
         return f"{self.to_dict()!r}"
