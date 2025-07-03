@@ -29,23 +29,23 @@ def tool_config(
         by injecting the specified properties.
     """
     def decorator(f):
-        props = {
-            "props": dotdict({
+        tool_config = {
+            "tool_config": dotdict({
                 "return_direct": return_direct,
                 "handoff": handoff,
             })
         }
         if isinstance(f, (FunctionType, MethodType)):
-            return decorate_function(f, name_override, props)
+            return decorate_function(f, name_override, tool_config)
         if isinstance(f, type): # Not initialized class
             f = f() # Init class
-        return decorate_instance(f, name_override, props)
+        return decorate_instance(f, name_override, tool_config)
     return decorator
 
 def decorate_function(
     func: Union[FunctionType, MethodType], 
     override_name: str, 
-    props: Dict[str, Union[bool, str]]
+    tool_config: Dict[str, Union[bool, str]]
 ) -> Union[FunctionType, MethodType]:
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -55,17 +55,17 @@ def decorate_function(
         wrapper.__name__ = override_name
         wrapper.__qualname__ = override_name
 
-    wrapper.__dict__.update(props)
+    wrapper.__dict__.update(tool_config)
     return wrapper
 
 def decorate_instance(
     instance: Callable, 
     override_name: str, 
-    props: Dict[str, Union[bool, str]]
+    tool_config: Dict[str, Union[bool, str]]
 ) -> Callable:
     if override_name:
         instance.__name__ = override_name
         instance.__qualname__ = override_name
 
-    instance.__dict__.update(props)
+    instance.__dict__.update(tool_config)
     return instance
