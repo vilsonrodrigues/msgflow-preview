@@ -135,7 +135,7 @@ class dotdict(dict):
             if isinstance(key, str) and "." in key:
                 self.set(key, value)
 
-            # value is dict and there is already a DotDict on that key? Merge recursively
+            # Value is dict and there is already a dotdict on that key? Merge recursively
             elif isinstance(value, dict) and key in self and isinstance(self[key], dotdict):
                 self[key].update(value)
 
@@ -159,7 +159,7 @@ class dotdict(dict):
         return msgspec.json.encode(self.__json__)
 
     def __repr__(self):
-        return f"{self.__class__.__name__}({self.to_dict()!r})"
+        return f"{self.to_dict()!r}"
 
     def __str__(self):
         return str(self.to_dict())
