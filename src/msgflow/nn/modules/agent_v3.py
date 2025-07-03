@@ -97,11 +97,10 @@ class Agent(Module):
         fixed_messages: Optional[List[Dict[str, Any]]] = None,
         signature: Optional[Union[str, Signature]] = None,
         return_reasoning: Optional[bool] = False,
-        temp_team_members: Optional[str] = None,        
         #verbose: Optional[bool] = False,
         description: Optional[str] = None,
-        _system_prompt_template: Optional[str] = SYSTEM_PROMPT_TEMPLATE,
-        _xml_to_dict_template: Optional[str] = XML_TO_DICT_TEMPLATE,
+        system_prompt_template: Optional[str] = SYSTEM_PROMPT_TEMPLATE,
+        xml_to_dict_template: Optional[str] = XML_TO_DICT_TEMPLATE,
         _annotations: Optional[Dict[str, type]] = {"message": Union[str, Dict[str, str]], "return": str},
     ):
         super().__init__()
@@ -119,17 +118,17 @@ class Agent(Module):
             if xml_to_dict is True:
                 raise ValueError("`xml_to_dict=True` is not `stream=True` compatible")
 
-        self._set_xml_to_dict_template(_xml_to_dict_template)
+        self._set_xml_to_dict_template(xml_to_dict_template)
 
         if signature is not None:
-            signature_params = {
+            signature_params = dotdict({
                 "signature": signature, 
                 "instructions": instructions,
                 "system_message": system_message,
                 "xml_to_dict": xml_to_dict,
-            }
+            })
             if generation_schema is not None:
-                signature_params["generation_schema"] = generation_schema
+                signature_params.generation_schema = generation_schema
             self._set_signature(**signature_params)
         else:
             self._set_examples(examples)
@@ -155,15 +154,13 @@ class Agent(Module):
         self._set_prefilling(prefilling)
         self._set_system_extra_message(system_extra_message)
         self._set_include_date(include_date)
-        self._set_system_prompt_template(_system_prompt_template)
+        self._set_system_prompt_template(system_prompt_template)
         self._set_response_mode(response_mode)
         self._set_stream(stream)
         self._set_response_template(response_template)
         self._set_return_reasoning(return_reasoning)
         self._set_task_multimodal_inputs(task_multimodal_inputs)
         self._set_task_inputs(task_inputs)
-        self._set_team_members()
-        self._set_temp_team_members(temp_team_members)
         self._set_tool_choice(tool_choice)
         self._set_tools(tools)
 
@@ -179,11 +176,10 @@ class Agent(Module):
         self, 
         model_state: List[Dict[str, Any]],
         prefilling: Optional[str] = None,
-        model_preference: Optional[str] = None, 
-        temp_team_members: Optional[str] = None
+        model_preference: Optional[str] = None,
     ) -> Union[ModelResponse, ModelStreamResponse]:
         model_execution_params = self._prepare_model_execution(
-            model_state, prefilling, model_preference, temp_team_members
+            model_state, prefilling, model_preference,
         )
         if self.input_guardrail:
             self._execute_input_guardrail(model_execution_params)
@@ -192,11 +188,10 @@ class Agent(Module):
 
     @trace_agent_prepare_model_execution
     def _prepare_model_execution(
-        self, 
+        self,
         model_state: List[Dict[str, Any]],
         prefilling: Optional[str] = None,
-        model_preference: Optional[str] = None, 
-        temp_team_members: Optional[str] = None
+        model_preference: Optional[str] = None,
     ) -> Dict[str, Any]:
         agent_state = []
 
@@ -205,7 +200,7 @@ class Agent(Module):
 
         agent_state.extend(model_state)
 
-        system_prompt = self._get_system_prompt(temp_team_members=temp_team_members)
+        system_prompt = self._get_system_prompt()
 
         tool_schemas = self.tool_library.get_tool_json_schemas()
         if not tool_schemas:
@@ -257,16 +252,15 @@ class Agent(Module):
         message: Union[str, Dict[str, str], Message],
         model_response: Union[ModelResponse, ModelStreamResponse],
         model_state: List[Dict[str, Any]],
-        model_preference: Optional[str] = None,
-        temp_team_members: Optional[str] = None        
+        model_preference: Optional[str] = None, 
     ) -> Union[str, Dict[str, str], Message, ModelStreamResponse]:
         if "tool_call" in model_response.response_type:
             model_response, model_state = self._process_tool_call_response(
-                model_response, model_state, model_preference, temp_team_members
+                model_response, model_state, model_preference,
             )
         elif is_subclass_of(self.generation_schema, ReAct):
             model_response, model_state = self._process_react_response(
-                model_response, model_state, model_preference, temp_team_members
+                model_response, model_state, model_preference,
             )
         
         raw_response = self._extract_raw_response(model_response)
@@ -286,7 +280,6 @@ class Agent(Module):
         model_response: Union[ModelResponse, ModelStreamResponse],
         model_state: Dict[str, Any],
         model_preference: Optional[str] = None,
-        temp_team_members: Optional[str] = None
     ) -> Tuple[Union[str, Dict[str, Any], ModelStreamResponse], Dict[str, Any]]:
         while True:
             raw_response = self._extract_raw_response(model_response)
@@ -322,17 +315,15 @@ class Agent(Module):
                 return model_response, model_state
 
             model_response = self._execute_model(
-                model_state=model_state, 
-                model_preference=model_preference, 
-                temp_team_members=temp_team_members
+                model_state=model_state,
+                model_preference=model_preference,
             )
 
     def _process_tool_call_response(
         self,
         model_response: Union[ModelResponse, ModelStreamResponse],
         model_state: Optional[Dict[str, Any]],
-        model_preference: Optional[str] = None,
-        temp_team_members: Optional[str] = None
+        model_preference: Optional[str] = None
     ) -> Tuple[Union[str, Dict[str, Any], ModelStreamResponse], Dict[str, Any]]:
         """
         ToolCall example: [{'role': 'assistant', 'tool_calls': [{'id': 'call_1YL',
@@ -357,7 +348,6 @@ class Agent(Module):
             model_response = self._execute_model(
                 model_state=model_state,
                 model_preference=model_preference,
-                temp_team_members=temp_team_members
             )
 
     def _process_tool_call(
@@ -457,14 +447,9 @@ class Agent(Module):
         if model_preference is None and isinstance(message, Message):
             model_preference = self.get_model_preference_from_message(message)
 
-        temp_team_members = kwargs.pop("temp_team_members", None)
-        if temp_team_members is None and isinstance(message, Message):
-            temp_team_members = self._get_temp_team_members_from_message(message)
-
         return {
             "model_state": model_state,
             "model_preference": model_preference,
-            "temp_team_members": temp_team_members
         }
 
     def _process_task_inputs(
@@ -632,10 +617,6 @@ class Agent(Module):
             "file": {"filename": filename, "file_data": file_data_uri}
         }
 
-    def _get_temp_team_members_from_message(self, message: Message) -> Optional[List[str]]:
-        """Extract temp_team_members from Message if configured."""
-        return self._get_content_from_message(self.temp_team_members, message)
-
     def _get_task_messages_from_message(self, message: Message) -> Optional[List[Dict[str, Any]]]:
         """Returns a message history (ChatML format) from message"""        
         return self._get_content_from_message(self.task_messages, message)
@@ -788,20 +769,6 @@ class Agent(Module):
             raise TypeError("`task_messages` requires a string or None "
                             f"given `{type(task_messages)}`")
 
-    def _set_team_members(self, team_members: Optional[str] = None):
-        if isinstance(team_members, str) or team_members is None:
-            self.register_buffer("team_members", team_members)
-        else:
-            raise TypeError("`team_members` requires a string or None "
-                            f"given `{type(team_members)}`")
-
-    def _set_temp_team_members(self, temp_team_members: Optional[str] = None):
-        if isinstance(temp_team_members, str) or temp_team_members is None:
-            self.register_buffer("temp_team_members", temp_team_members)
-        else:
-            raise TypeError("`temp_team_members` requires a string or None "
-                            f"given `{type(temp_team_members)}`")
-
     def _set_system_prompt_template(self, system_prompt_template: Optional[str] = None):
         if isinstance(system_prompt_template, str) or system_prompt_template is None:
             self.register_buffer("system_prompt_template", system_prompt_template)
@@ -911,7 +878,7 @@ class Agent(Module):
             # Set xml output
             self._set_xml_to_dict(xml_to_dict)
 
-    def _get_system_prompt(self, temp_team_members=None) -> str:
+    def _get_system_prompt(self) -> str:
         """
         Render the system prompt using the Jinja template.
         Returns an empty string if no segments are provided.
@@ -926,15 +893,6 @@ class Agent(Module):
 
         if self.include_date:
             template_inputs["current_date"] = datetime.now().strftime("%m/%d/%Y")
-                
-        combined_team_members = [] # Combine team_members with temp_team_members
-        if self.team_members:
-            combined_team_members.extend(self.team_members)
-        if temp_team_members:
-            combined_team_members.extend(temp_team_members)
-        
-        if combined_team_members:
-            template_inputs["team_members"] = combined_team_members
             
         system_prompt = self._format_template(
             template_inputs, self.system_prompt_template
