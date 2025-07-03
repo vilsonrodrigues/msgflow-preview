@@ -100,6 +100,12 @@ def _convert_module_to_nn_tool(impl: Callable) -> ToolBase:
     else:
         raise ValueError("The given object is not a callable function, class, or instance")
 
+    if tool_config.handoff:
+        name = "transfer_to_" + name
+
+    if tool_config.background:
+        doc = "This tool will run in the background. \n" + doc
+
     class Tool(ToolBase):
 
         def __init__(self):
@@ -107,8 +113,8 @@ def _convert_module_to_nn_tool(impl: Callable) -> ToolBase:
             self.set_name(name)
             self.set_description(doc)
             self._set_annotations(annotations)    
+            self.register_buffer("tool_config", tool_config)
             self.impl = impl # Not a buffer for now
-            self.register_buffer("tool_configs", tool_config)
 
         @tool_retry
         def forward(self, *args, **kwargs):
@@ -218,6 +224,13 @@ class ToolLibrary(Module):
 
             tool = self.library[tool_name]
             config = self.tool_configs.get(tool_name)
+
+            if config.background:
+                return_directly = False
+                background_tool_params = tool_params or {}               
+                F.background_task(tool, **background_tool_params)                
+                responses[tool_id] = f"The `{tool_name}` tool was started in the background."
+                continue
 
             if config.get("handoff", False): # Add model_state
                 tool_params.task_messages = model_state # Will ALWAYS have 'message'

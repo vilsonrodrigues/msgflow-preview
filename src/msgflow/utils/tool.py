@@ -6,9 +6,10 @@ from msgflow.dotdict import dotdict
 
 def tool_config(
     *, 
-    return_direct: Optional[bool] = False, 
-    name_override: Optional[str] = None, 
-    handoff: Optional[bool] = False
+    return_direct: Optional[bool] = False,
+    background: Optional[bool] = False,
+    handoff: Optional[bool] = False,    
+    name_override: Optional[str] = None,
 ) -> Callable:
     """Decorator to inject custom properties into a function or class instance.
 
@@ -18,21 +19,32 @@ def tool_config(
 
     Args:
         return_direct: 
-            If True, the tool will return its output directly without additional processing. 
-        name_override: 
-            A custom name to override the default tool name derived from the function 
-            or class. If not provided, the original name is used.
+            If True, the tool will return its output directly without additional processing.
+        background:
+            If True, the tool will be executed in the background and a message that the task 
+            has been scheduled will be the response to the model.
         handoff: 
             If True, indicates that this function will receive the `model_state` from the Agent.
+        name_override:
+            A custom name to override the default tool name derived from the function 
+            or class. If not provided, the original name is used.
     Returns:
         A decorator that modifies the target function or class instance 
         by injecting the specified properties.
+
+    Raises:
+        ValueError: 
+           `background=True` is not compatible with `return_direct=True` and `handoff=True`.
     """
     def decorator(f):
+        if background is True and (return_direct is True or handoff is True):
+            raise ValueError("`background=True` is not compatible with "
+                             "`return_direct=True` and `handoff=True`")
         tool_config = {
             "tool_config": dotdict({
+                "background": background,
+                "handoff": handoff,                
                 "return_direct": return_direct,
-                "handoff": handoff,
             })
         }
         if isinstance(f, (FunctionType, MethodType)):
