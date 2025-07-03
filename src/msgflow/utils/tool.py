@@ -4,7 +4,7 @@ from typing import Callable, Dict, Optional, Union
 from msgflow.dotdict import dotdict
 
 
-def tool_props(
+def tool_config(
     *, 
     return_direct: Optional[bool] = False, 
     name_override: Optional[str] = None, 
