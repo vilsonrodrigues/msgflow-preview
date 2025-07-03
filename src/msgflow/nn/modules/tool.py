@@ -1,6 +1,10 @@
 import inspect
+from functools import partial
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union, Tuple
 
+import msgspec
+
+from msgflow.dotdict import dotdict
 from msgflow.logger import logger
 from msgflow.nn.modules.container import ModuleDict
 from msgflow.nn import functional as F
@@ -29,6 +33,9 @@ class ToolBase(Module):
 
 def _convert_module_to_nn_tool(impl: Callable) -> ToolBase:
     """Convert a callable in nn.Tool"""
+
+    tool_config = impl.__dict__("tool_config", {})
+
     # Case 1: Uninitialized or initialized class
     if inspect.isclass(impl) or callable(impl):
         if not hasattr(impl, "__call__"):
@@ -100,7 +107,8 @@ def _convert_module_to_nn_tool(impl: Callable) -> ToolBase:
             self.set_name(name)
             self.set_description(doc)
             self._set_annotations(annotations)    
-            self.impl = impl # Not a buffer for now      
+            self.impl = impl # Not a buffer for now
+            self.register_buffer("tool_configs", tool_config)
 
         @tool_retry
         def forward(self, *args, **kwargs):
@@ -111,8 +119,6 @@ def _convert_module_to_nn_tool(impl: Callable) -> ToolBase:
     return Tool()
 
 
-# implementar cancelamento de tarefas baseado em id
-# usar o id da img
 class ToolLibrary(Module):
     
     def __init__(
@@ -137,15 +143,24 @@ class ToolLibrary(Module):
                 raise ValueError(f"The special tool name `{tool}` is already in special tool library")
             self.special_library.append(tool)
         else:
-            if tool.__name__ in self.library.keys():
-                raise ValueError(f"The tool name `{tool.__name__}` is already in tool library")
+            name = tool.name if isinstance(tool, ToolBase) else tool.__name__
+            if name in self.library.keys():
+                raise ValueError(f"The tool name `{name}` is already in tool library")
             if not isinstance(tool, ToolBase):
                 tool = _convert_module_to_nn_tool(tool)
+
+            tool_config = tool.tool_config
+            self.tool_configs[tool.name] = {
+                "return_direct": tool_config.get("return_direct", False),
+                "handoff": tool_config.get("handoff", False),
+            }
+
             self.library.update({tool.name: tool})
 
     def remove(self, tool_name: str):
         if tool_name in self.library.keys():
             self.library.pop(tool_name)
+            self._tool_configs.pop(tool_name, None)
         elif tool_name in self.special_library:
             self.special_library.remove(tool_name)            
         else:
@@ -169,55 +184,66 @@ class ToolLibrary(Module):
         return [self.library[tool_name].get_json_schema() for tool_name in self.library]
 
     @trace_tool_library_call
-    def forward(self, tool_callings: List[Tuple[str, str, Any]]) -> Dict[str, str]:
-        """ Execute tool calls.
+    def forward(
+        self, 
+        tool_callings: List[Tuple[str, str, Any]],
+        model_state: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Executes tool calls with logic for `handoff`, `return_direct` and serialization.
 
         Args:
             tool_callings: 
                 A list of tuples containing the tool id, name and parameters.
-            
                 !!! example
-
                     [('123121', 'tool_name1', {'parameter1': 'value1'}),
                     ('322', 'tool_name2', '')]
-
+            model_state: 
+                The current state of the Agent for the `handoff` functionality.
+                    
         Returns:
-            A list of dictionary containing the id of the tool
-            and the result of the call.
-            
-            !!! example
-
-                {'123121': '12:00', '322': '4 * 2 = 8'}
+            A dict containing `return_directly` and `responses`. Where responses will be 
+            a mapping from `tool_name` to `tool_response` if `return_directly=True` or `tool_id`
+            to `tool_response` if `return_directly=False`.
         """
-        tool_responses = {}
+        prepared_calls = []
+        call_metadata = []
+        responses = {}
+        return_directly = True if tool_callings else False
 
-        tool_names = self.get_tool_names()
+        for tool_id, tool_name, tool_params in tool_callings:
+            if tool_name not in self.library:
+                responses[tool_id] = f"Error: Tool `{tool_name}` not found."
+                return_directly = False # Errors should always be returned to the model
+                continue
 
-        messages = []
-        to_send = []
-        tool_ids = []
+            tool = self.library[tool_name]
+            config = self.tool_configs.get(tool_name)
 
-        for id, name, kwargs in tool_callings:
-            if name in self.special_library:
-                #special_tool = SPECIAL_TOOLS.get(name, None) TODO
-                #if special_tool is None:
-                #    logger.warning(f"The special tool `{name}` is not implemented")
-                #else:
-                #    special_tool(**kwargs) # No return
-                pass
-            elif name in tool_names:
-                if kwargs:
-                    messages.append(**kwargs)
-                else:
-                    messages.append(None)
-                to_send.append(self.library[name])
-                tool_ids.append(id)
+            if config.get("handoff", False): # Add model_state
+                tool_params.task_messages = model_state # Will ALWAYS have 'message'
+
+            if not config.get("return_direct", False):
+                return_directly = False # Disable direct return
+
+            if tool_params:
+                prepared_calls.append(partial(tool, **tool_params))
             else:
-                tool_responses[id] = "This tool is not available"
+                prepared_calls.append(partial(tool, None)) # No params
+            
+            call_metadata.append(dotdict({"id": tool_id, "name": tool_name, "config": config}))
 
-        if messages and to_send:
-            responses = F.scatter_gather(to_send, kwargs_list=messages)
-            for id, response in zip(tool_ids, responses):
-                tool_responses[id] = response
+        if prepared_calls:
+            results = F.scatter_gather(prepared_calls)
+            for meta, result in zip(call_metadata, results):
+                if return_directly: # tool_name -> result
+                    responses[meta.name] = result
+                else: # tool_id -> result
+                    processed_result = None
+                    if not isinstance(result, str):
+                        processed_result = msgspec.json.encode(result).decode("utf-8")
+                    responses[meta.id] = processed_result or result
 
-        return tool_responses
+        return dotdict({
+            "return_directly": return_directly,
+            "responses": responses
+        })

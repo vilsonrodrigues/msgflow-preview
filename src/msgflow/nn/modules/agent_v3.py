@@ -255,7 +255,7 @@ class Agent(Module):
     def _process_model_response(
         self, 
         message: Union[str, Dict[str, str], Message],
-        model_response: Union[ModelResponse, ModelStreamResponse], 
+        model_response: Union[ModelResponse, ModelStreamResponse],
         model_state: List[Dict[str, Any]],
         model_preference: Optional[str] = None,
         temp_team_members: Optional[str] = None        
@@ -296,10 +296,13 @@ class Agent(Module):
                 tool_callings = [
                     (act.id, act.name, act.arguments) for act in actions
                 ]
-                tool_responses = self._process_tool_call(tool_callings)
+                tool_execution_result = self._process_tool_call(tool_callings, model_state)
+
+                if tool_execution_result.return_directly:
+                    return tool_execution_result.responses, model_state
 
                 for act in actions:
-                    act.result = tool_responses[[act.id]]
+                    act.result = tool_execution_result[[act.id]]
 
                 if model_state[-1]["role"] == "assistant":
                     last_react_msg = model_state[-1]["content"]
@@ -341,8 +344,11 @@ class Agent(Module):
             if model_response.response_type == "tool_call":
                 raw_response = self._extract_raw_response(model_response)
                 tool_callings = raw_response.get_calls()
-                tool_responses = self._process_tool_call(tool_callings)
-                raw_response.insert_results(tool_responses)
+                tool_execution_result = self._process_tool_call(tool_callings, model_state)
+                if tool_execution_result.return_directly:
+                    return tool_execution_result.responses, model_state
+                     
+                raw_response.insert_results(tool_execution_result.responses)
                 tool_responses_message = raw_response.get_messages()
                 model_state.extend(tool_responses_message)
             else:
@@ -354,9 +360,16 @@ class Agent(Module):
                 temp_team_members=temp_team_members
             )
 
-    def _process_tool_call(self, tool_callings: Dict[str, Any]) -> Dict[str, str]: 
-        tool_responses = self.tool_library(tool_callings)
-        return tool_responses
+    def _process_tool_call(
+        self, 
+        tool_callings: Dict[str, Any], 
+        model_state: List[Dict[str, Any]]
+    ) -> Dict[str, str]:
+        tool_execution_result = self.tool_library(
+            tool_callings=tool_callings,
+            model_state=model_state
+        )
+        return tool_execution_result
 
     def _prepare_response(
         self, 
