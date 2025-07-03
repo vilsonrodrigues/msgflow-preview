@@ -34,7 +34,7 @@ class ToolBase(Module):
 def _convert_module_to_nn_tool(impl: Callable) -> ToolBase:
     """Convert a callable in nn.Tool"""
 
-    tool_config = impl.__dict__("tool_config", {})
+    tool_config = impl.__dict__.get("tool_config", {})
 
     # Case 1: Uninitialized or initialized class
     if inspect.isclass(impl) or callable(impl):
