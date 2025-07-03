@@ -10,6 +10,7 @@ from .models.model import Model
 from .utils.chat import ChatML
 from .utils.inspect import get_fn_name
 from .utils.msgspec import load, save
+from .utils.tool import tool_props
 
 
 __all__ = [
@@ -27,5 +28,6 @@ __all__ = [
     "load",
     "response_cache",
     "save",
-    "set_envs",     
+    "set_envs",
+    "tool_props",
 ]
