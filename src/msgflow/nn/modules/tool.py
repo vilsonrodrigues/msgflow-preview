@@ -156,18 +156,14 @@ class ToolLibrary(Module):
             if not isinstance(tool, ToolBase):
                 tool = _convert_module_to_nn_tool(tool)
 
-            tool_config = tool.tool_config
-            self.tool_configs[tool.name] = {
-                "return_direct": tool_config.get("return_direct", False),
-                "handoff": tool_config.get("handoff", False),
-            }
+            self.tool_configs[tool.name] = tool.tool_config
 
             self.library.update({tool.name: tool})
 
     def remove(self, tool_name: str):
         if tool_name in self.library.keys():
             self.library.pop(tool_name)
-            self._tool_configs.pop(tool_name, None)
+            self.tool_configs.pop(tool_name, None)
         elif tool_name in self.special_library:
             self.special_library.remove(tool_name)            
         else:
@@ -226,7 +222,7 @@ class ToolLibrary(Module):
             tool = self.library[tool_name]
             config = self.tool_configs.get(tool_name)
 
-            if config.background:
+            if config.get("background", False):
                 return_directly = False
                 background_tool_params = tool_params or {}               
                 F.background_task(tool, **background_tool_params)                
