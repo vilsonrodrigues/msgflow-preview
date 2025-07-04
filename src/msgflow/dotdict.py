@@ -50,10 +50,12 @@ class dotdict(dict):
             raise AttributeError(f"`dotdict` object has no attribute '{attr}'")
 
     def __setattr__(self, key: str, value: Any):
-        if key.startswith("_") or not hasattr(self, "_frozen") or not self._frozen:
+        if key.startswith("_"):
             super().__setattr__(key, value)
-        else:
+        elif hasattr(self, "_frozen") and self._frozen:
             raise AttributeError("Cannot modify frozen dotdict")
+        else:
+            self[key] = value
 
     def __setitem__(self, key: str, value: Any):
         if getattr(self, "_frozen", False):
@@ -157,7 +159,8 @@ class dotdict(dict):
         return msgspec.json.encode(self.to_dict())
 
     def __repr__(self):
-        return f"{self.to_dict()!r}"
+        attrs_str = "\n".join(f"   {k}={repr(v)}" for k, v in self.to_dict().items())
+        return f"{self.__class__.__name__}(\n{attrs_str}\n)"
 
     def __str__(self):
         return str(self.to_dict())
