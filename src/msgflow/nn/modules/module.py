@@ -377,11 +377,9 @@ class Module:
         super().__setattr__("_parameters", {})
         super().__setattr__("_buffers", {})
         super().__setattr__("_non_persistent_buffers_set", set()) # ?
-        super().__setattr__("_forward_hooks", OrderedDict())
-        super().__setattr__("_forward_hooks_with_kwargs", OrderedDict())
-        super().__setattr__("_forward_hooks_always_called", OrderedDict())
         super().__setattr__("_forward_pre_hooks", OrderedDict())
-        super().__setattr__("_forward_pre_hooks_with_kwargs", OrderedDict())
+        super().__setattr__("_forward_hooks", OrderedDict())
+        super().__setattr__("_forward_hooks_always_called", OrderedDict())
         super().__setattr__("_state_dict_hooks", OrderedDict())
         super().__setattr__("_state_dict_pre_hooks", OrderedDict())
         super().__setattr__("_load_state_dict_pre_hooks", OrderedDict())
@@ -1048,16 +1046,12 @@ class Module:
 
     def register_forward_pre_hook(
         self,
-        hook: Union[
-            Callable[[T, Tuple[Any, ...]], Optional[Any]],
-            Callable[
-                [T, Tuple[Any, ...], Dict[str, Any]],
-                Optional[Tuple[Any, Dict[str, Any]]],
-            ],
+        hook: Callable[
+            [T, Tuple[Any, ...], Dict[str, Any]],
+            Optional[Tuple[Any, Dict[str, Any]]],
         ],
         *,
         prepend: bool = False,
-        with_kwargs: bool = False,
     ) -> RemovableHandle:
         r"""Register a forward pre-hook on the module.
 
@@ -1092,22 +1086,14 @@ class Module:
                 :func:`register_module_forward_pre_hook` will fire before all
                 hooks registered by this method.
                 Default: ``False``
-            with_kwargs (bool): If true, the ``hook`` will be passed the kwargs
-                given to the forward function.
-                Default: ``False``
 
         Returns:
             :class:`msgflow.utils.hooks.RemovableHandle`:
                 a handle that can be used to remove the added hook by calling
                 ``handle.remove()``
         """
-        handle = RemovableHandle(
-            self._forward_pre_hooks, extra_dict=self._forward_pre_hooks_with_kwargs
-        )
+        handle = RemovableHandle(self._forward_pre_hooks)
         self._forward_pre_hooks[handle.id] = hook
-        if with_kwargs:
-            self._forward_pre_hooks_with_kwargs[handle.id] = True
-
         if prepend:
             self._forward_pre_hooks.move_to_end(handle.id, last=False)
         return handle
@@ -1120,7 +1106,6 @@ class Module:
         ],
         *,
         prepend: bool = False,
-        with_kwargs: bool = False,
         always_call: bool = False,
     ) -> RemovableHandle:
         r"""Register a forward hook on the module.
@@ -1153,9 +1138,6 @@ class Module:
                 :func:`register_module_forward_hook` will fire before all hooks
                 registered by this method.
                 Default: ``False``
-            with_kwargs (bool): If ``True``, the ``hook`` will be passed the
-                kwargs given to the forward function.
-                Default: ``False``
             always_call (bool): If ``True`` the ``hook`` will be run regardless of
                 whether an exception is raised while calling the Module.
                 Default: ``False``
@@ -1167,14 +1149,9 @@ class Module:
         """
         handle = RemovableHandle(
             self._forward_hooks,
-            extra_dict=[
-                self._forward_hooks_with_kwargs,
-                self._forward_hooks_always_called,
-            ],
+            extra_dict=[self._forward_hooks_always_called],
         )
         self._forward_hooks[handle.id] = hook
-        if with_kwargs:
-            self._forward_hooks_with_kwargs[handle.id] = True
         if always_call:
             self._forward_hooks_always_called[handle.id] = True
         if prepend:
@@ -1186,32 +1163,21 @@ class Module:
             return self._call(*args, **kwargs)
         
         for hook in self._forward_pre_hooks.values():
-            if hook.__kwdefaults__ and "kwargs" in hook.__kwdefaults__:
-                hook_result = hook(self, args, kwargs)
-                if hook_result is not None:
-                    if isinstance(hook_result, tuple) and len(hook_result) == 2:
-                        args, kwargs = hook_result
-                    else:
-                        raise RuntimeError("forward pre-hook must return None or "
-                                           "a tuple of (new_args, new_kwargs)")
-            else:
-                hook_result = hook(self, args)
-                if hook_result is not None:
-                    if not isinstance(hook_result, tuple):
-                        hook_result = (hook_result,)
-                    args = hook_result
+            hook_result = hook(self, args, kwargs)
+            if hook_result is not None:
+                if isinstance(hook_result, tuple) and len(hook_result) == 2:
+                    args, kwargs = hook_result
+                else:
+                    raise RuntimeError("forward pre-hook must return None or "
+                                    "a tuple of (new_args, new_kwargs)")
         
         result = self._call(*args, **kwargs)
         
         for hook in self._forward_hooks.values():
-            if hook.__kwdefaults__ and "kwargs" in hook.__kwdefaults__:
-                hook_result = hook(self, args, kwargs, result)
-            else:
-                hook_result = hook(self, args, result)
-                
+            hook_result = hook(self, args, kwargs, result)
             if hook_result is not None:
                 result = hook_result
-                
+        
         return result
 
     def _call(self, *args, **kwargs):
@@ -1265,12 +1231,8 @@ class Module:
         # Support loading old checkpoints that don't have the following attrs:
         if "_forward_pre_hooks" not in self.__dict__:
             self._forward_pre_hooks = OrderedDict()
-        if "_forward_pre_hooks_with_kwargs" not in self.__dict__:
-            self._forward_pre_hooks_with_kwargs = OrderedDict()
-        if "_forward_hooks_with_kwargs" not in self.__dict__:
-            self._forward_hooks_with_kwargs = OrderedDict()
         if "_forward_hooks_always_called" not in self.__dict__:
-            self._forward_hooks_always_called = OrderedDict()
+            self._forward_hooks_always_called = OrderedDict()            
         if "_state_dict_hooks" not in self.__dict__:
             self._state_dict_hooks = OrderedDict()
         if "_state_dict_pre_hooks" not in self.__dict__:
