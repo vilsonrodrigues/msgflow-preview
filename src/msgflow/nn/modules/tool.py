@@ -225,8 +225,10 @@ class ToolLibrary(Module):
             if config.get("background", False):
                 return_directly = False
                 background_tool_params = tool_params or {}               
-                F.background_task(tool, **background_tool_params)                
-                responses[tool_id] = f"The `{tool_name}` tool was started in the background."
+                F.background_task(tool, **background_tool_params)
+                result = f"""The `{tool_name}` tool was started in the background.
+                This tool will not generate a return"""
+                responses[tool_id] = result
                 continue
 
             if config.get("handoff", False): # Add model_state
@@ -248,10 +250,10 @@ class ToolLibrary(Module):
                 if return_directly: # tool_name -> result
                     responses[meta.name] = result
                 else: # tool_id -> result
-                    processed_result = None
+                    encoded_result = None
                     if not isinstance(result, str):
-                        processed_result = msgspec.json.encode(result).decode("utf-8")
-                    responses[meta.id] = processed_result or result
+                        encoded_result = msgspec.json.encode(result).decode("utf-8")
+                    responses[meta.id] = encoded_result or result
 
         return dotdict({
             "return_directly": return_directly,
