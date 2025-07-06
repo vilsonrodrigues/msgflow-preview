@@ -16,7 +16,6 @@ except:
 
 from msgflow.dotdict import dotdict
 from msgflow.exceptions import KeyExhaustedError
-from msgflow.logger import logger
 from msgflow.models.base import BaseModel
 from msgflow.models.response import ModelResponse, ModelStreamResponse
 from msgflow.models.tool_call_agg import ToolCallAggregator
@@ -185,7 +184,6 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                     tool["function"]["strict"] = True
         return params
 
-    @model_retry
     def _execute(self, **kwargs):
         if kwargs.get("tool_schemas"):
             kwargs["parallel_tool_calls"] = True
@@ -327,6 +325,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         stream_response.set_metadata(metadata)
         stream_response.add(None)
 
+    @model_retry
     def __call__(
         self,
         messages: Union[str, Dict[str, Any]],
@@ -462,7 +461,6 @@ class OpenAITextToSpeech(_BaseOpenAI, TextToSpeechModel):
             raise e
 
     @contextmanager
-    @model_retry
     def _execute(self, **kwargs):
         with self.client.audio.speech.with_streaming_response.create(
             model=self.model_id, **kwargs, **self.sampling_run_params
@@ -497,6 +495,7 @@ class OpenAITextToSpeech(_BaseOpenAI, TextToSpeechModel):
 
         stream_response.add(None)
 
+    @model_retry
     def __call__(
         self, 
         data: str, 
@@ -570,7 +569,6 @@ class OpenAITextToImage(_BaseOpenAI, TextToImageModel):
         self._initialize()
         self._get_api_key()
 
-    @model_retry
     def _execute(self, **kwargs):
         model_output = self.client.images.generate(
             model=self.model_id, **kwargs, **self.sampling_run_params
@@ -596,6 +594,7 @@ class OpenAITextToImage(_BaseOpenAI, TextToImageModel):
 
         return response
 
+    @model_retry
     def __call__(
         self,
         prompt: str,
@@ -621,7 +620,6 @@ class OpenAITextToImage(_BaseOpenAI, TextToImageModel):
 class OpenAIImageTextToImage(OpenAITextToImage, ImageTextToImageModel):
     """OpenAI Image Edit"""
 
-    @model_retry
     def _execute(self, **kwargs):
         model_output = self.client.images.edit(
             model=self.model_id, **kwargs, **self.sampling_run_params
@@ -637,6 +635,7 @@ class OpenAIImageTextToImage(OpenAITextToImage, ImageTextToImageModel):
             inputs["mask"] = encode_data_to_bytes(mask)
         return inputs
 
+    @model_retry
     def __call__(
         self,
         prompt: str,
@@ -695,7 +694,6 @@ class OpenAISpeechToText(_BaseOpenAI, SpeechToTextModel):
         self._initialize()        
         self._get_api_key()
 
-    @model_retry
     def _execute(self, **kwargs):
         model_output = self.client.audio.transcriptions.create(
             model=self.model_id, **kwargs, **self.sampling_run_params
@@ -755,6 +753,7 @@ class OpenAISpeechToText(_BaseOpenAI, SpeechToTextModel):
                 
         return stream_response
 
+    @model_retry
     def __call__(
         self,
         data: bytes,
@@ -812,7 +811,6 @@ class OpenAITextEmbedder(_BaseOpenAI, TextEmbedderModel):
         self._initialize()        
         self._get_api_key()
 
-    @model_retry
     def _execute(self, **kwargs):
         model_output = self.client.embeddings.create(
             model=self.model_id, **kwargs, **self.sampling_run_params,
@@ -827,6 +825,7 @@ class OpenAITextEmbedder(_BaseOpenAI, TextEmbedderModel):
         response.add(embedding)
         return response
 
+    @model_retry
     def __call__(
         self,
         data: Union[str, List[str]],
@@ -862,7 +861,6 @@ class OpenAIModeration(_BaseOpenAI, ModerationModel):
         self._initialize()
         self._get_api_key()
 
-    @model_retry
     def _execute(self, **kwargs):
         model_output = self.client.moderations.create(
             model=self.model_id, **kwargs,
@@ -878,6 +876,7 @@ class OpenAIModeration(_BaseOpenAI, ModerationModel):
         response.add(moderation)
         return response
 
+    @model_retry
     def __call__(
         self,
         data: Union[str, List[Dict[str, Any]]],
