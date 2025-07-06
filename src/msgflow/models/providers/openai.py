@@ -109,6 +109,7 @@ class _BaseOpenAI(BaseModel):
 
 class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
     """OpenAI Chat Completion."""
+
     def __init__(
         self,
         model_id: str,
@@ -411,12 +412,22 @@ class OpenAITextToSpeech(_BaseOpenAI, TextToSpeechModel):
     def __init__(
         self,
         model_id: str,
-        voice: Optional[
-            Literal["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
-        ] = "alloy",
+        voice: Optional[str] = "alloy",
         speed: Optional[float] = 1.0,
         base_url: Optional[str] = None,
     ):
+        """
+        Args:
+            model_id: 
+                Model ID in provider.
+            voice:
+                The voice to use when generating the audio.
+            speed:
+                the speed of the generated audio. Select a value 
+                from 0.25 to 4.0. 1.0 is the default.
+            base_url:
+                URL to model provider.
+        """        
         super().__init__()
         self.model_id = model_id
         self.sampling_params = {"base_url": base_url or self._get_base_url()}
@@ -494,12 +505,12 @@ class OpenAITextToSpeech(_BaseOpenAI, TextToSpeechModel):
         prompt: Optional[str] = None,
         response_format: Optional[Literal["mp3", "opus", "aac", "flac", "wav", "pcm"]] = "opus",
     ) -> Union[ModelResponse, ModelStreamResponse]:
-        params = {"input": data, "response_format": response_format}
+        params = dotdict({"input": data, "response_format": response_format})
         if prompt:
-            params["instructions"] = prompt
+            params.instructions = prompt
         if stream:
             stream_response = ModelStreamResponse()
-            params["stream_response"] = stream_response
+            params.stream_response = stream_response
             F.background_task(self._stream_generate, **params)
             F.wait_for_event(stream_response.first_chunk_event)          
             return stream_response
@@ -657,6 +668,15 @@ class OpenAISpeechToText(_BaseOpenAI, SpeechToTextModel):
         temperature: Optional[float] = 0.0,
         base_url: Optional[str] = None,        
     ):
+        """
+        Args:
+            model_id:
+                Model ID in provider.
+            temperature:
+                The sampling temperature, between 0 and 1.
+            base_url:
+                URL to model provider.
+        """
         super().__init__()
         self.model_id = model_id
         self.sampling_params = {"base_url": base_url or self._get_base_url()}        
@@ -757,6 +777,7 @@ class OpenAISpeechToText(_BaseOpenAI, SpeechToTextModel):
 
 class OpenAITextEmbedder(_BaseOpenAI, TextEmbedderModel): 
     """OpenAI Text Embedder."""
+
     def __init__(
         self,
         *,
@@ -764,6 +785,15 @@ class OpenAITextEmbedder(_BaseOpenAI, TextEmbedderModel):
         dimensions: Optional[int] = None,
         base_url: Optional[str] = None,
     ):
+        """
+        Args:
+            model_id:
+                Model ID in provider.
+            dimensions:
+                The number of dimensions the resulting output embeddings should have.
+            base_url:
+                URL to model provider.
+        """
         super().__init__()
         self.model_id = model_id
         self.sampling_params = {"base_url": base_url or self._get_base_url()}
@@ -795,6 +825,7 @@ class OpenAITextEmbedder(_BaseOpenAI, TextEmbedderModel):
 
 
 class OpenAIModeration(_BaseOpenAI, ModerationModel): 
+    """OpenAI Moderation."""
 
     def __init__(
         self,
@@ -802,6 +833,13 @@ class OpenAIModeration(_BaseOpenAI, ModerationModel):
         model_id: str,
         base_url: Optional[str] = None,
     ):
+        """
+        Args:
+            model_id:
+                Model ID in provider.
+            base_url:
+                URL to model provider.
+        """        
         super().__init__()
         self.model_id = model_id
         self.sampling_params = {"base_url": base_url or self._get_base_url()}        
