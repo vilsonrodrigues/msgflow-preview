@@ -120,6 +120,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         top_p: Optional[float] = None,
         web_search_options: Optional[Dict[str, Any]] = None,
         base_url: Optional[str] = None,
+        return_reasoning: Optional[bool] = False,        
     ):
         """
         Args:
@@ -155,6 +156,8 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                 OpenAI-only.
             base_url:
                 URL to model provider.
+            return_reasoning:
+                If the model returns the `reasoning` field it will be added along with the response.
         """
         super().__init__()        
         self.model_id = model_id
@@ -168,6 +171,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             "audio": audio,
             "web_search_options": web_search_options
         }
+        self.return_reasoning = return_reasoning
         self._initialize()
         self._get_api_key()
 
@@ -200,9 +204,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
     def _generate(self, **kwargs):
         response = ModelResponse()
         metadata = dotdict()
-        
-        return_reasoning = kwargs.pop("return_reasoning")
-        return_annotations = kwargs.pop("return_annotations")        
+
         xml_to_dict = kwargs.pop("xml_to_dict")
         generation_schema = kwargs.pop("generation_schema")
 
@@ -218,20 +220,18 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         choice = model_output.choices[0]
 
         prefix_response_type = ""
-
         reasoning_content = None
         if (
-            return_reasoning is True and
+            self.return_reasoning is True and
             hasattr(choice.message, "reasoning_content") and
             choice.message.reasoning_content is not None
         ):
             reasoning_content = choice.message.reasoning_content
             prefix_response_type = "reasoning_"        
 
-        annotations_content = None # Extra params (e.g web search references)
-        if choice.message.annotations and return_annotations is True:
+        if choice.message.annotations: # Extra responses (e.g web search references)
             annotations_content = [item.model_dump() for item in choice.message.annotations]
-            prefix_response_type = "annotations_"
+            metadata.annotations = annotations_content
 
         if choice.message.tool_calls:
             aggregator = ToolCallAggregator(reasoning_content)
@@ -262,22 +262,18 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                 else:
                     response_content = choice.message.content
         elif choice.message.audio:
-            # To multi turn conversation is necessary persist the audio id
-            # https://platform.openai.com/docs/guides/audio#multi-turn-conversations
             response_content = dotdict({
                 "id": choice.message.audio.id,
                 "audio": base64.b64decode(choice.message.audio.data),
             })
             if choice.message.audio.transcript:
                 response.set_response_type("audio_text_generation")
-                response_content["text"] = choice.message.audio.transcript
+                response_content.text = choice.message.audio.transcript
             else:
                 response.set_response_type("audio_generation")
 
-        if reasoning_content is not None:            
+        if reasoning_content is not None:
             response_content.think = reasoning_content
-        if annotations_content is not None: 
-            response_content.annotations = annotations_content        
 
         response.add(response_content)
         response.set_metadata(metadata)
@@ -287,8 +283,6 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         aggregator = ToolCallAggregator()
         metadata = dotdict()
 
-        return_reasoning = kwargs.pop("return_reasoning")
-        return_annotations = kwargs.pop("return_annotations")
         stream_response = kwargs.pop("stream_response")
 
         model_output = self._execute_model(**kwargs)
@@ -296,7 +290,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         for chunk in model_output:
             if chunk.choices:
                 if (
-                    return_reasoning is True and
+                    self.return_reasoning is True and
                     hasattr(chunk.choices[0].delta, "reasoning_content") and
                     chunk.choices[0].delta.reasoning_content is not None
                 ):
@@ -318,11 +312,11 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                     name = tool_call.function.name
                     arguments = tool_call.function.arguments
                     aggregator.process(call_index, id, name, arguments)
-                elif (
-                    return_annotations is True and
-                    chunk.choices[0].delta.annotations is not None
-                ):
-                    stream_response.add(chunk.choices[0].delta.annotations)
+                elif chunk.choices[0].delta.annotations is not None:
+                    annotations_content = [
+                        item.model_dump() for item in chunk.choices[0].delta.annotations
+                    ]
+                    metadata.annotations = annotations_content
             elif chunk.usage:
                 metadata.update(chunk.usage.to_dict())
 
@@ -344,8 +338,6 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         tool_schemas: Optional[Dict] = None,
         tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
         xml_to_dict: Optional[bool] = False,
-        return_reasoning: Optional[bool] = False,
-        return_annotations: Optional[bool] = False
     ) -> Union[ModelResponse, ModelStreamResponse]:
         """
         Args:
@@ -372,16 +364,12 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                         Call exactly one specific function. tool_choice: {"type": "function", "function": {"name": "get_weather"}}    
             xml_to_dict:
                 Converts the model output, which should be typed-XML, into a typed-dict.
-            return_reasoning:
-                If the model returns the `reasoning` field it will be added along with the response.
 
         Raises:
             ValueError:
                 Raised if `generation_schema` and `stream=True`.
             ValueError:                
                 Raised if `xml_to_dict=True` and `stream=True`.
-            ValueError:                
-                Raised if `tool_schemas`, `return_reasoning=True` and `stream=True`.
         """        
         if isinstance(messages, str):
             messages = [{"role": "user", "content": messages}]
@@ -394,8 +382,6 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             generation_schema=generation_schema,
             tool_choice=tool_choice,
             tools=tool_schemas,
-            return_reasoning=return_reasoning,
-            return_annotations=return_annotations
         )
 
         if stream is True:
@@ -405,10 +391,6 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             if xml_to_dict is True:
                 raise ValueError("`xml_to_dict=True` is not `stream=True` compatible")
             
-            if return_reasoning is True and tool_schemas is not None:
-                raise ValueError("`tool_schemas` is not `return_reasoning=True` compatible"
-                                 " when `stream=True`")
-
             stream_response = ModelStreamResponse()
             F.background_task(
                 self._stream_generate,
