@@ -2,7 +2,6 @@ from os import getenv
 from typing import Any, Dict
 from msgflow.models.providers.openai import OpenAIChatCompletation
 
-# TODO together tbm suporta strict in tools
 
 class _BaseTogether:
     provider: str = "together"
