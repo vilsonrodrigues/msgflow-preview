@@ -36,6 +36,13 @@ class JinaAITextReranker(_BaseJinaAI, HTTPXModelClient, TextRerankerModel):
     url_path = "/rerank"
 
     def __init__(self, model_id: str, base_url: Optional[str] = None):
+        """
+        Args:
+            model_id:
+                Model ID in provider.
+            base_url:
+                URL to model provider.
+        """
         super().__init__()
         self.model_id = model_id
         self.sampling_params = {"base_url": base_url or self._get_base_url()}        
@@ -76,6 +83,15 @@ class JinaAITextEmbedder(TextEmbedderModel, HTTPXModelClient, _BaseJinaAI):
         dimensions: Optional[int] = None,
         base_url: Optional[str] = None,
     ):
+        """
+        Args:
+            model_id:
+                Model ID in provider.
+            dimensions:
+                The number of dimensions the resulting output embeddings should have.
+            base_url:
+                URL to model provider.
+        """        
         super().__init__()
         self.model_id = model_id
         self.sampling_params = {"base_url": base_url or self._get_base_url()}
@@ -99,6 +115,11 @@ class JinaAITextEmbedder(TextEmbedderModel, HTTPXModelClient, _BaseJinaAI):
         self,
         data: Union[str, List[str]],
     ) -> ModelResponse:
+        """
+        Args:
+            data: 
+                Input text to embed.
+        """        
         if isinstance(data, str):
             data = [data]
         inputs = [{"text": item} for item in data]
@@ -127,6 +148,11 @@ class JinaAIImageEmbedder(ImageEmbedderModel, JinaAITextEmbedder):
         self,
         data: Union[str, List[str]],
     ) -> ModelResponse:
+        """
+        Args:
+            data: 
+                Input image to embed.
+        """
         if isinstance(data, str):
             data = [data]
         inputs = [{"image": item} for item in data]
@@ -168,6 +194,11 @@ class JinaAITextClassifier(TextClassifierModel, HTTPXModelClient, _BaseJinaAI):
         self,
         data: Union[str, List[str]],
     ) -> ModelResponse:
+        """
+        Args:
+            data: 
+                Input text to classify.
+        """        
         if isinstance(data, str):
             data = [data]
         inputs = [{"text": item} for item in data]
@@ -194,6 +225,11 @@ class JinaAIImageClassifier(JinaAITextClassifier, ImageClassifierModel):
         self,
         data: Union[str, List[str]],
     ) -> ModelResponse:
+        """
+        Args:
+            data: 
+                Input image to embed.
+        """        
         if isinstance(data, str):
             data = [data]
         inputs = [{"image": item} for item in data]
