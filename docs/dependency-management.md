@@ -1,45 +1,80 @@
 # Models
 
-## ChatCompletion
+## Chat Completion
+
+| Provider    | Dependency        |
+|-------------|-------------------|
+| Ollama      | `msgflow[openai]` |
+| OpenAI      | `msgflow[openai]` |
+| OpenRouter  | `msgflow[openai]` |
+| SambaNova   | `msgflow[openai]` |
+| Together    | `msgflow[openai]` |
+| vLLM        | `msgflow[openai]` |
+
+## Image Classifier
 
 | Provider    | Dependency         |
 |-------------|--------------------|
-| OpenAI      | `msgflow[openai]` |
-| vLLM        | `msgflow[openai]` |
-| OpenRouter  | `msgflow[openai]` |
+| JinaAI      | `msgflow[httpx]`   |
+
+## Image Embedder
+
+| Provider    | Dependency         |
+|-------------|--------------------|
+| JinaAI      | `msgflow[httpx]`   |
+
+## Image Text To Image
+
+| Provider    | Dependency         |
+|-------------|--------------------|
+| OpenAI      | `msgflow[openai]`  |
 
 ## Moderation
 
 | Provider    | Dependency         |
 |-------------|--------------------|
-| OpenAI      | `msgflow[openai]` |
+| OpenAI      | `msgflow[openai]`  |
 
-## TextEmbedder
-
-| Provider    | Dependency         |
-|-------------|--------------------|
-| OpenAI      | `msgflow[openai]` |
-
-## ASR
+## Speech To Text
 
 | Provider    | Dependency         |
 |-------------|--------------------|
-| OpenAI      | `msgflow[openai]` |
+| OpenAI      | `msgflow[openai]`  |
+| vLLM        | `msgflow[openai]`  |
 
-## TTS
-
-| Provider    | Dependency         |
-|-------------|--------------------|
-| OpenAI      | `msgflow[openai]` |
-
-## TextToImage
+## Text Classifier
 
 | Provider    | Dependency         |
 |-------------|--------------------|
-| OpenAI      | `msgflow[openai]` |
+| JinaAI      | `msgflow[httpx]`   |
+| vLLM        | `msgflow[openai]`  |
 
-## ImageTextToImage
+## Text Embedder
 
 | Provider    | Dependency         |
 |-------------|--------------------|
-| OpenAI      | `msgflow[openai]` |
+| JinaAI      | `msgflow[httpx]`   |
+| Ollama      | `msgflow[openai]`  |
+| OpenAI      | `msgflow[openai]`  |
+| Together    | `msgflow[openai]`  |
+| vLLM        | `msgflow[openai]`  |
+
+## Text Reranker
+
+| Provider    | Dependency         |
+|-------------|--------------------|
+| JinaAI      | `msgflow[httpx]`   |
+| vLLM        | `msgflow[openai]`  |
+
+## Text To Image
+
+| Provider    | Dependency         |
+|-------------|--------------------|
+| OpenAI      | `msgflow[openai]`  |
+
+## Text To Speech
+
+| Provider    | Dependency         |
+|-------------|--------------------|
+| OpenAI      | `msgflow[openai]`  |
+| Together    | `msgflow[openai]`  |

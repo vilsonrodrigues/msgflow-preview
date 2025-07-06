@@ -58,8 +58,8 @@ class TextEmbedderModel:
 # Audio Gen
 
 
-class TTSModel:
-    model_type = "tts"
+class TextToSpeechModel:
+    model_type = "text_to_speech"
 
 
 class AudioToAudioModel:
@@ -96,8 +96,8 @@ class AudioTextToTextModel:
     model_type = "audio_text_to_text"
 
 
-class ASRModel:
-    model_type = "asr"
+class SpeechToTextModel:
+    model_type = "speech_to_text"
 
 
 class ImageToTextModel:

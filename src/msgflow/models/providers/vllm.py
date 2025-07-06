@@ -2,8 +2,8 @@ from os import getenv
 from typing import Any, Dict, List, Optional, Union
 from msgflow.models.httpx import HTTPXModelClient
 from msgflow.models.providers.openai import (
-    OpenAIASR,
     OpenAIChatCompletion,
+    OpenAISpeechToText,    
     OpenAITextEmbedder
 )
 from msgflow.models.response import ModelResponse
@@ -46,8 +46,8 @@ class VLLMTextEmbedder(OpenAITextEmbedder, _BaseVLLM):
     """vLLM Text Embedder."""
 
 
-class VLLMASR(OpenAIASR, _BaseVLLM):
-    """vLLM Automatic Speech Recogntion."""
+class VLLMSpeechToText(OpenAISpeechToText, _BaseVLLM):
+    """vLLM Speech to Text."""
 
 
 class VLLMTextReranker(JinaAITextReranker, _BaseVLLM):

@@ -3,7 +3,7 @@ from msgflow.dotdict import dotdict
 from msgflow.message import Message
 from msgflow.models.gateway import ModelGateway
 from msgflow.models.response import ModelResponse, ModelStreamResponse
-from msgflow.models.types import TTSModel
+from msgflow.models.types import TextToSpeechModel
 from msgflow.nn.modules.module import Module
 
 
@@ -30,7 +30,7 @@ class Speaker(Module):
     def __init__(
         self,
         name: str,
-        model: Union[TTSModel, ModelGateway],
+        model: Union[TextToSpeechModel, ModelGateway],
         *,
         input_guardrail: Optional[Callable] = None,        
         stream: Optional[bool] = False,
@@ -119,11 +119,11 @@ class Speaker(Module):
             "model_preference": model_preference
         }
 
-    def _set_model(self, model: Union[TTSModel, ModelGateway]):
-        if model.model_type == "tts":
+    def _set_model(self, model: Union[TextToSpeechModel, ModelGateway]):
+        if model.model_type == "text_to_speech":
             self.register_buffer("model", model)
         else:
-            raise TypeError(f"`model` need be a `tts` model, given `{type(model)}`")
+            raise TypeError(f"`model` need be a `text_to_speech` model, given `{type(model)}`")
 
     def _set_response_format(self, response_format: str):
         supported_formats = ["mp3", "opus", "aac", "flac", "wav", "pcm"]

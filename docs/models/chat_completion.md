@@ -8,22 +8,21 @@ We will explain it's features to understand how it works and its limitations. An
 
 All models have the same calling interface, differing only in the initialization of their classes.
 
-Init:
+=== "__init__"
+    ::: src.msgflow.models.providers.openai.OpenAIChatCompletion.__init__ 
+        options:
+            show_signature: false
+            show_source: false
+            show_root_heading: false
 
-::: src.msgflow.models.providers.openai.OpenAIChatCompletion.__init__ 
-    options:
-        show_signature: false
-        show_source: false
-        show_root_heading: false
+=== "__call__"
+    ::: src.msgflow.models.providers.openai.OpenAIChatCompletion.__call__
+        options:
+            show_signature: false
+            show_source: false
+            show_root_heading: false
 
-Call:
-
-::: src.msgflow.models.providers.openai.OpenAIChatCompletion.__call__
-    options:
-        show_signature: false
-        show_source: false
-        show_root_heading: false
-
+{! ../_includes/init_chat_completion_model.md !}
 
 ### 1. **Stateless**
 
@@ -134,5 +133,3 @@ Prefilling is a technique used to start the model message. A classic usage is:
 `let's think step by step`
 
 The model detects that it has started the sequence and then the message it will send next is the **continuation** of it. This technique is particularly very useful for generating structured outputs.
-
-## **Providers**

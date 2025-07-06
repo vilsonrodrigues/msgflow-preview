@@ -20,14 +20,14 @@ from msgflow.logger import logger
 from msgflow.models.base import BaseModel
 from msgflow.models.response import ModelResponse, ModelStreamResponse
 from msgflow.models.tool_call_agg import ToolCallAggregator
-from msgflow.models.types import (
-    ASRModel,
+from msgflow.models.types import (    
     ChatCompletionModel,
     ImageTextToImageModel,
     ModerationModel,
+    SpeechToTextModel,    
     TextEmbedderModel,
     TextToImageModel,
-    TTSModel,
+    TextToSpeechModel,
 )
 from msgflow.nn import functional as F
 from msgflow.utils.chat import adapt_struct_schema_to_json_schema
@@ -424,20 +424,8 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             return response
 
 
-class OpenAITTS(_BaseOpenAI, TTSModel):
-    r"""OpenAI Text-to-Speech
-    
-        alloy
-        ash
-        ballad
-        coral
-        echo
-        fable
-        onyx
-        nova
-        sage
-        shimmer    
-    """
+class OpenAITextToSpeech(_BaseOpenAI, TextToSpeechModel):
+    """OpenAI Text to Speech."""
 
     def __init__(
         self,
@@ -678,7 +666,9 @@ class OpenAIImageTextToImage(OpenAITextToImage, ImageTextToImageModel):
         return response
 
 
-class OpenAIASR(_BaseOpenAI, ASRModel):
+class OpenAISpeechToText(_BaseOpenAI, SpeechToTextModel):
+    """OpenAI Speech to Text."""
+
     def __init__(
         self,
         *,

@@ -87,8 +87,8 @@ nav:
         - models/chat_completion.md
         - models/moderation.md
         - models/text_embedder.md        
-        - models/tts.md
-        - models/asr.md        
+        - models/text_to_speech.md
+        - models/speech_to_text.md        
         - models/text_to_image.md
         - models/image_text_to_image.md
       - ⛁ DataBases: 

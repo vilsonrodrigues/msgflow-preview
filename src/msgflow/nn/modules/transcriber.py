@@ -3,7 +3,7 @@ from msgflow.dotdict import dotdict
 from msgflow.message import Message
 from msgflow.models.gateway import ModelGateway
 from msgflow.models.response import ModelResponse, ModelStreamResponse
-from msgflow.models.types import ASRModel
+from msgflow.models.types import SpeechToTextModel
 from msgflow.nn.modules.module import Module
 from msgflow.utils.encode import encode_data_to_bytes
 
@@ -40,7 +40,7 @@ class Transcriber(Module):
     def __init__(
         self,
         name: str,
-        model: Union[ASRModel, ModelGateway],
+        model: Union[SpeechToTextModel, ModelGateway],
         *,      
         stream: Optional[bool] = False,
         task_multimodal_inputs: Optional[Dict[str, str]] = None,
@@ -137,11 +137,11 @@ class Transcriber(Module):
         data = encode_data_to_bytes(audio_content)
         return data
 
-    def _set_model(self, model: Union[ASRModel, ModelGateway]):
-        if model.model_type == "asr":
+    def _set_model(self, model: Union[SpeechToTextModel, ModelGateway]):
+        if model.model_type == "speech_to_text":
             self.register_buffer("model", model)
         else:
-            raise TypeError(f"`model` need be a `asr` model, given `{type(model)}`")
+            raise TypeError(f"`model` need be a `speech_to_text` model, given `{type(model)}`")
 
     def _set_language(self, language: Optional[str] = None):
         if isinstance(language, str) or language is None:

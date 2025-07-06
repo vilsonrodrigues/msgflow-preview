@@ -25,24 +25,25 @@ No need to memorize individual client APIs or custom wrappers. Just specify the 
 
 
 ```python
-mf.Model.tts("openai/tts-1")
+mf.Model.text_to_speech("openai/tts-1")
 mf.Model.text_embedder("openai/text-embedding-ada-003")
 ```
 
 ### 2. **Supported Types**
 Supports a wide range of AI capabilities:
 
-| Type                | Description                                | Method                        |
-|---------------------|--------------------------------------------|-------------------------------|
-| [`chat_completion`](../models/chat_completion.md)    | Understanding and multimodal generation    | `Model.chat_completion`     |
-| `batched_chat_completion` | Batched version    | `Model.batched_chat_completion`     |
-| `asr`               | Automatic speech recognition (speech to text) | `Model.asr`              |
-| `tts`               | Text-to-speech conversion                  | `Model.tts`                 |
-| `image_embedder`    | Embeddings from images                     | `Model.image_embedder`      |
-| `image_text_to_image` | Generate images from text prompts + images | `Model.image_text_to_image` |
-| `text_embedder`     | Create vector embeddings from text         | `Model.text_embedder`       |
-| `text_reranker`     | Rerank text options given a query          | `Model.text_reranker`       |
-
+| Type                | Description                   
+|---------------------|-------------------------------
+| [`chat_completion`](../models/chat_completion.md)  | Understanding and multimodal generation 
+| `image_embedder`    | Generates a vector representation of an images |
+| `image_text_to_image` | Image edit |
+| `moderation` | Checks if the content is safe |
+| `speech_to_text`  | Voice transcription |       
+| `text_classifier`     | Classify text |        
+| `text_embedder`     | Generates a vector representation of a text |
+| `text_reranker`     | Rerank text options given a query |
+| `text_to_image`    | Image Generation |
+| `text_to_speech`    | Generates voice from text |
 
 You can check all supported model types using:
 ```python
@@ -72,7 +73,7 @@ The model response which can be one of:
 
 #### 4.1 **ModelResponse**
 
-Ideal for non-streaming tasks like embeddings, classification, asr, etc.
+Ideal for non-streaming tasks like embeddings, classification, speech-to-text, etc.
 
 ```python
 from msgflow.models.response import ModelResponse

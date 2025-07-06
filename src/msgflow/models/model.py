@@ -1,72 +1,73 @@
 from typing import Any, Dict, Type
 from msgflow.models.base import BaseModel
 from msgflow.models.types import (
-    ASRModel,
-    BatchedChatCompletionModel,
     ChatCompletionModel,
-    ImageTextToImageModel,
+    ImageClassifierModel,
     ImageEmbedderModel,
+    ImageTextToImageModel,
+    ModerationModel,
+    SpeechToTextModel,
+    TextClassifierModel,
     TextEmbedderModel,
     TextRerankerModel,
-    TTSModel,    
+    TextToSpeechModel,
 )
 from msgflow.utils.imports import import_module_from_lib
 
 
 _SUPPORTED_MODEL_TYPES = [
-    "asr",    
     "chat_completion",
-    "batched_chat_completion",
-    #"audio_classifier",
-    #"audio_embedder",
-    #"mask_gen",
-    #"image_caption",
-    #"image_classifier",
-    "image_embedder",    
-    #"image_gen",
-    #"image_segmenter",
+    "image_classfier",
+    "image_embedder",
     "image_text_to_image",
-    #"object_detection",
-    #"ocr",
-    "tts",
-    #"text_classifier",
+    "moderation",
+    "speech_to_text",
+    "text_classifier",
     "text_embedder",
+    "text_to_image",
     "text_reranker",
-    #"video_classifier",
-    #"video_gen",    
+    "text_to_speech",    
 ]
 
 _MODEL_NAMESPACE_TRANSLATOR = {
-    "openai": "OpenAI", 
-    #"google": "Google", 
-    #"amazon": "Amazon", 
-    #"fast_embedding": "FastEmbedding",
+    "jinaai": "JinaAI",
+    "ollama": "Ollama",
+    "openai": "OpenAI",
+    "openrouter": "OpenRouter",
+    "sambanova": "SambaNova",
     "timm": "TIMM",
-    #"sbert": "SBERT"
-    "local_vllm": "LocalVLLM",
+    "together": "Together",    
     "vllm": "VLLM",
-    "together": "Together"
 } 
 
-_CHAT_COMPLETION_PROVIDERS = ["openai", "vllm", "vllm", "together"]
-_BATCHED_CHAT_COMPLETION_PROVIDERS = ["vllm"]
-_IMAGE_EMBEDDER_PROVIDERS = ["timm"]
+_CHAT_COMPLETION_PROVIDERS = [
+    "ollama", "openai", "openrouter", 
+    "sambanova", "together", "vllm"
+]
+_IMAGE_CLASSIFIER_PROVIDERS = ["jinaai"]
+_IMAGE_EMBEDDER_PROVIDERS = ["jinaai"]
 _IMAGE_TEXT_TO_IMAGE_PROVIDERS = ["openai"]
-_TTS_PROVIDERS = ["openai"]
-_ASR_PROVIDERS = ["openai"]
-_TEXT_EMBEDDER_PROVIDERS = ["openai"]
-#_TEXT_RERANKER_PROVIDERS = ["openai", "sbert"]
 _MODERATION_PROVIDERS = ["openai"]
+_SPEECH_TO_TEXT_PROVIDERS = ["openai", "vllm"]
+_TEXT_CLASSIFIER_PROVIDERS = ["jinaai", "vllm"]
+_TEXT_EMBEDDER_PROVIDERS = ["jinaai", "ollama", "openai", "together", "vllm"]
+_TEXT_RERANKER_PROVIDERS = ["jinaai", "vllm"]
+_TEXT_TO_IMAGE = ["openai", "together"]
+_TEXT_TO_SPEECH_PROVIDERS = ["openai", "together"]
+
 
 _PROVIDERS_BY_MODEL_TYPE = {
-    "asr": _ASR_PROVIDERS,    
     "chat_completion": _CHAT_COMPLETION_PROVIDERS,
-    "batched_chat_completion": _BATCHED_CHAT_COMPLETION_PROVIDERS,
-    "moderation":_MODERATION_PROVIDERS,
+    "image_classifier": _IMAGE_CLASSIFIER_PROVIDERS,
     "image_embedder": _IMAGE_EMBEDDER_PROVIDERS,
     "image_text_to_image": _IMAGE_TEXT_TO_IMAGE_PROVIDERS,
-    "tts": _TTS_PROVIDERS,
+    "moderation":_MODERATION_PROVIDERS,
+    "speech_to_text": _SPEECH_TO_TEXT_PROVIDERS,
+    "text_classifier": _TEXT_CLASSIFIER_PROVIDERS,
     "text_embedder": _TEXT_EMBEDDER_PROVIDERS,
+    "text_reranker": _TEXT_RERANKER_PROVIDERS,
+    "text_to_image": _TEXT_TO_IMAGE,
+    "text_to_speech": _TEXT_TO_SPEECH_PROVIDERS,
 }
 
 
@@ -128,29 +129,37 @@ class Model:
         return cls._create_model("chat_completion", model_path, **kwargs)
 
     @classmethod
-    def batched_chat_completion(cls, model_path: str, **kwargs) -> Type[BatchedChatCompletionModel]:
-        return cls._create_model("chat_completion", model_path, **kwargs)
-
-    @classmethod
-    def image_text_to_image(cls, model_path: str, **kwargs) -> Type[ImageTextToImageModel]:
-        return cls._create_model("image_gen", model_path, **kwargs)
-
-    @classmethod
-    def tts(cls, model_path: str, **kwargs) -> Type[TTSModel]:
-        return cls._create_model("tts", model_path, **kwargs)
-
-    @classmethod
-    def asr(cls, model_path: str, **kwargs) -> Type[ASRModel]:
-        return cls._create_model("asr", model_path, **kwargs)
-
-    @classmethod
-    def text_embedder(cls, model_path: str, **kwargs) -> Type[TextEmbedderModel]:
-        return cls._create_model("text_embedder", model_path, **kwargs)
+    def image_classifier(cls, model_path: str, **kwargs) -> Type[ImageClassifierModel]:
+        return cls._create_model("image_classifier", model_path, **kwargs)
 
     @classmethod
     def image_embedder(cls, model_path: str, **kwargs) -> Type[ImageEmbedderModel]:
         return cls._create_model("image_embedder", model_path, **kwargs)
 
     @classmethod
+    def image_text_to_image(cls, model_path: str, **kwargs) -> Type[ImageTextToImageModel]:
+        return cls._create_model("image_text_to_image", model_path, **kwargs)
+
+    @classmethod
+    def moderation(cls, model_path: str, **kwargs) -> Type[ModerationModel]:
+        return cls._create_model("moderation", model_path, **kwargs)
+
+    @classmethod
+    def speech_to_text(cls, model_path: str, **kwargs) -> Type[SpeechToTextModel]:
+        return cls._create_model("speech_to_text", model_path, **kwargs)
+
+    @classmethod
+    def text_classifier(cls, model_path: str, **kwargs) -> Type[TextClassifierModel]:
+        return cls._create_model("text_classifier", model_path, **kwargs)
+
+    @classmethod
+    def text_embedder(cls, model_path: str, **kwargs) -> Type[TextEmbedderModel]:
+        return cls._create_model("text_embedder", model_path, **kwargs)
+
+    @classmethod
     def text_reranker(cls, model_path: str, **kwargs) -> Type[TextRerankerModel]:
         return cls._create_model("text_reranker", model_path, **kwargs)
+
+    @classmethod
+    def text_to_speech(cls, model_path: str, **kwargs) -> Type[TextToSpeechModel]:
+        return cls._create_model("text_to_speech", model_path, **kwargs)
