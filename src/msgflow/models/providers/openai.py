@@ -505,6 +505,17 @@ class OpenAITextToSpeech(_BaseOpenAI, TextToSpeechModel):
         prompt: Optional[str] = None,
         response_format: Optional[Literal["mp3", "opus", "aac", "flac", "wav", "pcm"]] = "opus",
     ) -> Union[ModelResponse, ModelStreamResponse]:
+        """
+        Args:
+            data:
+                The text to generate audio for.
+            stream:
+                Whether generation should be in streaming mode.
+            prompt:
+                Control the voice of your generated audio with additional instructions.
+            response_format:
+                The format to audio in.
+        """
         params = dotdict({"input": data, "response_format": response_format})
         if prompt:
             params.instructions = prompt
@@ -650,7 +661,7 @@ class OpenAIImageTextToImage(OpenAITextToImage, ImageTextToImageModel):
                 Format in which images are returned.
             n:
                 The number of images to generate.                
-        """        
+        """
         if response_format == "base64":
             response_format = "b64_json"        
         inputs = self._prepare_inputs(image, mask, response_format)
@@ -818,8 +829,13 @@ class OpenAITextEmbedder(_BaseOpenAI, TextEmbedderModel):
 
     def __call__(
         self,
-        data: str,
+        data: Union[str, List[str]],
     ):
+        """
+        Args:
+            data: 
+                Input text to embed.
+        """
         response = self._generate(text=data)
         return response
 
@@ -865,6 +881,13 @@ class OpenAIModeration(_BaseOpenAI, ModerationModel):
     def __call__(
         self,
         data: Union[str, List[Dict[str, Any]]],
-    ):
+    ) -> ModelResponse:
+        """
+        Args:
+            data:
+                Input (or inputs) to classify. Can be a single string, 
+                an array of strings, or an array of multi-modal input
+                objects similar to other models.
+        """
         response = self._generate(input=data)
         return response
