@@ -96,7 +96,6 @@ class Agent(Module):
         response_template: Optional[str] = None,
         fixed_messages: Optional[List[Dict[str, Any]]] = None,
         signature: Optional[Union[str, Signature]] = None,
-        return_reasoning: Optional[bool] = False,
         #verbose: Optional[bool] = False,
         description: Optional[str] = None,
         system_prompt_template: Optional[str] = SYSTEM_PROMPT_TEMPLATE,
@@ -158,7 +157,6 @@ class Agent(Module):
         self._set_response_mode(response_mode)
         self._set_stream(stream)
         self._set_response_template(response_template)
-        self._set_return_reasoning(return_reasoning)
         self._set_task_multimodal_inputs(task_multimodal_inputs)
         self._set_task_inputs(task_inputs)
         self._set_tool_choice(tool_choice)
@@ -222,7 +220,6 @@ class Agent(Module):
             "tool_schemas": tool_schemas,
             "tool_choice": self.tool_choice,
             "generation_schema": self.generation_schema,
-            "return_reasoning": self.return_reasoning,
             "xml_to_dict": self.xml_to_dict
         })
 
@@ -672,13 +669,6 @@ class Agent(Module):
         else:
             raise TypeError("`response_mode` requires a string "
                             f"given `{type(response_mode)}`")
-
-    def _set_return_reasoning(self, return_reasoning: bool):
-        if isinstance(return_reasoning, bool):
-            self.register_buffer("return_reasoning", return_reasoning)
-        else:
-            raise TypeError("`return_reasoning` requires a bool "
-                            f"given `{type(return_reasoning)}`")
 
     def _set_tools(self, tools: Optional[List[Callable]] = None):
         if (
