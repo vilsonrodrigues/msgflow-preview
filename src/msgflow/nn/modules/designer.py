@@ -13,10 +13,9 @@ from msgflow.models.types import (
     TextTo3DModel,
     TextToImageModel,
     TextToVideoModel,
-    #VideoTextToVideoModel
+    VideoTextToVideoModel
 )
 from msgflow.nn.modules.module import Module
-from msgflow.utils.encode import encode_data_to_base64
 
 
 VISION_GEN_MODEL_TYPES = Union[
@@ -28,27 +27,14 @@ VISION_GEN_MODEL_TYPES = Union[
     TextTo3DModel,
     TextToImageModel,
     TextToVideoModel,
-    #VideoTextToVideoModel    
+    VideoTextToVideoModel    
 ]
 
 
 class Designer(Module):
-    """Designer is a Module type that uses Vision generative models to create content.
+    """Designer is a Module type that uses Vision generative models to create content."""
 
-    Args:
-        name: Designer name in snake case format.
-        model: Designer Model client.
-        task_inputs: Fields of the Message object that will be the input to the task.
-        response_mode: What the response should be. Has five options:
-            * `plain_response` (default): Returns the transcriber response.
-            * `response`: Write on `response` field in Message object.
-            * `context`: Write on `context` field in Message object.
-               It`s insert how `context.transcriber_name`.
-            * `outputs`: Write on `outputs` field in Message object.
-               It`s insert how `outputs.transcriber_name`.
-    """
-
-    def __init__(
+    def __init__(            
         self,
         name: str,
         model: VISION_GEN_MODEL_TYPES,
@@ -62,18 +48,53 @@ class Designer(Module):
         negative_prompt: Optional[str] = None,
         fps: Optional[int] = None,
         duration_seconds: Optional[int] = None,
-        aspect_ratio: Optional[str] = None, # TODO
-        n: Optional[int] = None, # TODO
+        aspect_ratio: Optional[str] = None,
+        n: Optional[int] = None,
         execution_kwargs: Optional[Dict[str, Any]] = None,
     ):
+        """
+        Args:
+            name: 
+                Designer name in snake case format.
+            model: 
+                Designer Model client.
+            input_guardrail:
+                Guardrail to input.
+            output_guardrail:
+                Guardrail to output.            
+            task_inputs:
+                Fields of the Message object that will be the input to the task.
+            task_multimodal_inputs: 
+                Fields of the Message object that will be the multimodal input 
+                to the task.
+            response_format:
+                Data output format.
+            response_mode: What the response should be.
+                * `plain_response` (default): Returns the final agent response directly.
+                * other: Write on `response` field in Message object.
+            negative_prompt:
+                Instructions on what not to have.
+            fps:
+                Number of frames-per-secound in videos.
+            duration_seconds:
+                Video duration in secounds.
+            n:
+                Number of content to generate.
+            aspect_ratio:
+                Aspect ratio to vision content.
+            execution_kwargs:
+                Extra kwargs to model execution.
+        """        
         super().__init__()
         self.set_name(name)
+        self._set_aspect_ratio(aspect_ratio)
         self._set_duration_seconds(duration_seconds)
         self._set_execution_kwargs(execution_kwargs)
         self._set_fps(fps)
         self._set_input_guardrail(input_guardrail)
         self._set_output_guardrail(output_guardrail)
         self._set_model(model)
+        self._set_n(n)
         self._set_negative_prompt(negative_prompt)
         self._set_response_mode(response_mode)
         self._set_response_format(response_format)        
@@ -115,13 +136,17 @@ class Designer(Module):
         if mask:
             model_execution_params.mask = mask
         if model_preference:
-            model_execution_params.model_preference = model_preference            
-        if self.negative_prompt:
-            model_execution_params.negative_prompt = self.negative_prompt
-        if self.fps:
-            model_execution_params.fps = self.fps
+            model_execution_params.model_preference = model_preference
+        if self.aspect_ratio:
+            model_execution_params.aspect_ratio = self.aspect_ratio
         if self.duration_seconds:
             model_execution_params.duration_seconds = self.duration_seconds
+        if self.fps:
+            model_execution_params.fps = self.fps
+        if self.n:
+            model_execution_params.n = self.n
+        if self.negative_prompt:
+            model_execution_params.negative_prompt = self.negative_prompt            
         return model_execution_params
 
     def _prepare_guardrail_execution(
@@ -210,13 +235,15 @@ class Designer(Module):
         if isinstance(response_format, str) or response_format is None:
             self.register_buffer("response_format", response_format)
         else:
-            raise TypeError(f"`response_format` need be a str or given `{type(response_format)}")               
+            raise TypeError("`response_format` need be a str or given "
+                            f"`{type(response_format)}")               
 
     def _set_negative_prompt(self, negative_prompt: Optional[str] = None):
         if isinstance(negative_prompt, str) or negative_prompt is None:
             self.register_buffer("negative_prompt", negative_prompt)
         else:
-            raise TypeError(f"`negative_prompt` need be a str or None given `{type(negative_prompt)}`")
+            raise TypeError("`negative_prompt` need be a str or None given "
+                            f"`{type(negative_prompt)}`")
 
     def _set_fps(self, fps: Optional[int] = None):
         if isinstance(fps, int) or fps is None:
@@ -228,5 +255,19 @@ class Designer(Module):
         if isinstance(duration_seconds, int) or duration_seconds is None:
             self.register_buffer("duration_seconds", duration_seconds)
         else:
-            raise TypeError(f"`duration_seconds` need be an int or None given `{type(duration_seconds)}`")        
-  
+            raise TypeError("`duration_seconds` need be an int or None given "
+                            f"`{type(duration_seconds)}`")
+
+    def _set_aspect_ratio(self, aspect_ratio: Optional[str] = None):
+        if isinstance(aspect_ratio, str) or aspect_ratio is None:
+            self.register_buffer("aspect_ratio", aspect_ratio)
+        else:
+            raise TypeError("`aspect_ratio` need be an str or None given "
+                            f"`{type(duration_seconds)}`")
+
+    def _set_n(self, n: Optional[int] = None):
+        if isinstance(n, int) or n is None:
+            self.register_buffer("n", n)
+        else:
+            raise TypeError("`n` need be an int or None given "
+                            f"`{type(n)}`")
