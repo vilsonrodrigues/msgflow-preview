@@ -7,8 +7,9 @@ from msgflow.models.providers.openai import (
     OpenAITextEmbedder
 )
 from msgflow.models.response import ModelResponse
-from msgflow.models.types import TextClassifierModel, TextRerankerModel
+from msgflow.models.types import TextClassifierModel
 from msgflow.models.providers.jinaai import JinaAITextReranker
+from msgflow.utils.tenacity import model_retry
 
 
 class _BaseVLLM:
@@ -72,6 +73,7 @@ class VLLMTextClassifier(_BaseVLLM, HTTPXModelClient, TextClassifierModel):
         response.add(results)
         return response
 
+    @model_retry
     def __call__(self, data: Union[str, List[str]]) -> ModelResponse:
         if isinstance(data, str):
             data = [data]

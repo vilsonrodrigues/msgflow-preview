@@ -9,7 +9,8 @@ from msgflow.models.types import (
     TextClassifierModel,
     TextEmbedderModel,
     TextRerankerModel
-)    
+)
+from msgflow.utils.tenacity import model_retry
 
 
 class _BaseJinaAI:
@@ -46,6 +47,7 @@ class JinaAITextReranker(_BaseJinaAI, HTTPXModelClient, TextRerankerModel):
         response.add(model_output["results"])
         return response
 
+    @model_retry
     def __call__(self, query: str, documents: List[str]) -> ModelResponse:
         """
         Args:
@@ -92,6 +94,7 @@ class JinaAITextEmbedder(TextEmbedderModel, HTTPXModelClient, _BaseJinaAI):
         response.add(embedding)
         return response
 
+    @model_retry
     def __call__(
         self,
         data: Union[str, List[str]],
@@ -119,6 +122,7 @@ class JinaAIImageEmbedder(ImageEmbedderModel, JinaAITextEmbedder):
         response.add(embedding)
         return response
 
+    @model_retry
     def __call__(
         self,
         data: Union[str, List[str]],
@@ -128,6 +132,7 @@ class JinaAIImageEmbedder(ImageEmbedderModel, JinaAITextEmbedder):
         inputs = [{"image": item} for item in data]
         response = self._generate(input=inputs)
         return response
+
 
 class JinaAITextClassifier(TextClassifierModel, HTTPXModelClient, _BaseJinaAI):
     """JinaAI Text Classifier."""
@@ -158,6 +163,7 @@ class JinaAITextClassifier(TextClassifierModel, HTTPXModelClient, _BaseJinaAI):
         response.add(pred)
         return response
 
+    @model_retry
     def __call__(
         self,
         data: Union[str, List[str]],
@@ -183,6 +189,7 @@ class JinaAIImageClassifier(JinaAITextClassifier, ImageClassifierModel):
         response.add(pred)
         return response
 
+    @model_retry
     def __call__(
         self,
         data: Union[str, List[str]],
