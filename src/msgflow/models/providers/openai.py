@@ -176,13 +176,12 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         self._get_api_key()
 
     def _adapt_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        if self.provider == "openai":
+        if self.provider in "openai":
             params["max_completion_tokens"] = params.pop("max_tokens")
-            tools = params.pop("tools", None)
+            tools = params.get("tools", None)
             if tools: # OpenAI supports 'strict' mode to tools
                 for tool in tools:
                     tool["function"]["strict"] = True
-                params["tools"] = tools
         return params
 
     @model_retry
