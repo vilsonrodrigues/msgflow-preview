@@ -2,6 +2,7 @@ from os import getenv
 from typing import Any, Dict
 from msgflow.models.providers.openai import OpenAIChatCompletation
 
+# TODO together tbm suporta strict in tools
 
 class _BaseTogether:
     provider: str = "together"
@@ -28,4 +29,8 @@ class TogetherChatCompletation(OpenAIChatCompletation, _BaseTogether):
             params["response_format"] = {
                 "type": "json_object", "schema": response_format
             }
+        tools = params.get("tools", None)
+        if tools: # Together supports 'strict' mode to tools
+            for tool in tools:
+                tool["function"]["strict"] = True
         return params
