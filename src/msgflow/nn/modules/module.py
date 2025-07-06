@@ -586,13 +586,11 @@ class Module:
         if self.response_mode == "plain_response":
             return response
         elif isinstance(message, Message):
-            if self.response_mode.startswith(("context", "outputs", "response")): # TODO: tirar
-                message.set(f"{self.response_mode}.{self.name}", response)
+            message.set(f"{self.response_mode}.{self.name}", response)
             return message
         else:
             raise ValueError(
-                "For `response_mode` other than `plain_response` "
-                "the message object must be of type Message"
+                "To non-Message objects is required `response_mode=='plain_response'`"
             )
 
     def _set_task_inputs(self, task_inputs: Optional[Union[str, Dict[str, str]]] = None):

@@ -471,21 +471,6 @@ class Agent(Module):
         guardrail_params = {"data": data}
         return guardrail_params
 
-    def _define_response_mode(
-        self, 
-        response: Union[str, Dict[str, Any]],
-        message: Union[str, Dict[str, Any], Message]
-    ) -> Union[str, Dict[str, Any], Message, ModelStreamResponse]:
-        if self.response_mode == "plain_response":
-            return response
-        elif isinstance(message, Message):
-            message.set(f"{self.response_mode}.{self.name}", response)
-            return message
-        else:
-            raise ValueError(
-                "To non-Message objects is required `response_mode=='plain_response'`"
-            )
-
     def _prepare_task(
         self, message: Union[str, Message, Dict[str, str]], **kwargs
     ) -> Dict[str, Any]:
