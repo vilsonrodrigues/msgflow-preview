@@ -1,6 +1,10 @@
 from os import getenv
 from typing import Any, Dict
-from msgflow.models.providers.openai import OpenAIChatCompletation
+from msgflow.models.providers.openai import (
+    OpenAIChatCompletation,
+    OpenAITextEmbedder,
+    OpenAITextToSpeech
+)
 
 
 class _BaseTogether:
@@ -33,3 +37,9 @@ class TogetherChatCompletation(OpenAIChatCompletation, _BaseTogether):
             for tool in tools:
                 tool["function"]["strict"] = True
         return params
+
+class TogetherTextEmbedder(OpenAITextEmbedder, _BaseTogether):
+    """Together Text Embedder."""
+
+class TogetherTextToSpeech(OpenAITextToSpeech, _BaseTogether):
+    """Together Text to Speech."""
