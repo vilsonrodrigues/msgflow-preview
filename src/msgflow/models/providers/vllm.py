@@ -75,6 +75,11 @@ class VLLMTextClassifier(_BaseVLLM, HTTPXModelClient, TextClassifierModel):
 
     @model_retry
     def __call__(self, data: Union[str, List[str]]) -> ModelResponse:
+        """
+        Args:
+            data: 
+                Input text to classify.
+        """
         if isinstance(data, str):
             data = [data]
         response = self._generate(input=data)
