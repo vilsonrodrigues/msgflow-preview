@@ -74,7 +74,9 @@ class Agent(Module):
         instructions: Optional[str] = None,
         expected_output: Optional[str] = None,
         examples: Optional[str] = None,
-        stream: Optional[bool] = False,
+        system_extra_message: Optional[str] = None,
+        include_date: Optional[bool] = False,
+        stream: Optional[bool] = False,              
         input_guardrail: Optional[Callable] = None,
         output_guardrail: Optional[Callable] = None,
         task_inputs: Optional[Union[str, Dict[str, str]]] = None,
@@ -84,12 +86,10 @@ class Agent(Module):
         context_inputs: Optional[Union[str, List[str]]] = None,
         context_cache: Optional[str] = None,
         context_inputs_template: Optional[str] = None,
-        system_extra_message: Optional[str] = None,
-        include_date: Optional[bool] = False,
-        xml_to_dict: Optional[bool] = False,
         model_preference: Optional[str] = None,
         prefilling: Optional[str] = None,
         generation_schema: Optional[msgspec.Struct] = None,
+        xml_to_dict: Optional[bool] = False,        
         response_mode: Optional[str] = "plain_response",
         tools: Optional[List[Callable]] = None,
         tool_choice: Optional[str] = None,
@@ -102,6 +102,93 @@ class Agent(Module):
         xml_to_dict_template: Optional[str] = XML_TO_DICT_TEMPLATE,
         _annotations: Optional[Dict[str, type]] = {"message": Union[str, Dict[str, str]], "return": str},
     ):
+        """Agent is a Module type that uses language models to solve tasks.
+
+        An Agent can perform actions in an environment using tools calls.
+        For an Agent, a tool is any callable object.
+
+        An Agent can handle multimodal inputs and outputs.
+
+        Args:
+            name: 
+                Agent name in snake case format.
+            model: 
+                Chat Completation Model client.
+            system_message:
+                The Agent behaviour.
+            instructions: 
+                What the Agent should do.
+            expected_output: 
+                What the response should be like.
+            examples:
+                Examples of inputs, plans and outputs.
+            system_extra_message:
+                An extra message in system prompt.
+            include_date:
+                If True, include the current date in the system prompt.
+            stream: 
+                If the response is transmitted on-fly.
+            input_guardrail:
+                Guardrail to input.
+            output_guardrail:
+                Guardrail to output.             
+            task_inputs:
+                Fields of the Message object that will be the input to the task.
+            task_multimodal_inputs: 
+                Fields of the Message object that will be the multimodal input 
+                to the task.
+            task_messages:
+                Field of the Message object that will be a list of chats in 
+                ChatML format.
+            task_template:
+                A Jinja template to format task.
+            context_inputs: 
+                Fields of the Message object that will be the context to the task.
+            context_cache:
+                A fixed context.
+            context_inputs_template:
+                A template to context inputs.
+            model_preference:
+                Fields of the Message object that will be the model preference.
+                This is only valid if the model is of type ModelGateway.
+            prefilling:
+                Forces an initial message from the model. From that message it 
+                will continue its response from there.              
+            generation_schema:
+                Schema that defines how the output should be structured.
+            xml_to_dict:
+                Converts the model output, which should be typed-XML, into a typed-dict.            
+            response_mode: What the response should be.
+                * `plain_response` (default): Returns the final agent response directly.
+                * other: Write on `response` field in Message object.
+            tools:
+                A list of callable objects.
+            tool_choice:
+                By default the model will determine when and how many tools to use. 
+                You can force specific behavior with the tool_choice parameter.
+                    1. auto: 
+                        (Default) Call zero, one, or multiple functions. tool_choice: "auto"
+                    2. required: 
+                        Call one or more functions. tool_choice: "required"
+                    3. Forced Function: 
+                        Call exactly one specific function. E.g. 'add'.
+            response_template:
+                A Jinja template to format response.
+            fixed_messages:
+                A fixed list of chats in ChatML format.
+            signature:
+                A DSPy-based signature. A signature creates a task_template, a generation_scheme, 
+                instructions and examples (both if passed). Can be combined with standard 
+                generation_schemas like ReAct and ChainOfThought. Can also be combined with `xml_to_dict`.
+            description:
+                The Agent description (docstring). It's useful when using an agent-as-a-tool.
+            system_prompt_template:
+                A Jinja template to format system prompt.
+            xml_to_dict_template:
+                A Jinja template to inject instructions to use xml to dict.
+            _annotations
+                Define the input and output annotations to use the agent-as-a-function.
+        """
         super().__init__()
 
         if stream is True:
@@ -266,7 +353,7 @@ class Agent(Module):
 
         if response_type in self._supported_outputs:
             response = self._prepare_response(
-                raw_response, response_type, model_state, message
+                raw_response, response_type, message
             )
             return response
         else:
@@ -361,8 +448,7 @@ class Agent(Module):
     def _prepare_response(
         self, 
         raw_response: Union[str, Dict[str, Any], ModelStreamResponse], 
-        response_type: str, 
-        model_state: Dict[str, Any], 
+        response_type: str,
         message: Union[str, Dict[str, Any], Message]
     ) -> Union[str, Dict[str, Any], ModelStreamResponse]:
         formated_response = None
@@ -372,7 +458,7 @@ class Agent(Module):
                     self._execute_output_guardrail(raw_response)        
                 if self.response_template:
                     formated_response = self._format_response_template(raw_response)
-        return self._define_response_mode(formated_response or raw_response, model_state, message)
+        return self._define_response_mode(formated_response or raw_response, message)
 
     def _prepare_output_guardrail_execution(
         self, 
@@ -387,31 +473,18 @@ class Agent(Module):
 
     def _define_response_mode(
         self, 
-        response: Union[str, Dict[str, Any]], 
-        model_state: List[Dict[str, Any]],
+        response: Union[str, Dict[str, Any]],
         message: Union[str, Dict[str, Any], Message]
     ) -> Union[str, Dict[str, Any], Message, ModelStreamResponse]:
         if self.response_mode == "plain_response":
             return response
-        elif self.response_mode == "steps":
-            return self._apply_steps_format(model_state, response)
         elif isinstance(message, Message):
-            if self.response_mode.startswith(("context", "outputs", "response")):
-                message.set(f"{self.response_mode}.{self.name}", response)
+            message.set(f"{self.response_mode}.{self.name}", response)
             return message
         else:
             raise ValueError(
-                "For `response_mode` other than `plain_response` and "
-                "`steps` the message object must be of type Message"
+                "To non-Message objects is required `response_mode=='plain_response'`"
             )
-
-    def _apply_steps_format(
-        self, 
-        model_state: List[Dict[str, Any]],
-        response: Union[str, Dict[str, Any]]
-    ) -> Dict[str, Any]:
-        steps_response = chatml_to_steps_format(model_state, response)
-        return steps_response
 
     def _prepare_task(
         self, message: Union[str, Message, Dict[str, str]], **kwargs
