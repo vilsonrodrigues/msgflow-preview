@@ -86,7 +86,7 @@ class DataBase:
         else:
             db_type = db_type.title().replace("_", "")
 
-        provider_class_name = f"{_DB_NAMESPACE_TRANSLATOR[provider]}{db_type}"                
+        provider_class_name = f"{_DB_NAMESPACE_TRANSLATOR[provider]}{db_type}DB"                
         module_name = f"msgflow.data.databases.providers.{provider}"                
         return import_module_from_lib(provider_class_name, module_name)
 
