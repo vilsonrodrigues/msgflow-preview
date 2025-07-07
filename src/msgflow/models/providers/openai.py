@@ -789,7 +789,7 @@ class OpenAISpeechToText(_BaseOpenAI, SpeechToTextModel):
     @model_retry
     def __call__(
         self,
-        data: bytes,
+        data: Union[str, bytes],
         *,
         stream: Optional[bool] = False,
         response_format: Optional[
@@ -798,7 +798,30 @@ class OpenAISpeechToText(_BaseOpenAI, SpeechToTextModel):
         timestamp_granularities: Optional[List[str]] = None,
         prompt: Optional[str] = None,
         language: Optional[str] = None,        
-    ):
+    ) -> Union[ModelResponse, ModelStreamResponse]:
+        """
+        Args:
+            data:
+                Url, path, base64 to audio.
+            stream:
+                Whether generation should be in streaming mode.
+            response_format:
+                The format of the output, in one of these options: 
+                json, text, srt, verbose_json, or vtt.
+            timestamp_granularities:
+                The timestamp granularities to populate for this 
+                transcription. `response_format` must be set `verbose_json`
+                to use timestamp granularities. Either or both of these 
+                options are supported: word, or segment. Note: There is no 
+                additional latency for segment timestamps, but generating 
+                word timestamps incurs additional latency.
+            prompt:
+                An optional text to guide the model's style or continue a 
+                previous audio segment. The prompt should match the audio language.
+            language:
+                The language of the input audio. Supplying the input language in 
+                ISO-639-1 (e.g. en) format will improve accuracy and latency.        
+        """
         if isinstance(data, str):
             data = encode_data_to_bytes(data)
         params = {
