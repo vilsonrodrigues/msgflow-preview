@@ -580,11 +580,27 @@ class OpenAITextToImage(_BaseOpenAI, TextToImageModel):
         )
         return model_output
 
+    def _get_metadata(self, model_output):
+        metadata = dotdict(
+            {
+                "usage": model_output.usage.to_dict(),
+                "details": {
+                    "size": model_output.size,
+                    "quality": model_output.quality,
+                    "output_format": model_output.output_format,
+                    "background": model_output.background,
+                }
+             }
+        )
+        return metadata
+
     def _generate(self, **kwargs):
         response = ModelResponse()
         response.set_response_type("image_generation")
         
         model_output = self._execute_model(**kwargs)
+
+        metadata = self._get_metadata(model_output)
 
         images = []
         for item in model_output.data:
@@ -595,7 +611,9 @@ class OpenAITextToImage(_BaseOpenAI, TextToImageModel):
         
         if len(images) == 1:
             images = images[0]
+        
         response.add(images)
+        response.set_metadata(metadata)
 
         return response
 
@@ -827,7 +845,7 @@ class OpenAITextEmbedder(_BaseOpenAI, TextEmbedderModel):
         response.set_response_type("text_embedding")
         model_output = self._execute_model(**kwargs)
         embedding = model_output.data[0].embedding
-        metadata = dotdict(model_output.usage.to_dict())
+        metadata = dotdict({"usage": model_output.usage.to_dict()})
         response.add(embedding)
         response.set_metadata(metadata)
         return response
