@@ -25,8 +25,8 @@ _SUPPORTED_MODEL_TYPES = [
     "speech_to_text",
     "text_classifier",
     "text_embedder",
-    "text_to_image",
     "text_reranker",
+    "text_to_image",    
     "text_to_speech",    
 ]
 
