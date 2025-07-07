@@ -799,6 +799,8 @@ class OpenAISpeechToText(_BaseOpenAI, SpeechToTextModel):
         prompt: Optional[str] = None,
         language: Optional[str] = None,        
     ):
+        if isinstance(data, str):
+            data = encode_data_to_bytes(data)
         params = {
             "file": data,
             "language": language,

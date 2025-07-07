@@ -77,14 +77,14 @@ class Transcriber(Module):
         return response
 
     def _execute_model(
-        self, data: bytes, model_preference: Optional[str] = None
+        self, data: Union[str, bytes], model_preference: Optional[str] = None
     ) -> Union[ModelResponse, ModelStreamResponse]:
         model_execution_params = self._prepare_model_execution(data, model_preference)
         model_response = self.model(**model_execution_params)
         return model_response
 
     def _prepare_model_execution(
-        self, data: bytes, model_preference: Optional[str] = None
+        self, data: Union[str, bytes], model_preference: Optional[str] = None
     ) -> Dict[str, Any]:
         model_execution_params = dotdict({
             "data": data,
@@ -134,7 +134,7 @@ class Transcriber(Module):
         else:
             audio_content = message
 
-        if isinstance(audio_content, bytes):
+        if isinstance(audio_content, (str, bytes)):
             return message
         elif isinstance(audio_content, dict):
             audio_content = audio_content.get("audio")
