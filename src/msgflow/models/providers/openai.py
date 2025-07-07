@@ -535,7 +535,7 @@ class OpenAITextToSpeech(_BaseOpenAI, TextToSpeechModel):
 
 
 class OpenAITextToImage(_BaseOpenAI, TextToImageModel):
-    """OpenAI Image Generation"""
+    """OpenAI Image Generation."""
 
     def __init__(
         self,
@@ -639,14 +639,14 @@ class OpenAITextToImage(_BaseOpenAI, TextToImageModel):
         if response_format is not None:
             if response_format == "base64":
                 response_format = "b64_json"
-            generation_params.response_format 
+            generation_params.response_format = response_format
 
         response = self._generate(**generation_params)
         return response
 
 
 class OpenAIImageTextToImage(OpenAITextToImage, ImageTextToImageModel):
-    """OpenAI Image Edit"""
+    """OpenAI Image Edit."""
 
     def _execute(self, **kwargs):
         model_output = self.client.images.edit(
@@ -678,7 +678,7 @@ class OpenAIImageTextToImage(OpenAITextToImage, ImageTextToImageModel):
             prompt:
                 A text description of the desired image(s).
             image:
-                The image(s) to edit.
+                The image(s) to edit. Can be a path, an url or base64 string.
             mask:
                 An additional image whose fully transparent areas 
                 (e.g. where alpha is zero) indicate where image 
@@ -689,10 +689,15 @@ class OpenAIImageTextToImage(OpenAITextToImage, ImageTextToImageModel):
             n:
                 The number of images to generate.                
         """
-        if response_format == "base64":
-            response_format = "b64_json"        
+        generation_params = dotdict(prompt=prompt, n=n)
+
+        if response_format is not None:
+            if response_format == "base64":
+                response_format = "b64_json"
+            generation_params.response_format = response_format
+      
         inputs = self._prepare_inputs(image, mask, response_format)
-        response = self._generate(prompt, **inputs, response_format=response_format, n=n)
+        response = self._generate(**generation_params, **inputs)
         return response
 
 
