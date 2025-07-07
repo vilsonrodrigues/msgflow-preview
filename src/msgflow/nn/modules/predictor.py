@@ -33,7 +33,8 @@ class Predictor(Module):
                 Predictor Model client.
             task_inputs:
                 Fields of the Message object that will be the input to the task.
-            response_mode: What the response should be.
+            response_mode: 
+                What the response should be.
                 * `plain_response` (default): Returns the final agent response directly.
                 * other: Write on field in Message object.
             response_template:

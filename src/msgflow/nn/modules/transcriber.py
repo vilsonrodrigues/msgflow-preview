@@ -9,33 +9,7 @@ from msgflow.utils.encode import encode_data_to_bytes
 
 
 class Transcriber(Module):
-    """Transcriber is a Module type that uses language models to transcribe audios.
-
-    Args:
-        name: Transcriber name in snake case format.
-        model: Transcriber Model client.
-        task_inputs: Fields of the Message object that will be the input to the task.
-        response_mode: What the response should be. Has five options:
-            * `plain_response` (default): Returns the transcriber response.
-            * `response`: Write on `response` field in Message object.
-            * `context`: Write on `context` field in Message object.
-               It`s insert how `context.transcriber_name`.
-            * `outputs`: Write on `outputs` field in Message object.
-               It`s insert how `outputs.transcriber_name`.
-        language: Spoken language acronym.
-        response_format: How the model should format the output. Options:
-            * json
-            * text (default)
-            * srt
-            * verbose_json
-            * vtt
-        timestamp_granularities: Enable timestamp granularities.
-            Requires `response_format=verbose_json`. Options:
-            * word
-            * segment
-            * None (default)
-        prompt: Useful for instructing the model to follow some transcript generation pattern.
-    """
+    """Transcriber is a Module type that uses language models to transcribe audios."""
 
     def __init__(
         self,
@@ -51,6 +25,36 @@ class Transcriber(Module):
         timestamp_granularities: Optional[str] = None,
         prompt: Optional[str] = None,
     ):
+        """
+        Args:
+            name: 
+                Transcriber name in snake case format.
+            model: 
+                Transcriber Model client.
+            task_inputs: 
+                Fields of the Message object that will be the input to the task.
+            response_mode: 
+                What the response should be.
+                * `plain_response` (default): Returns the final agent response directly.
+                * other: Write on field in Message object.
+            language: 
+                Spoken language acronym.
+            response_format: How the model should format the output. Options:
+                * text (default)
+                * json
+                * srt
+                * verbose_json
+                * vtt
+            timestamp_granularities: 
+                Enable timestamp granularities.
+                Requires `response_format=verbose_json`. Options:
+                * word
+                * segment
+                * None (default)
+            prompt: 
+                Useful for instructing the model to follow some transcript 
+                generation pattern.
+        """
         super().__init__()
         self.set_name(name)
         self._set_language(language)        

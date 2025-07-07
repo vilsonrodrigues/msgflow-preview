@@ -25,7 +25,7 @@ from msgflow.telemetry.span import trace_tool_library_call
 
 
 class ToolBase(Module):
-    """Tool class description"""
+    """Tool is Module type that provide a json schema to tools."""
 
     def get_json_schema(self):
         return generate_tool_json_schema(self)
@@ -126,13 +126,22 @@ def _convert_module_to_nn_tool(impl: Callable) -> ToolBase:
 
 
 class ToolLibrary(Module):
-    
+    """ToolLibrary is a Module type that manage tool calls over the tool library."""
     def __init__(
         self,
         name: str,
         tools: List[Callable],
         special_tools: Optional[List[str]] = None
     ):
+        """
+        Args:
+            name:
+                Library name.
+            tools:
+                A list of callables.
+            special_tools:
+                Autonomy tools for the model.
+        """
         super().__init__()
         self.set_name(f"{name}_tool_library")
         self.library = ModuleDict()

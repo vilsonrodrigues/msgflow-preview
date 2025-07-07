@@ -158,7 +158,8 @@ class Agent(Module):
                 Schema that defines how the output should be structured.
             xml_to_dict:
                 Converts the model output, which should be typed-XML, into a typed-dict.            
-            response_mode: What the response should be.
+            response_mode: 
+                What the response should be.
                 * `plain_response` (default): Returns the final agent response directly.
                 * other: Write on field in Message object.
             tools:

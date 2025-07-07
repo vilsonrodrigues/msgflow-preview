@@ -69,7 +69,8 @@ class Designer(Module):
                 to the task.
             response_format:
                 Data output format.
-            response_mode: What the response should be.
+            response_mode: 
+                What the response should be.
                 * `plain_response` (default): Returns the final agent response directly.
                 * other: Write on field in Message object.
             negative_prompt:
