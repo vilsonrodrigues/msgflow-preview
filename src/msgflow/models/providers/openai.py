@@ -569,8 +569,9 @@ class OpenAITextToImage(_BaseOpenAI, TextToImageModel):
             "size": size, 
             "quality": quality,
             "background": background,
-            "moderation": moderation
         }
+        if moderation:
+            self.sampling_run_params["moderation"] = moderation
         self._initialize()
         self._get_api_key()
 
