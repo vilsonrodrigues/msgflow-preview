@@ -256,7 +256,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                 response_content = struct_to_dict(struct)
             else:
                 response.set_response_type("{}text_generation".format(prefix_response_type))                
-                if reasoning_content is not None or annotations_content is not None:
+                if reasoning_content is not None:
                     response_content = dotdict({"answer": choice.message.content})
                 else:
                     response_content = choice.message.content
