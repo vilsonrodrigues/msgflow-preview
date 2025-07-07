@@ -122,7 +122,7 @@ class Retriever(Module):
             "top_k": self.top_k,            
             "return_score": self.return_score,
         })
-        if self.threshold
+        if self.threshold:
             retriever_execution_params.threshold = self.threshold
         return retriever_execution_params
 
