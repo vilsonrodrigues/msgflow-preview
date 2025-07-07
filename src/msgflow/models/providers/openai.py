@@ -167,10 +167,11 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             "temperature": temperature,
             "top_p": top_p,
             "modalities": modalities,
-            "reasoning_effort": reasoning_effort,
             "audio": audio,
             "web_search_options": web_search_options
         }
+        if reasoning_effort is not None:
+            self.sampling_run_params["reasoning_effort"] = reasoning_effort
         self.return_reasoning = return_reasoning
         self._initialize()
         self._get_api_key()
