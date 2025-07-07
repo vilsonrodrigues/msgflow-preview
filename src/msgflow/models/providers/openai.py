@@ -355,12 +355,13 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             tool_choice:
                 By default the model will determine when and how many tools to use. 
                 You can force specific behavior with the tool_choice parameter.
-                    1. Auto: 
+                    1. auto: 
                         (Default) Call zero, one, or multiple functions. tool_choice: "auto"
-                    2. Required: 
+                    2. required: 
                         Call one or more functions. tool_choice: "required"
-                    3. Forced Function: 
-                        Call exactly one specific function. tool_choice: {"type": "function", "function": {"name": "get_weather"}}    
+                    3. Forced Tool: 
+                        Call exactly one specific tool. 
+                        tool_choice: {"type": "function", "function": {"name": "get_weather"}}
             xml_to_dict:
                 Converts the model output, which should be typed-XML, into a typed-dict.
 
@@ -854,7 +855,7 @@ class OpenAIModeration(_BaseOpenAI, ModerationModel):
                 Model ID in provider.
             base_url:
                 URL to model provider.
-        """        
+        """
         super().__init__()
         self.model_id = model_id
         self.sampling_params = {"base_url": base_url or self._get_base_url()}        
