@@ -842,7 +842,7 @@ class OpenAITextEmbedder(_BaseOpenAI, TextEmbedderModel):
             data: 
                 Input text to embed.
         """
-        response = self._generate(text=data)
+        response = self._generate(input=data)
         return response
 
 
