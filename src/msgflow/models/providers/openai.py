@@ -634,9 +634,14 @@ class OpenAITextToImage(_BaseOpenAI, TextToImageModel):
             n:
                 The number of images to generate.                
         """
-        if response_format == "base64":
-            response_format = "b64_json"
-        response = self._generate(prompt=prompt, response_format=response_format, n=n)
+        generation_params = dotdict(n=n, prompt=prompt)
+
+        if response_format is not None:
+            if response_format == "base64":
+                response_format = "b64_json"
+            generation_params.response_format 
+
+        response = self._generate(**generation_params)
         return response
 
 
