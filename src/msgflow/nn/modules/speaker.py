@@ -8,24 +8,7 @@ from msgflow.nn.modules.module import Module
 
 
 class Speaker(Module):
-    """Speaker is a Module type that uses language models to transform text in speak.
-
-    Args:
-        name: Transcriber name in snake case format.
-        model: Transcriber Model client.
-        task_inputs: Fields of the Message object that will be the input to the task.
-        response_mode: What the response should be. Has five options:
-            * `plain_response` (default): Returns the transcriber response.
-            * `response`: Write on `response` field in Message object.
-            * `context`: Write on `context` field in Message object.
-               It`s insert how `context.transcriber_name`.
-            * `outputs`: Write on `outputs` field in Message object.
-               It`s insert how `outputs.transcriber_name`.
-
-        prompt: Useful for instructing the model to follow some speak generation pattern.
-        response_format: ["mp3", "opus", "aac", "flac", "wav", "pcm"]] = "opus"
-        prompt: ...
-    """
+    """Speaker is a Module type that uses language models to transform text in speak."""
 
     def __init__(
         self,
@@ -39,6 +22,23 @@ class Speaker(Module):
         response_format: Optional[Literal["mp3", "opus", "aac", "flac", "wav", "pcm"]] = "opus",
         prompt: Optional[str] = None,
     ):
+        """
+        Args:
+            name: 
+                Transcriber name in snake case format.
+            model: 
+                Transcriber Model client.
+            task_multimodal_inputs: 
+                Fields of the Message object that will be the multimodal input 
+                to the task.
+            response_mode: What the response should be.
+                * `plain_response` (default): Returns the final agent response directly.
+                * other: Write on field in Message object.
+            response_format:
+                The format to audio in.
+            prompt:
+                Useful for instructing the model to follow some speak generation pattern.
+        """
         super().__init__()
         self.set_name(name)
         self._set_input_guardrail(input_guardrail)
@@ -102,7 +102,7 @@ class Speaker(Module):
 
     def _prepare_task(self, message: Union[str, Message], **kwargs) -> Dict[str, str]:
         if isinstance(message, Message):
-            data = self._get_content_from_message(self.task_inputs, message)
+            data = self._extract_message_values(self.task_inputs, message)
             if data is None:
                 raise ValueError(f"No text found in paths: `{self.task_inputs}`")
         elif isinstance(message, str):
