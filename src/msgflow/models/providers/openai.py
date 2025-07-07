@@ -214,7 +214,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
 
         model_output = self._execute_model(**kwargs)
 
-        metadata.update(model_output.usage.to_dict())
+        metadata.update({"usage": model_output.usage.to_dict()})
 
         choice = model_output.choices[0]
 
