@@ -36,10 +36,10 @@ class Retriever:
         if provider not in providers:
             raise ValueError(f"Provider `{provider}` is not supported for {retriever_type}")
 
-        if len(db_type) <= 3:
-            db_type = db_type.upper()
+        if len(retriever_type) <= 3:
+            retriever_type = retriever_type.upper()
         else:
-            db_type = db_type.title().replace("_", "")
+            retriever_type = retriever_type.title().replace("_", "")
 
         provider_class_name = f"{_RETRIEVER_NAMESPACE_TRANSLATOR[provider]}{retriever_type}"                
         module_name = f"msgflow.data.retrievers.providers.{provider}"                
@@ -51,7 +51,12 @@ class Retriever:
         return retriever_cls(**kwargs)
 
     @classmethod
-    def from_serialized(cls, provider: str, retriever_type: str, params: Dict[str, Any]) -> Type[BaseRetriever]:
+    def from_serialized(
+        cls, 
+        provider: str, 
+        retriever_type: str, 
+        params: Dict[str, Any]
+    ) -> Type[BaseRetriever]:
         """
         Creates a retriever instance from serialized parameters without calling __init__.
         
