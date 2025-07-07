@@ -827,7 +827,9 @@ class OpenAITextEmbedder(_BaseOpenAI, TextEmbedderModel):
         response.set_response_type("text_embedding")
         model_output = self._execute_model(**kwargs)
         embedding = model_output.data[0].embedding
+        metadata = dotdict(model_output.usage)
         response.add(embedding)
+        response.set_metadata(metadata)
         return response
 
     @model_retry
