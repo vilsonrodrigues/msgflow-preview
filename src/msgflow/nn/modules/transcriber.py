@@ -31,8 +31,9 @@ class Transcriber(Module):
                 Transcriber name in snake case format.
             model: 
                 Transcriber Model client.
-            task_inputs: 
-                Fields of the Message object that will be the input to the task.
+            task_multimodal_inputs: 
+                Fields of the Message object that will be the multimodal input 
+                to the task.
             response_mode: 
                 What the response should be.
                 * `plain_response` (default): Returns the final agent response directly.
