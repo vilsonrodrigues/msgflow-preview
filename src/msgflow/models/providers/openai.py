@@ -379,9 +379,8 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         generation_params = dict(
             messages=messages,
             prefilling=prefilling,
-            generation_schema=generation_schema,
             tool_choice=tool_choice,
-            tools=tool_schemas,
+            tools=tool_schemas,            
         )
 
         if stream is True:
@@ -402,7 +401,11 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             F.wait_for_event(stream_response.first_chunk_event)
             return stream_response
         else:
-            response = self._generate(**generation_params)
+            response = self._generate(
+                **generation_params, 
+                xml_to_dict=xml_to_dict, 
+                generation_schema=generation_schema
+            )
             return response
 
 
