@@ -696,7 +696,7 @@ class OpenAIImageTextToImage(OpenAITextToImage, ImageTextToImageModel):
                 response_format = "b64_json"
             generation_params.response_format = response_format
       
-        inputs = self._prepare_inputs(image, mask, response_format)
+        inputs = self._prepare_inputs(image, mask)
         response = self._generate(**generation_params, **inputs)
         return response
 
