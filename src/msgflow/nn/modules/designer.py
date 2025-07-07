@@ -220,8 +220,7 @@ class Designer(Module):
         for media_source in ["image", "mask"]:
             data = task_multimodal_inputs.get(media_source, None)
             if data:
-                encoded_data = self._prepare_data_uri(data)
-                content[media_source] = encoded_data
+                content[media_source] = data
 
         return content
 
