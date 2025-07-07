@@ -876,8 +876,8 @@ class OpenAIModeration(_BaseOpenAI, ModerationModel):
         response = ModelResponse()
         response.set_response_type("moderation")
         model_output = self._execute_model(**kwargs)
-        moderation = dotdict({"results": model_output.results})
-        moderation.safe = moderation.results.flagged
+        moderation = dotdict({"results": model_output.results[0].model_dump()})
+        moderation.safe = not moderation.results.flagged
         response.add(moderation)
         return response
 
