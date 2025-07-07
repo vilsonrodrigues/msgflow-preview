@@ -1,3 +1,4 @@
+from functools import partial
 from typing import Any, Dict, List, Optional, Union
 
 from msgflow.dotdict import dotdict
@@ -22,10 +23,7 @@ _RETRIVERS = Union[WebRetriever, LexicalRetriever, SemanticRetriever, VectorDB]
 _MODELS = Union[AudioEmbedderModel, ImageEmbedderModel, TextEmbedderModel, ModelGateway]
 
 class Retriever(Module):
-    """
-    dict_key
-
-    """
+    """Retriever is a Module type that uses information retrivers."""
 
     def __init__(
         self,
@@ -41,6 +39,33 @@ class Retriever(Module):
         return_score: Optional[bool] = False,
         dict_key: Optional[str] = None,
     ):
+        """
+        Args:
+            name: 
+                Designer name in snake case format.
+            retriever:
+                Retriever client.
+            model:
+                An embedding model.
+            task_inputs:
+                Fields of the Message object that will be the input to the task.                
+            response_mode: What the response should be.
+                * `plain_response` (default): Returns the final agent response directly.
+                * other: Write on field in Message object.                
+            response_template:
+                A Jinja template to format response.
+            top_k:
+                Maximum return of similar points.
+            threshold:
+                Retriever threshold.
+            return_score:
+                If True, return similarity score.
+            dict_key:
+                Help to extract a value from task_inputs if dict.
+                e.g.:
+                    self.dict_key='name'
+                    [{'name': 'clark', 'age': 27}]
+        """
         super().__init__()
         self.set_name(name)
         self._set_retriever(retriever)
@@ -55,7 +80,7 @@ class Retriever(Module):
 
     def forward(
         self, message: Union[str, List[str], List[Dict[str, Any]], Message], **kwargs
-    ) -> Dict[str, str]:
+    ) -> Union[str, Dict[str, str], Message]:
         inputs = self._prepare_task(message, **kwargs)
         retriever_response = self._execute_retriever(**inputs)
         response = self._prepare_response(retriever_response, message)
@@ -68,7 +93,9 @@ class Retriever(Module):
         if self.model:
             queries_embed = self._execute_model(queries, model_preference)
     
-        retriever_execution_params = self._prepare_retriever_execution(queries_embed or queries)
+        retriever_execution_params = self._prepare_retriever_execution(
+            queries_embed or queries
+        )
         retriever_response = self.retriever(**retriever_execution_params)
 
         results = []
@@ -86,29 +113,39 @@ class Retriever(Module):
 
         return results
 
-    def _prepare_retriever_execution(self, queries: List[Union[str, List[float]]]) -> Dict[str, Any]:
+    def _prepare_retriever_execution(
+        self, queries: List[Union[str, List[float]]]
+    ) -> Dict[str, Any]:
         retriever_execution_params = dotdict({
             "queries": queries,
-            "top_k": self.top_k,
-            "threshold": self.threshold,
+            "top_k": self.top_k,            
             "return_score": self.return_score,
         })
+        if self.threshold
+            retriever_execution_params.threshold = self.threshold
         return retriever_execution_params
 
     def _execute_model(
         self, queries: List[str], model_preference: Optional[str] = None
     ) -> List[List[float]]:
         if "bached" in self.model.model_type or len(queries) == 1:
-            model_execution_params = self._prepare_model_execution(queries, model_preference)
+            model_execution_params = self._prepare_model_execution(
+                queries, model_preference
+            )
             model_response = self.model(**model_execution_params)
             queries_embed = self._extract_raw_response(model_response)
             if not isinstance(queries_embed, list):
                 queries_embed = [queries_embed]
         else:
-            distributed_params = [self._prepare_model_execution(query, model_preference) for query in queries]
-            to_send = [self.model for _ in range(len(distributed_params))]
-            responses = F.scatter_gather(to_send, kwargs_list=distributed_params)
-            raw_resposes = [self._extract_raw_response(model_response) for model_response in responses]
+            prepare_execution = partial(
+                self._prepare_model_execution, model_preference=model_preference
+            )
+            distributed_params = list(map(prepare_execution, queries))
+            to_send = [self.model] * len(distributed_params)
+            responses = F.scatter_gather(to_send, kwargs_list=distributed_params)            
+            raw_resposes = [
+                self._extract_raw_response(model_response) for model_response in responses
+            ]
             return raw_resposes
 
         return queries_embed
@@ -147,12 +184,7 @@ class Retriever(Module):
         })
 
     def _process_list_of_dict_inputs(self, queries: List[Dict[str, Any]]) -> List[str]:
-        """ Extract the query value from a dict.
-
-        Example:
-            self.dict_key='name'
-            [{'name': 'clark', 'age': 27}]
-        """
+        """Extract the query value from a dict."""
         if self.dict_key:
             queries_list = [data[self.dict_key] for data in queries]
             return queries_list
