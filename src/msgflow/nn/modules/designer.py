@@ -71,7 +71,7 @@ class Designer(Module):
                 Data output format.
             response_mode: What the response should be.
                 * `plain_response` (default): Returns the final agent response directly.
-                * other: Write on `response` field in Message object.
+                * other: Write on field in Message object.
             negative_prompt:
                 Instructions on what not to have.
             fps:

@@ -4,6 +4,7 @@ from msgflow.dotdict import dotdict
 from msgflow.message import Message
 from msgflow.models.base import BaseModel
 from msgflow.models.gateway import ModelGateway
+from msgflow.models.response import ModelResponse
 from msgflow.nn.modules.module import Module
 
 
@@ -11,18 +12,6 @@ class Predictor(Module):
     """
     Predictor is a generic Module type that uses Classifier, Regressors, 
     Detectors and Segmenters to generate insights above data.
-
-    Args:
-        name: Predictor name in snake case format.
-        model: Predictor Model client.
-        task_inputs: Fields of the Message object that will be the input to the task.
-        response_mode: What the response should be. Has five options:
-            * `plain_response` (default): Returns the transcriber response.
-            * `response`: Write on `response` field in Message object.
-            * `context`: Write on `context` field in Message object.
-               It`s insert how `context.transcriber_name`.
-            * `outputs`: Write on `outputs` field in Message object.
-               It`s insert how `outputs.transcriber_name`.
     """
 
     def __init__(
@@ -33,12 +22,33 @@ class Predictor(Module):
         task_inputs: Optional[str] = None,      
         response_mode: Optional[str] = "plain_response",
         response_template: Optional[str] = None,
+        model_preference: Optional[str] = None,
         execution_kwargs: Optional[Dict[str, Any]] = None,
     ):
+        """
+        Args:
+            name: 
+                Predictor name in snake case format.
+            model: 
+                Predictor Model client.
+            task_inputs:
+                Fields of the Message object that will be the input to the task.
+            response_mode: What the response should be.
+                * `plain_response` (default): Returns the final agent response directly.
+                * other: Write on field in Message object.
+            response_template:
+                A Jinja template to format response.
+            model_preference:
+                Fields of the Message object that will be the model preference.
+                This is only valid if the model is of type ModelGateway.                
+            execution_kwargs:
+                Extra kwargs to model execution.                              
+        """        
         super().__init__()
         self.set_name(name)
         self._set_model(model)
         self._set_execution_kwargs(execution_kwargs)
+        self._set_model_preference(model_preference)
         self._set_response_mode(response_mode)
         self._set_response_template(response_template)
         self._set_task_inputs(task_inputs)     
@@ -49,19 +59,25 @@ class Predictor(Module):
         response = self._process_model_response(model_response, message)
         return response
 
-    def _execute_model(self, data, model_preference=None):
+    def _execute_model(
+        self, data: Any, model_preference: Optional[str] = None
+    ) -> ModelResponse:
         model_execution_params = self._prepare_model_execution(data, model_preference)
         model_response = self.model(**model_execution_params)
         return model_response
 
-    def _prepare_model_execution(self, data, model_preference=None):
-        model_execution_params = self.execution_kwargs or {}
-        model_execution_params["data"] = data
+    def _prepare_model_execution(
+        self, data: Any, model_preference: Optional[str] = None
+    ) -> Dict[str, Any]:
+        model_execution_params = dotdict(self.execution_kwargs or {})
+        model_execution_params.data = data
         if model_preference:
-            model_execution_params["model_preference"] = model_preference        
+            model_execution_params.model_preference = model_preference        
         return model_execution_params        
 
-    def _process_model_response(self, model_response, message):
+    def _process_model_response(
+        self, model_response: ModelResponse, message: Union[Any, Message]
+    ) -> Any:
         if model_response.response_type == "audio_generation":
             raw_response = self._extract_raw_response(model_response)
             response = self._prepare_response(raw_response, message)

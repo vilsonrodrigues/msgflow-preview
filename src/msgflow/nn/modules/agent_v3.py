@@ -131,7 +131,7 @@ class Agent(Module):
             input_guardrail:
                 Guardrail to input.
             output_guardrail:
-                Guardrail to output.             
+                Guardrail to output.
             task_inputs:
                 Fields of the Message object that will be the input to the task.
             task_multimodal_inputs: 
@@ -160,7 +160,7 @@ class Agent(Module):
                 Converts the model output, which should be typed-XML, into a typed-dict.            
             response_mode: What the response should be.
                 * `plain_response` (default): Returns the final agent response directly.
-                * other: Write on `response` field in Message object.
+                * other: Write on field in Message object.
             tools:
                 A list of callable objects.
             tool_choice:
