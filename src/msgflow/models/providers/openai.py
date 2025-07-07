@@ -654,7 +654,7 @@ class OpenAIImageTextToImage(OpenAITextToImage, ImageTextToImageModel):
         )
         return model_output
 
-    def _prepare_inputs(image, mask):
+    def _prepare_inputs(self, image, mask):
         inputs = {}
         if isinstance(image, str):
             image = [image]
