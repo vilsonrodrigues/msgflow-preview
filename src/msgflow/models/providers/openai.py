@@ -329,7 +329,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
     @model_retry
     def __call__(
         self,
-        messages: Union[str, Dict[str, Any]],
+        messages: Union[str, List[Dict[str, Any]]],
         *,
         system_prompt: Optional[str] = None,
         prefilling: Optional[str] = None,
@@ -876,8 +876,8 @@ class OpenAIModeration(_BaseOpenAI, ModerationModel):
         response = ModelResponse()
         response.set_response_type("moderation")
         model_output = self._execute_model(**kwargs)
-        moderation = model_output.results
-        moderation["safe"] = moderation["flagged"]
+        moderation = dotdict({"results": model_output.results})
+        moderation.safe = moderation.results.flagged
         response.add(moderation)
         return response
 
