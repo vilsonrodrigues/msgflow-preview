@@ -10,6 +10,7 @@ from msgflow.models.types import (
     TextClassifierModel,
     TextEmbedderModel,
     TextRerankerModel,
+    TextToImageModel,
     TextToSpeechModel,
 )
 from msgflow.utils.imports import import_module_from_lib
@@ -159,6 +160,10 @@ class Model:
     @classmethod
     def text_reranker(cls, model_path: str, **kwargs) -> Type[TextRerankerModel]:
         return cls._create_model("text_reranker", model_path, **kwargs)
+
+    @classmethod
+    def text_to_image(cls, model_path: str, **kwargs) -> Type[TextToImageModel]:
+        return cls._create_model("text_to_image", model_path, **kwargs)
 
     @classmethod
     def text_to_speech(cls, model_path: str, **kwargs) -> Type[TextToSpeechModel]:
