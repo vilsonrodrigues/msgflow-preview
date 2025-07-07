@@ -475,16 +475,15 @@ class OpenAITextToSpeech(_BaseOpenAI, TextToSpeechModel):
     def _generate(self, **kwargs):
         response = ModelResponse()
 
-        model_output = self._execute_model(**kwargs)
+        with self._execute_model(**kwargs) as model_output:
+            with tempfile.NamedTemporaryFile(
+                suffix=f".{kwargs.get('response_format')}", delete=False
+            ) as temp_file:
+                temp_file_path = temp_file.name
+                model_output.stream_to_file(temp_file_path)
 
-        with tempfile.NamedTemporaryFile(
-            suffix=f".{kwargs.get('response_format')}", delete=False
-        ) as temp_file:
-            temp_file_path = temp_file.name
-            model_output.stream_to_file(temp_file_path)
-
-        response.set_response_type("audio_generation")
-        response.add({"audio_path": temp_file_path})
+            response.set_response_type("audio_generation")
+            response.add({"audio_path": temp_file_path})
 
         return response
 
