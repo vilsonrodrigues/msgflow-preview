@@ -19,18 +19,9 @@ if platform.system() == "Windows":
 
 
 class FAISSVectorDB(BaseDB, VectorDB):
+    """FAISS Vector DB."""
 
     provider = "faiss"
-
-    """
-    Vector Database implementation using Facebook AI Similarity Search (FAISS).
-
-
-    Args:
-        dimension: Dimensionality of the embeddings
-        metric_type: Distance metric for similarity search ('cosine', 'l2', 'ip')
-        index_type: Type of FAISS index ('flat', 'ivf', etc.)    
-    """
 
     def __init__(
         self, 
@@ -38,6 +29,12 @@ class FAISSVectorDB(BaseDB, VectorDB):
         metric_type: Optional[str] = "cosine", 
         index_type: Optional[str] = "flat"
     ):
+        """
+        Args:
+            dimension: Dimensionality of the embeddings
+            metric_type: Distance metric for similarity search ('cosine', 'l2', 'ip')
+            index_type: Type of FAISS index ('flat', 'ivf', etc.)    
+        """
         valid_metrics = {
             "cosine": faiss.METRIC_INNER_PRODUCT,
             "l2": faiss.METRIC_L2,

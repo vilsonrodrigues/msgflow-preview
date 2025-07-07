@@ -7,6 +7,7 @@ from msgflow.utils.convert import convert_str_to_hash
 
 
 class CacheToolsKVDB(BaseDB, KVDB):
+    """CacheTools Key-Value DB."""
 
     provider = "cachetools"
 
@@ -16,6 +17,15 @@ class CacheToolsKVDB(BaseDB, KVDB):
         maxsize: Optional[int] = 10000, 
         hash_key: Optional[bool] = True
     ):
+        """
+        Args:
+            ttl: 
+                The time-to-live (TTL) for each cache entry in seconds.
+            maxsize: 
+                The maximum number of items the cache can store.
+            hash_key: 
+                Whether to hash the keys before storing them in the cache.
+        """
         self.hash_key = hash_key
         self.maxsize = maxsize
         self.ttl = ttl

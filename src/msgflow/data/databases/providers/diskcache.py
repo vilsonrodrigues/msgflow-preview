@@ -11,6 +11,7 @@ from msgflow.utils.convert import convert_str_to_hash
 
 
 class DiskCacheKVDB(BaseDB, KVDB):
+    """DiskCache Key-Value DB."""
 
     provider = "diskcache"
 
