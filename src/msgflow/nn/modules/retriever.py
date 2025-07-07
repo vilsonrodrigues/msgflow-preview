@@ -211,13 +211,15 @@ class Retriever(Module):
         else:
             raise TypeError(f"`model` requires be `embedder` model, given `{type(model)}`")
 
-    def _set_threshold(self, threshold: Optional[float] = 0.0):
+    def _set_threshold(self, threshold: Optional[float] = None):
         if isinstance(threshold, float):
             if threshold < 0.0:
                 raise ValueError(f"`threshold` requires be >= 0.0 given `{threshold}`")
             self.register_buffer("threshold", threshold)
+        elif threshold is None:
+            self.register_buffer("threshold", threshold)
         else:
-            raise TypeError(f"`threshold` requires a float given `{type(threshold)}`")
+            raise TypeError(f"`threshold` requires a float or None given `{type(threshold)}`")
 
     def _set_return_score(self, return_score: Optional[bool] = False):
         if isinstance(return_score, bool):
