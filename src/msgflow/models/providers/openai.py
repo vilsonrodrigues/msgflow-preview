@@ -478,7 +478,7 @@ class OpenAITextToSpeech(_BaseOpenAI, TextToSpeechModel):
         model_output = self._execute_model(**kwargs)
 
         with tempfile.NamedTemporaryFile(
-            suffix=f".{kwargs.get("response_format")}", delete=False
+            suffix=f".{kwargs.get('response_format')}", delete=False
         ) as temp_file:
             temp_file_path = temp_file.name
             model_output.stream_to_file(temp_file_path)
