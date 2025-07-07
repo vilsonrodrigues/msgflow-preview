@@ -483,7 +483,7 @@ class OpenAITextToSpeech(_BaseOpenAI, TextToSpeechModel):
                 model_output.stream_to_file(temp_file_path)
 
             response.set_response_type("audio_generation")
-            response.add({"audio_path": temp_file_path})
+            response.add(temp_file_path)
 
         return response
 
