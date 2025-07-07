@@ -65,48 +65,44 @@ def encode_to_io_object(input_data: Union[bytes, str]) -> io.IOBase:
     )
 
 
-def encode_data_to_bytes(input_data: Union[bytes, str]) -> io.BufferedReader:
+def encode_data_to_bytes(input_data: Union[bytes, str], *, filename="image.png") -> io.BytesIO:
     """
-    Converts an input to a BufferedReader, ensuring consistency in the returned type.
+    Converts input to a BytesIO object and sets a name for MIME-type detection.
 
     Supports:
-    - URLs (downloads the content and converts to BufferedReader)
-    - Base64 strings (decodes to BufferedReader)
-    - Local paths to files (opens the file in binary mode)
-    - Bytes (converts to BufferedReader)
-
-    Args:
-        input_data: The input to convert to BufferedReader.
-
-    Returns:
-        The BufferedReader object containing the data.
+    - URLs
+    - Base64
+    - Local files
+    - Raw bytes
     """
-
-    # Aux function to create temporary file and return as BufferedReader
-    def _create_temp_file(data):
-        temp_file = tempfile.NamedTemporaryFile(delete=False)
-        temp_file.write(data)
-        temp_file.close()
-        return open(temp_file.name, "rb")
-
     if isinstance(input_data, bytes):
-        return _create_temp_file(input_data)
+        data = input_data
 
-    if isinstance(input_data, str):
+    elif isinstance(input_data, str):
         if input_data.startswith(("http://", "https://")):
             response = requests.get(input_data)
             response.raise_for_status()
-            return _create_temp_file(response.content)
+            data = response.content
+            # Infer filename from URL if possible
+            filename = os.path.basename(response.url) or filename
 
-        try:
-            decoded_data = base64.b64decode(input_data)
-            return _create_temp_file(decoded_data)
-        except (base64.binascii.Error, ValueError):
-            pass
+        else:
+            # Try base64
+            try:
+                data = base64.b64decode(input_data)
+            except (base64.binascii.Error, ValueError):
+                # Fallback to file path
+                if os.path.isfile(input_data):
+                    with open(input_data, "rb") as f:
+                        data = f.read()
+                    filename = os.path.basename(input_data)
+                else:
+                    raise ValueError(f"Invalid string input: {input_data}")
 
-        if os.path.exists(input_data) and os.path.isfile(input_data):
-            return open(input_data, "rb")
+    else:
+        raise ValueError(f"Invalid input type: {type(input_data)}")
 
-    raise ValueError(
-        f"Invalid input: must be a URL, Base64, file path, or bytes. Given: {type(input_data)}"
-    )
+    # Wrap in BytesIO and set the .name attribute for MIME detection
+    buffer = io.BytesIO(data)
+    buffer.name = filename
+    return buffer
