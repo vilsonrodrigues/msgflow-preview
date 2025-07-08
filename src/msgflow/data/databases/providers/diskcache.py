@@ -4,7 +4,7 @@ try:
     from diskcache import Cache
 except:
     raise ImportError("`diskcache` is not detected, please install"
-                      "using `pip install msgflow[diskcache]`")
+                      "using `pip install diskcache`")
 from msgflow.data.databases.base import BaseDB
 from msgflow.data.databases.types import KVDB
 from msgflow.utils.convert import convert_str_to_hash
