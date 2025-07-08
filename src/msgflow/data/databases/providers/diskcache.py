@@ -16,6 +16,13 @@ class DiskCacheKVDB(BaseDB, KVDB):
     provider = "diskcache"
 
     def __init__(self, ttl: Optional[int] = 3600, hash_key: Optional[bool] = True):
+        """
+        Args:
+            ttl:
+                The time-to-live (TTL) for each cache entry in seconds.
+            hash_key:
+                Whether to hash the keys before storing them in the cache.
+        """
         self.hash_key = hash_key
         self.ttl = ttl
         self._initialize()
