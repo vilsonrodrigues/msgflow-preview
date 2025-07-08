@@ -1167,18 +1167,23 @@ class Module:
                     args, kwargs = hook_result
                 else:
                     raise RuntimeError("forward pre-hook must return None or "
-                                    "a tuple of (args, kwargs)")
+                                    "a tuple of (new_args, new_kwargs)")
         
         result = self._call(*args, **kwargs)
         
         for hook in self._forward_hooks.values():
             hook_result = hook(self, args, kwargs, result)
             if hook_result is not None:
+<<<<<<< HEAD
                 if isinstance(hook_result, tuple) and len(hook_result) == 3:
                     args, kwargs, result = hook_result
                 else:
                     raise RuntimeError("forward hook must return None or "
                                        "a tuple of (args, kwargs, output)")        
+=======
+                result = hook_result
+        
+>>>>>>> parent of e25efac (fix: post hook update input params)
         return result
 
     def _call(self, *args, **kwargs):
