@@ -1,30 +1,24 @@
 import math
 from collections import Counter
 from typing import Dict, List, Optional, Union
-from gevent.pool import Pool
 from msgflow.data.retrievers.base import BaseRetriever
 from msgflow.data.retrievers.types import LexicalRetriever
+from msgflow.nn import functional as F
 
 
 class BM25LexicalRetriever(BaseRetriever, LexicalRetriever):
-    """ Okapi BM25 - Best Matching 25
-    
-    Args:
-        k1: Tuning parameter for term frequency (default 1.5)
-        b: Tuning parameter for document length (default 0.75)
-        max_workers: Maximum number of workers for parallel queries 
-            (default: None, uses the number of CPUs)
-    """
+    """Okapi BM25 - Best Matching 25 Lexical Retriever."""
 
-    def __init__(
-        self, 
-        k1: Optional[float] = 1.5, 
-        b: Optional[float] = 0.75, 
-        max_workers: Optional[int] = None
-    ):
+    def __init__(self, k1: Optional[float] = 1.5, b: Optional[float] = 0.75):
+        """ 
+        Args:
+            k1: 
+                Tuning parameter for term frequency.
+            b: 
+                Tuning parameter for document length.
+        """
         self.b = b
         self.k1 = k1
-        self.max_workers = max_workers
         self._initialize()
 
     def _initialize(self):
@@ -65,14 +59,16 @@ class BM25LexicalRetriever(BaseRetriever, LexicalRetriever):
         }
 
     def _calculate_bm25_score(self, query, doc_id):
-        """ Calculates the BM25 score for a specific document
+        """ Calculates the BM25 score for a specific document.
 
         Args:
-            query: list of query tokens
-            doc_id: ID of the document to be scored
+            query:
+                List of query tokens.
+            doc_id:
+                ID of the document to be scored.
 
         Returns:
-            BM25 score for the document
+            BM25 score for the document.
         """
         score = 0.0
         doc_length = self.doc_lengths[doc_id]
@@ -93,20 +89,29 @@ class BM25LexicalRetriever(BaseRetriever, LexicalRetriever):
         
         return score
 
-    def _search(self, queries, top_k, threshold, return_score):
+    def _search(
+        self,
+        queries: List[str],
+        top_k: int,
+        threshold: float,
+        return_score: bool
+    ):
         """
-        Finds the top_k most similar documents for multiple queries
+        Finds the top_k most similar documents for multiple queries.
 
         Args:
-            queries: query string or list of strings
-            top_k: number of results to return
-            threshold: minimum score to include a document in the results
-            return_score: if True, returns the score along with the document
+            queries: 
+                Query string or list of strings.
+            top_k:
+                Number of results to return.
+            threshold:
+                Minimum score to include a document in the results.
+            return_score:
+                If True, returns the score along with the document.
 
         Returns:
-            List of results for each query
+            List of results for each query.
         """
-        pool = Pool(size=self.max_workers)
         
         def process_query(query):
             query_tokens = self._tokenize(query)
@@ -136,14 +141,14 @@ class BM25LexicalRetriever(BaseRetriever, LexicalRetriever):
             
             return results
         
-        results = pool.map(process_query, queries)        
+        results = list(F.map_gather(process_query, args_list=queries))
         return results
 
     def __call__(
         self, 
         queries: Union[str, List[str]],
-        top_k: Optional[int] = 5, 
-        threshold: Optional[float] = 0.0, 
+        top_k: Optional[int] = 5,
+        threshold: Optional[float] = 0.0,
         return_score: Optional[bool] = False
     ):
         if isinstance(queries, str):
