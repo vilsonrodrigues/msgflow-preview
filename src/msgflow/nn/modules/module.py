@@ -1167,16 +1167,19 @@ class Module:
                     args, kwargs = hook_result
                 else:
                     raise RuntimeError("forward pre-hook must return None or "
-                                    "a tuple of (new_args, new_kwargs)")
+                                    "a tuple of (args, kwargs)")
         
         result = self._call(*args, **kwargs)
         
         for hook in self._forward_hooks.values():
             hook_result = hook(self, args, kwargs, result)
             if hook_result is not None:
-                result = hook_result
-        
-        return result
+                if isinstance(hook_result, tuple) and len(hook_result) == 3:
+                    args, kwargs, result = hook_result
+                else:
+                    raise RuntimeError("forward hook must return None or "
+                                       "a tuple of (args, kwargs, output)")        
+        return result, args, kwargs
 
     def _call(self, *args, **kwargs):
         # Search for a Message in args and kwargs
