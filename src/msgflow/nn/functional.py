@@ -12,6 +12,7 @@ from msgflow.telemetry.span import trace
 @trace("msgflow.nn.F.map_gather")
 def map_gather(
     to_send: Callable,
+    *,
     args_list: List[Tuple[Any, ...]],
     kwargs_list: Optional[List[Dict[str, Any]]] = None,
     timeout: Optional[float] = None,
