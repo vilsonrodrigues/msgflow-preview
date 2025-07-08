@@ -1099,8 +1099,8 @@ class Module:
     def register_forward_hook(
         self,
         hook: Union[
-            Callable[[T, Tuple[Any, ...], Any], Optional[Any]],
-            Callable[[T, Tuple[Any, ...], Dict[str, Any], Any], Optional[Any]],
+            Callable[[T, tuple[Any, ...], Any], Optional[Any]],
+            Callable[[T, tuple[Any, ...], dict[str, Any], Any], Optional[Any]],
         ],
         *,
         prepend: bool = False,
@@ -1109,21 +1109,11 @@ class Module:
         r"""Register a forward hook on the module.
 
         The hook will be called every time after :func:`forward` has computed an output.
+        The hook receives both positional arguments (`args`), keyword arguments (`kwargs`),
+        and the output of the forward call. The hook can modify `args`, `kwargs`, and the output.
+        It should have the following signature::
 
-        If ``with_kwargs`` is ``False`` or not specified, the input contains only
-        the positional arguments given to the module. Keyword arguments won't be
-        passed to the hooks and only to the ``forward``. The hook can modify the
-        output. It can modify the input inplace but it will not have effect on
-        forward since this is called after :func:`forward` is called. The hook
-        should have the following signature::
-
-            hook(module, args, output) -> None or modified output
-
-        If ``with_kwargs`` is ``True``, the forward hook will be passed the
-        ``kwargs`` given to the forward function and be expected to return the
-        output possibly modified. The hook should have the following signature::
-
-            hook(module, args, kwargs, output) -> None or modified output
+            hook(module, args, kwargs, output) -> None, modified_output, or (modified_args, modified_kwargs, modified_output)
 
         Args:
             hook (Callable): The user defined hook to be registered.
@@ -1167,23 +1157,15 @@ class Module:
                     args, kwargs = hook_result
                 else:
                     raise RuntimeError("forward pre-hook must return None or "
-                                    "a tuple of (new_args, new_kwargs)")
+                                    "a tuple of (args, kwargs)")
         
         result = self._call(*args, **kwargs)
         
         for hook in self._forward_hooks.values():
             hook_result = hook(self, args, kwargs, result)
             if hook_result is not None:
-<<<<<<< HEAD
-                if isinstance(hook_result, tuple) and len(hook_result) == 3:
-                    args, kwargs, result = hook_result
-                else:
-                    raise RuntimeError("forward hook must return None or "
-                                       "a tuple of (args, kwargs, output)")        
-=======
                 result = hook_result
-        
->>>>>>> parent of e25efac (fix: post hook update input params)
+
         return result
 
     def _call(self, *args, **kwargs):
