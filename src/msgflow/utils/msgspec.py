@@ -401,36 +401,39 @@ def export_to_json(obj, filepath, indent=4):
         f.write(formatted_obj_b)
 
 
-def save(obj: object, f: Union[str, os.PathLike], format: Optional[Literal["toml", "json"]] = "toml"):
+def save(obj: object, f: Union[str, os.PathLike]):
     """
     Save a Python object to a file in either TOML or JSON format.
 
     Args:
-        data: Saved object
-        filepath: A string or os.PathLike object containing a file name
-        format: The format to save the file in. Can be "toml" or "json", defaults to "toml"
+        data:
+            Saved object.
+        filepath:
+            A string or os.PathLike object containing a file name.
 
     Raises:
-        ValueError: If the provided format is not "toml" or "json"
-        FileNotFoundError: If the directory of the provided filepath does not exist
+        ValueError:
+            If the file format is not "toml" or "json".
+        FileNotFoundError: 
+            If the directory of the provided filepath does not exist.
 
     !!! example
         ``` python
         data = {"name": "Satoshi", "age": 42}
-        save(data, "output", format="toml")
-        save(data, "output", format="json")
+        save(data, "output.toml")
+        save(data, "output.json")
         ```
     """
     directory = os.path.dirname(f)
     if directory and not os.path.exists(directory):
         raise FileNotFoundError(f"The directory `{directory}` does not exist")
-    
-    if format == "toml":
+
+    if f.endswith("toml"):
         export_to_toml(obj, f)
-    elif format == "json":
+    elif f.endswith("json"):
         export_to_json(obj, f)
     else:
-        raise ValueError(f"Unsupported format: `{format}`. Use `toml` or `json`")
+        raise ValueError(f"Unsupported format: `{f}`. Use `toml` or `json`.")
 
 
 def read_json(filepath):
