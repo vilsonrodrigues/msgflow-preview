@@ -9,6 +9,84 @@ from msgflow.nn.modules.module import get_callable_name
 from msgflow.telemetry.span import trace
 
 
+@trace("msgflow.nn.F.map_gather")
+def map_gather(
+    to_send: Callable,
+    args_list: List[Tuple[Any, ...]],
+    kwargs_list: Optional[List[Dict[str, Any]]] = None,
+    timeout: Optional[float] = None,
+) -> Tuple[Any, ...]:
+    """
+    Applies the `to_send` function to each set of arguments in `args_list` 
+    and `kwargs_list` using Executor and collects the results.
+
+    Args:
+        to_send: 
+            The callable function to be applied.
+        args_list:
+            Each tuple contains the positional argumentsvfor the corresponding callable 
+            in `to_send`. If `None`, no positional arguments are passed unless specified 
+            individually by an item in `kwargs_list`.
+        kwargs_list:
+            Each dictionary contains the named arguments for the corresponding callable 
+            in `to_send`. If `None`, no named arguments are passed unless specified 
+            individually by an item in `args_list`.
+        timeout:
+            Maximum time (in seconds) to wait for responses.
+    Returns:
+        A tuple containing the results of each call to the `f` function. If a call
+        fails or times out, the corresponding result will be `None`.
+
+    Raises:
+        TypeError: 
+            If `f` is not callable.
+        ValueError: 
+            If `args_list` is not a non-empty list or if `kwargs_list`
+            (if provided) is not the same length as `args_list`.
+
+    Examples:
+        def add(x, y):
+            return x + y
+        results = map_function(add, [(1, 2), (3, 4), (5, 6)])
+        print(results)  # (3, 7, 11)
+
+        def multiply(x, y=2):
+            return x * y
+        results = map_function(multiply, [(1,), (3,), (5,)], kwargs_list=[{'y': 3}, {'y': 4}, {'y': 5}])
+        print(results)  # (3, 12, 25)
+
+        results = map_function(multiply, [(1,), (3,), (5,)])  # Usa y=2 por default
+        print(results)  # (2, 6, 10)
+    """
+    if not callable(to_send):
+        raise TypeError("`to_send` must be a callable object")
+
+    if not isinstance(args_list, list) or len(args_list) == 0:
+        raise ValueError("`args_list` must be a non-empty list")
+
+    if kwargs_list is not None:
+        if not isinstance(kwargs_list, list) or len(kwargs_list) != len(args_list):
+            raise ValueError("`kwargs_list` must be a list with the same length as `args_list`")
+
+    executor = Executor.get_instance()
+    futures = []
+
+    for i in range(len(args_list)):
+        args = args_list[i]
+        kwargs = kwargs_list[i] if kwargs_list else {}
+        futures.append(executor.submit(to_send, *args, **kwargs))
+
+    done, _ = concurrent.futures.wait(futures, timeout=timeout)
+    responses: List[Any] = []
+    for future in done:
+        try:
+            responses.append(future.result())
+        except Exception as e:
+            logger.error(str(e))
+            responses.append(None)
+    return tuple(responses)
+
+
 @trace("msgflow.nn.F.scatter_gather")
 def scatter_gather(
     to_send: List[Callable],
@@ -28,14 +106,18 @@ def scatter_gather(
     unless an empty list (`[]`) or empty tuple (`()`) is provided for a specific item.
 
     Args:
-        to_send: List of callable objects (e.g. functions or `Module` instances).
-        args_list: Optional list of tuples. Each tuple contains the positional arguments
-            for the corresponding callable in `to_send`. If `None`, no positional arguments 
-            are passed unless specified individually by an item in `kwargs_list`.
-        kwargs_list: Optional list of dictionaries. Each dictionary contains the named arguments 
-            for the corresponding callable in `to_send`. If `None`, no named arguments are passed 
-            unless specified individually by an item in `args_list`.
-        timeout: Maximum time (in seconds) to wait for responses.
+        to_send: 
+            List of callable objects (e.g. functions or `Module` instances).
+        args_list:
+            Each tuple contains the positional argumentsvfor the corresponding callable 
+            in `to_send`. If `None`, no positional arguments are passed unless specified 
+            individually by an item in `kwargs_list`.
+        kwargs_list:
+            Each dictionary contains the named arguments for the corresponding callable 
+            in `to_send`. If `None`, no named arguments are passed unless specified 
+            individually by an item in `args_list`.
+        timeout:
+            Maximum time (in seconds) to wait for responses.
 
     Returns:
         Tuple containing the responses for each callable. If an error or timeout occurs for a 
