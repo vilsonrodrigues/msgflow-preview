@@ -1179,7 +1179,7 @@ class Module:
                 else:
                     raise RuntimeError("forward hook must return None or "
                                        "a tuple of (args, kwargs, output)")        
-        return result, args, kwargs
+        return result
 
     def _call(self, *args, **kwargs):
         # Search for a Message in args and kwargs
