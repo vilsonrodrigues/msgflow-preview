@@ -6,8 +6,8 @@ try:
     import faiss
 except:
     raise ImportError("`faiss` not detected, please install"
-                      "using `pip install msgflow[faiss-cpu]` "
-                      "or `pip install msgflow[faiss-gpu]`")
+                      "using `pip install faiss-cpu` "
+                      "or `pip install faiss-gpu`")
 import numpy as np
 from msgflow.data.databases.base import BaseDB
 from msgflow.data.databases.types import VectorDB
