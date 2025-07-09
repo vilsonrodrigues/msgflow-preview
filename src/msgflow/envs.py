@@ -51,7 +51,7 @@ class EnvironmentVariables(BaseSettings):
     logging_level: str = "INFO"
 
     # if set, MSGFLOW_LOGGING_PREFIX will be prepended to all log messages
-    logging_prefix: str = "MSGFLOW"
+    logging_prefix: str = "MSGFLOW_"
     
     # Trace function calls
     # If set to True, msgflow will trace function calls. Useful for debugging
