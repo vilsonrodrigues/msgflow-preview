@@ -12,27 +12,6 @@ class ModelGateway:
     """
     Routes calls to a list of supported AI models, with fallback, retries, 
     initial model selection, and timing constraints (configured via HH:MM strings).
-
-    Args:
-        models: 
-            List of instances of the same model type (at least 1).
-        max_model_failures: 
-            Maximum retries before throwing error.
-        time_constraints: 
-            Model availability constraints based on time. The dictionary maps model 
-            IDs to a list of tuples (start_time, end_time) as strings in "HH:MM" format.
-            The listed models will NOT be used if the current time is within any of the
-            specified ranges. Strings must be in the format "HH:MM" (e.g. "22:00", "06:00").
-            Example: {'model-A': [('22:00', '06:00')]}
-            limits 'model-A' between 22:00 and 06:00.
-
-    Raises:
-        ModelRouterError: 
-            Raised when all models fail or are restricted.
-        ValueError:
-            Raised for misconfiguration in time formats or duplicate model IDs.
-        TypeError: 
-            Raised for invalid argument types.
     """
     msgflow_type = "model_gateway"
     model_types = None
@@ -40,16 +19,14 @@ class ModelGateway:
     def __init__(
         self,
         models: List[BaseModel],
-        max_model_failures: int = 3, # TODO: max_retries?
+        max_retries: Optional[int] = 3,
         time_constraints: Optional[Dict[str, List[Tuple[str, str]]]] = None
     ):
         """
-        Inicializa o ModelGateway.
-
         Args:
             models: 
                 A list of BaseModel instances (at least 2).
-            max_model_failures: 
+            max_retries: 
                 Maximum number of *consecutive* model failures before raising a ModelRouterError.
             time_constraints: An optional dictionary mapping model_id to a list of string tuples 
                 (start_time, end_time). The listed models will NOT be used if the current time is
@@ -57,12 +34,20 @@ class ModelGateway:
                 "22:00", "06:00").
                 Example: {'model-A': [('22:00', '06:00')]}
                 prohibits 'model-A' between 22:00 and 06:00.
+
+        Raises:
+            ModelRouterError: 
+                Raised when all models fail or are restricted.
+            ValueError:
+                Raised for misconfiguration in time formats or duplicate model IDs.
+            TypeError: 
+                Raised for invalid argument types.                
         """
-        if not isinstance(max_model_failures, int) or max_model_failures < 1:
-            raise ValueError("`max_model_failures` must be a positive integer")
+        if not isinstance(max_retries, int) or max_retries < 1:
+            raise ValueError("`max_retries` must be a positive integer")
 
         self._model_id_to_index: Dict[str, int] = {}
-        self.max_model_failures = max_model_failures
+        self.max_retries = max_retries
         self.raw_time_constraints = time_constraints
         self._set_models(models)
 
@@ -78,7 +63,7 @@ class ModelGateway:
                 logger.warning(f"The model_id `{model_id}` in time constraints not found in the provided models")
 
         self.current_model_index = 0
-        logger.debug(f"ModelGateway initialized with {len(self.models)} models. Type: `{self.model_type}`. Max fails: `{self.max_model_failures}`")
+        logger.debug(f"ModelGateway initialized with {len(self.models)} models. Type: `{self.model_type}`. Max fails: `{self.max_retries}`")
         if self.parsed_time_constraints:
             logger.debug(f"Time constraints applied to models: {list(self.parsed_time_constraints.keys())}")
 
@@ -190,7 +175,7 @@ class ModelGateway:
                 logger.debug(f"Attempt to start with specified model: `{model_preference}` (index `{start_index}`)")
                 return start_index
             else:
-                logger.warning(f"The model_id `{model_preference}` specified for starting was not found. Using current/default model (index `{self.current_model_index}`)")
+                logger.debug(f"The model_id `{model_preference}` specified for starting was not found. Using current/default model (index `{self.current_model_index}`)")
                 return self.current_model_index
         else:
              logger.debug(f"No initial model specified. Using current index: `{self.current_model_index}`")
@@ -212,7 +197,7 @@ class ModelGateway:
         model_info_on_failure: List[Tuple[str, str, Exception]] = []
         models_attempted_indices_in_cycle: Set[int] = set() # Track attempts within a fail/skip cycle
 
-        while failures < self.max_model_failures:
+        while failures < self.max_retries:
             # Check if we have tried all models in this cycle
             if len(models_attempted_indices_in_cycle) == len(self.models):
                  logger.debug(f"All `{len(self.models)}` models were tried/skipped in this cycle without success.")
@@ -257,13 +242,13 @@ class ModelGateway:
                 exceptions_encountered.append(e)
                 model_info_on_failure.append((model_id, provider, e))
                 failures += 1 
-                logger.info(f"Failure {failures}/{self.max_model_failures}, rotating to the next model")
+                logger.info(f"Failure {failures}/{self.max_retries}, rotating to the next model")
                 self._rotate_model()
 
-        # If exited the loop (failures >= max_model_failures or break because all were tried/skipped)
+        # If exited the loop (failures >= max_retries or break because all were tried/skipped)
         error_message = "Failed to execute call"
-        if failures >= self.max_model_failures:
-             error_message = f"Maximum failure limit ({self.max_model_failures}) reached after trying {len(model_info_on_failure)} models"
+        if failures >= self.max_retries:
+             error_message = f"Maximum failure limit ({self.max_retries}) reached after trying {len(model_info_on_failure)} models"
         elif len(models_attempted_indices_in_cycle) == len(self.models) and not exceptions_encountered:
              error_message = f"No models available to run at the moment (all may be time constrained)"
         elif len(models_attempted_indices_in_cycle) == len(self.models):
@@ -286,20 +271,20 @@ class ModelGateway:
             The response of the first model that executes successfully.
 
         Raises:
-            ModelRouterError: If all models fail consecutively up to the `max_model_failures` 
+            ModelRouterError: If all models fail consecutively up to the `max_retries` 
                 limit, or if no models are available/functional.
         """
         return self._execute_model(model_preference=model_preference, **kwargs)
 
     async def acall(self, *args, **kwargs):
-        """ Async interface to __call__ """
+        """ Async interface to __call__."""
         return self.__call__(*args, **kwargs)
 
     def serialize(self) -> Dict[str, Any]:
         """Serializes the gateway state including time constraints as strings."""
         serialized_models = [model.serialize() for model in self.models]
         state = {
-            "max_model_failures": self.max_model_failures,
+            "max_retries": self.max_retries,
             "time_constraints": self.raw_time_constraints,
             "models": serialized_models
         }
@@ -308,7 +293,7 @@ class ModelGateway:
         return data
 
     @classmethod
-    def deserialize(cls, data: Dict[str, Any]) -> "ModelGateway":
+    def from_serialized(cls, data: Dict[str, Any]) -> "ModelGateway":
         """
         Creates a ModelGateway instance from serialized data.
 
@@ -316,7 +301,8 @@ class ModelGateway:
             data: The dictionary of serialized models.
         """
         if data.get("msgflow_type") != cls.msgflow_type:
-             raise ValueError(f"Incorrect msgflow type. Expected `{cls.msgflow_type}`, given `{data.get('msgflow_type')}`")
+             raise ValueError(f"Incorrect msgflow type. Expected `{cls.msgflow_type}`, "
+                              f"given `{data.get('msgflow_type')}`")
 
         state = data.get("state", {})
         serialized_models = state.get("models", [])
@@ -325,12 +311,12 @@ class ModelGateway:
 
         models = [Model.from_serialized(**m_data) for m_data in serialized_models]
 
-        max_failures = state.get("max_model_failures")
+        max_failures = state.get("max_retries")
         time_constraints = state.get("time_constraints")
 
         return cls(
             models=models,
-            max_model_failures=max_failures,
+            max_retries=max_failures,
             time_constraints=time_constraints
         )
 
