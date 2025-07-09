@@ -1,15 +1,18 @@
+from datetime import datetime
 from pathlib import Path
 from typing import (
-    Any, 
-    Callable, 
-    Dict, 
+    Any,
+    Callable,
+    Dict,
     List,
-    Optional, 
-    Union
+    Optional,
+    Union,
+    Tuple
 )
 
 import msgspec
 
+from msgflow.dotdict import dotdict
 from msgflow.generation.reasoning.react import ReAct
 from msgflow.generation.signature import (
     Signature,
@@ -28,88 +31,36 @@ from msgflow.logger import logger
 from msgflow.message import Message
 from msgflow.models.gateway import ModelGateway
 from msgflow.models.types import ChatCompletionModel
+from msgflow.models.response import ModelResponse, ModelStreamResponse
 from msgflow.nn.modules.module import Module
 from msgflow.nn.modules.tool import ToolLibrary
 from msgflow.nn.parameter import Parameter
 from msgflow.utils.chat import (
     adapt_struct_schema_to_json_schema,
-    chatml_to_steps_format,
     format_examples,
     get_filename, 
     get_react_tools_prompt_format
 )
-from msgflow.utils.encode import encode_data_to_base64
 from msgflow.utils.inspect import get_mime_type
 from msgflow.utils.msgspec import StructFactory
-from msgflow.utils.validation import is_base64, is_subclass_of
+from msgflow.utils.validation import is_subclass_of
 from msgflow.utils.xml import apply_xml_tags
 from msgflow.telemetry.span import trace_agent_prepare_model_execution
 
 
-# Context Manager function that will manage the processing of assembling the context
-# new features: context_cache fixed message in the model, in the retrieval
-# initial_assist_msg or prefix_agent_msg this will be a param (prefilling)
 # it is possible to continue generating a model. Just resend to it what it
 # wrote and then it will continue from there
-
 # the system can change the response to the stream if x condition is met. nein
 
-# add time/date to the system prompt (this can be bad if you use prompt cache)
-
-# TODO: context inputs precisam de template?
 
 class Agent(Module):
-    r"""Agent is a Module type that uses language models to solve tasks.
+    """
+    Agent is a Module type that uses language models to solve tasks.
 
-    An Agent can perform actions in an environment using function calls.
-    For an Agent, a function is any callable object.
+    An Agent can perform actions in an environment using tools calls.
+    For an Agent, a tool is any callable object.
 
     An Agent can handle multimodal inputs and outputs.
-
-    Args:
-        name: Agent name in snake case format.
-        model: ChatCompletation Model client.
-        system_message: The Agent behaviour.
-        instructions: What the Agent should do.
-        expected_output: What the response should be like.
-        stream: If the response is transmitted on-fly.initial_assist_msg
-        task_template: Template to task.
-        task_inputs: Fields of the Message object that will be the input to the task.
-        task_multimodal_inputs: Fields of the Message object that will be the multimodal
-            input to the task.
-        context_inputs: Fields of the Message object that will be the context to the task.
-        structured_output: A msgspec.Struct class to specify the structured output.
-        response_mode: What the response should be. Has five options:
-            * `plain_response` (default): Returns the final agent response
-            * `steps`: Returns a structured model state. Containing user input, function calls, and the final response.
-            * `response`: Write on `response` field in Message object.
-            * `context`: Write on `context` field in Message object. It`s insert how `context.agent_name`.
-            * `outputs`: Write on `outputs` field in Message object. It`s insert how `outputs.agent_name`.
-        tools:
-            ...
-        response_template:
-            ...
-        prefilling:
-            ...
-        context_cache:
-            ...
-            ...
-        fixed_messages:
-            ...
-        description:
-            The Agent description (docstring). It's useful when using an agent-as-a-function.
-        _annotations
-            Define the input and output annotations to use the agente-as-a-function.
-            Default is: `{"message": str, "return": str}`
-
-    !!! example
-        ``` python
-        import msgflow.nn as nn
-        model = sonnet
-        writter_agent = nn.Agent(name="writter_agent", model=model)
-        response = writter_agent("What's Deep Learning?")
-        print(response)
-            ```
     """
 
     _supported_outputs: List[str] = [
@@ -130,7 +81,9 @@ class Agent(Module):
         instructions: Optional[str] = None,
         expected_output: Optional[str] = None,
         examples: Optional[str] = None,
-        stream: Optional[bool] = False,
+        system_extra_message: Optional[str] = None,
+        include_date: Optional[bool] = False,
+        stream: Optional[bool] = False,              
         input_guardrail: Optional[Callable] = None,
         output_guardrail: Optional[Callable] = None,
         task_inputs: Optional[Union[str, Dict[str, str]]] = None,
@@ -139,25 +92,105 @@ class Agent(Module):
         task_template: Optional[str] = None,
         context_inputs: Optional[Union[str, List[str]]] = None,
         context_cache: Optional[str] = None,
-        context_template: Optional[str] = None, # TODO
-        system_extra_message: Optional[str] = None,
-        xml_to_dict: Optional[bool] = False,
+        context_inputs_template: Optional[str] = None,
         model_preference: Optional[str] = None,
         prefilling: Optional[str] = None,
         generation_schema: Optional[msgspec.Struct] = None,
+        xml_to_dict: Optional[bool] = False,        
         response_mode: Optional[str] = "plain_response",
         tools: Optional[List[Callable]] = None,
         tool_choice: Optional[str] = None,
         response_template: Optional[str] = None,
         fixed_messages: Optional[List[Dict[str, Any]]] = None,
         signature: Optional[Union[str, Signature]] = None,
-        return_reasoning: Optional[bool] = False,        
         #verbose: Optional[bool] = False,
         description: Optional[str] = None,
-        _system_prompt_template: Optional[str] = SYSTEM_PROMPT_TEMPLATE,
-        _xml_to_dict_template: Optional[str] = XML_TO_DICT_TEMPLATE,
+        system_prompt_template: Optional[str] = SYSTEM_PROMPT_TEMPLATE,
+        xml_to_dict_template: Optional[str] = XML_TO_DICT_TEMPLATE,
         _annotations: Optional[Dict[str, type]] = {"message": Union[str, Dict[str, str]], "return": str},
     ):
+        """
+        Args:
+            name: 
+                Agent name in snake case format.
+            model: 
+                Chat Completation Model client.
+            system_message:
+                The Agent behaviour.
+            instructions: 
+                What the Agent should do.
+            expected_output: 
+                What the response should be like.
+            examples:
+                Examples of inputs, plans and outputs.
+            system_extra_message:
+                An extra message in system prompt.
+            include_date:
+                If True, include the current date in the system prompt.
+            stream: 
+                If the response is transmitted on-fly.
+            input_guardrail:
+                Guardrail to input.
+            output_guardrail:
+                Guardrail to output.
+            task_inputs:
+                Fields of the Message object that will be the input to the task.
+            task_multimodal_inputs: 
+                Fields of the Message object that will be the multimodal input 
+                to the task.
+            task_messages:
+                Field of the Message object that will be a list of chats in 
+                ChatML format.
+            task_template:
+                A Jinja template to format task.
+            context_inputs: 
+                Fields of the Message object that will be the context to the task.
+            context_cache:
+                A fixed context.
+            context_inputs_template:
+                A template to context inputs.
+            model_preference:
+                Fields of the Message object that will be the model preference.
+                This is only valid if the model is of type ModelGateway.
+            prefilling:
+                Forces an initial message from the model. From that message it 
+                will continue its response from there.              
+            generation_schema:
+                Schema that defines how the output should be structured.
+            xml_to_dict:
+                Converts the model output, which should be typed-XML, into a typed-dict.            
+            response_mode: 
+                What the response should be.
+                * `plain_response` (default): Returns the final agent response directly.
+                * other: Write on field in Message object.
+            tools:
+                A list of callable objects.
+            tool_choice:
+                By default the model will determine when and how many tools to use. 
+                You can force specific behavior with the tool_choice parameter.
+                    1. auto: 
+                        (Default) Call zero, one, or multiple functions. tool_choice: "auto"
+                    2. required: 
+                        Call one or more functions. tool_choice: "required"
+                    3. Forced Function: 
+                        Call exactly one specific function. E.g. 'add'.
+            response_template:
+                A Jinja template to format response.
+            fixed_messages:
+                A fixed list of chats in ChatML format.
+            signature:
+                A DSPy-based signature. A signature creates a task_template, a generation_scheme, 
+                instructions and examples (both if passed). Can be combined with standard 
+                generation_schemas like ReAct and ChainOfThought. Can also be combined with `xml_to_dict`.
+            description:
+                The Agent description (docstring). It's useful when using an agent-as-a-tool.
+            system_prompt_template:
+                A Jinja template to format system prompt.
+            xml_to_dict_template:
+                A Jinja template to inject instructions to use xml to dict.
+            _annotations
+                Define the input and output annotations to use the agent-as-a-function.
+        """
         super().__init__()
 
         if stream is True:
@@ -173,17 +206,17 @@ class Agent(Module):
             if xml_to_dict is True:
                 raise ValueError("`xml_to_dict=True` is not `stream=True` compatible")
 
-        self._set_xml_to_dict_template(_xml_to_dict_template)
+        self._set_xml_to_dict_template(xml_to_dict_template)
 
         if signature is not None:
-            signature_params = {
+            signature_params = dotdict({
                 "signature": signature, 
                 "instructions": instructions,
                 "system_message": system_message,
                 "xml_to_dict": xml_to_dict,
-            }
+            })
             if generation_schema is not None:
-                signature_params["generation_schema"] = generation_schema
+                signature_params.generation_schema = generation_schema
             self._set_signature(**signature_params)
         else:
             self._set_examples(examples)
@@ -199,42 +232,54 @@ class Agent(Module):
         self._set_annotations(_annotations)
         self._set_context_cache(context_cache)
         self._set_context_inputs(context_inputs)
-        self._set_context_template(context_template)
+        self._set_context_inputs_template(context_inputs_template)
         self._set_fixed_messages(fixed_messages)
         self._set_input_guardrail(input_guardrail)
-        self._set_output_guardrail(output_guardrail)        
+        self._set_output_guardrail(output_guardrail)
         self._set_task_messages(task_messages)
         self._set_model(model)
         self._set_model_preference(model_preference)
         self._set_prefilling(prefilling)
-        self._set_system_extra_message(system_extra_message)        
-        self._set_system_prompt_template(_system_prompt_template)
+        self._set_system_extra_message(system_extra_message)
+        self._set_include_date(include_date)
+        self._set_system_prompt_template(system_prompt_template)
         self._set_response_mode(response_mode)
         self._set_stream(stream)
         self._set_response_template(response_template)
-        self._set_return_reasoning(return_reasoning)
         self._set_task_multimodal_inputs(task_multimodal_inputs)
         self._set_task_inputs(task_inputs)
-        self._set_team_members()
-        self._set_tool_choice(tool_choice)        
+        self._set_tool_choice(tool_choice)
         self._set_tools(tools)
 
-    def forward(self, message: Union[str, Message, Dict[str, str], List[Dict[str, Any]]]):
-        model_preference = self.get_model_preference(message)
-        model_state = self._prepare_task(message)
-        model_response = self._execute_model(model_state, self.prefilling, model_preference)
-        response = self._process_model_response(model_response, model_state, message, model_preference)
+    def forward(
+        self, message: Union[str, Dict[str, Any], Message], **kwargs
+    ) -> Union[str, Dict[str, None], ModelStreamResponse, Message]:
+        inputs = self._prepare_task(message, **kwargs)
+        model_response = self._execute_model(prefilling=self.prefilling, **inputs)
+        response = self._process_model_response(message, model_response, **inputs)
         return response
 
-    def _execute_model(self, model_state, prefilling=None, model_preference=None):
-        model_execution_params = self._prepare_model_execution(model_state, prefilling, model_preference)
+    def _execute_model(
+        self, 
+        model_state: List[Dict[str, Any]],
+        prefilling: Optional[str] = None,
+        model_preference: Optional[str] = None,
+    ) -> Union[ModelResponse, ModelStreamResponse]:
+        model_execution_params = self._prepare_model_execution(
+            model_state, prefilling, model_preference,
+        )
         if self.input_guardrail:
             self._execute_input_guardrail(model_execution_params)
         model_response = self.model(**model_execution_params)
         return model_response
 
     @trace_agent_prepare_model_execution
-    def _prepare_model_execution(self, model_state, prefilling=None, model_preference=None):
+    def _prepare_model_execution(
+        self,
+        model_state: List[Dict[str, Any]],
+        prefilling: Optional[str] = None,
+        model_preference: Optional[str] = None,
+    ) -> Dict[str, Any]:
         agent_state = []
 
         if self.fixed_messages:
@@ -253,11 +298,10 @@ class Agent(Module):
             if system_prompt: # TODO: template to react tools
                 system_prompt += "\n\n" + react_tools
             else:
-                system_prompt = react_tools
-            # Disable tool_schemas to react controlflow preference
-            tool_schemas = None
+                system_prompt = react_tools            
+            tool_schemas = None # Disable tool_schemas to react controlflow preference
 
-        model_execution_params = {
+        model_execution_params = dotdict({
             "messages": agent_state,
             "system_prompt": system_prompt or None,
             "prefilling": prefilling,
@@ -265,16 +309,18 @@ class Agent(Module):
             "tool_schemas": tool_schemas,
             "tool_choice": self.tool_choice,
             "generation_schema": self.generation_schema,
-            "return_reasoning": self.return_reasoning,
             "xml_to_dict": self.xml_to_dict
-        }
+        })
 
         if model_preference:
-            model_execution_params["model_preference"] = model_preference
+            model_execution_params.model_preference = model_preference
 
         return model_execution_params
 
-    def _prepare_input_guardrail_execution(self, model_execution_params):
+    def _prepare_input_guardrail_execution(
+        self, 
+        model_execution_params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         model_state = model_execution_params.get("model_state")
         last_message = model_state[-1]
         if isinstance(last_message.get("content"), list):
@@ -287,44 +333,55 @@ class Agent(Module):
         guardrail_params = {"data": data}
         return guardrail_params
 
-    def _process_model_response(self, model_response, model_state, message, model_preference):
+    def _process_model_response(
+        self, 
+        message: Union[str, Dict[str, str], Message],
+        model_response: Union[ModelResponse, ModelStreamResponse],
+        model_state: List[Dict[str, Any]],
+        model_preference: Optional[str] = None, 
+    ) -> Union[str, Dict[str, str], Message, ModelStreamResponse]:
         if "tool_call" in model_response.response_type:
-            model_response, model_state = (
-                self._process_tool_call_response(model_response, model_state, model_preference)
+            model_response, model_state = self._process_tool_call_response(
+                model_response, model_state, model_preference,
             )
         elif is_subclass_of(self.generation_schema, ReAct):
             model_response, model_state = self._process_react_response(
-                model_response, model_state, model_preference
+                model_response, model_state, model_preference,
             )
         
         raw_response = self._extract_raw_response(model_response)
 
         response_type = model_response.response_type
 
-        if model_response.response_type in self._supported_outputs:
+        if response_type in self._supported_outputs:
             response = self._prepare_response(
-                raw_response, 
-                model_response.response_type,
-                model_state, 
-                message
+                raw_response, response_type, message
             )
             return response
         else:
             raise ValueError(f"Unsupported `response_type={response_type}`")
 
-    def _process_react_response(self, model_response, model_state, model_preference=None):
-        while True:            
+    def _process_react_response(
+        self,
+        model_response: Union[ModelResponse, ModelStreamResponse],
+        model_state: Dict[str, Any],
+        model_preference: Optional[str] = None,
+    ) -> Tuple[Union[str, Dict[str, Any], ModelStreamResponse], Dict[str, Any]]:
+        while True:
             raw_response = self._extract_raw_response(model_response)
 
-            if raw_response.get("current_step"):
-                actions = raw_response["current_step"]["actions"]
+            if raw_response.current_step:
+                actions = raw_response.current_step.actions
                 tool_callings = [
-                    (act["id"], act["name"], act["arguments"]) for act in actions
+                    (act.id, act.name, act.arguments) for act in actions
                 ]
-                tool_responses = self._process_tool_call(tool_callings)
+                tool_execution_result = self._process_tool_call(tool_callings, model_state)
+
+                if tool_execution_result.return_directly:
+                    return tool_execution_result.responses, model_state
 
                 for act in actions:
-                    act["result"] = tool_responses[[act["id"]]]
+                    act.result = tool_execution_result[[act.id]]
 
                 if model_state[-1]["role"] == "assistant":
                     last_react_msg = model_state[-1]["content"]
@@ -340,47 +397,75 @@ class Agent(Module):
                         [{"role": "assistant", "content": react_state_encoded}]
                     )
 
-            elif raw_response.get("final_answer"):
+            elif raw_response.final_answer:
                 return model_response, model_state
 
-            model_response = self._execute_model(model_state, model_preference=model_preference)
+            model_response = self._execute_model(
+                model_state=model_state,
+                model_preference=model_preference,
+            )
 
-    def _process_tool_call_response(self, model_response, model_state, model_preference=None):
+    def _process_tool_call_response(
+        self,
+        model_response: Union[ModelResponse, ModelStreamResponse],
+        model_state: Optional[Dict[str, Any]],
+        model_preference: Optional[str] = None
+    ) -> Tuple[Union[str, Dict[str, Any], ModelStreamResponse], Dict[str, Any]]:
         """
-        Mensagens: [{'role': 'assistant', 'tool_calls': [{'id': 'call_1YLHAVwHwDPjEBuMpWQfSktO',
+        ToolCall example: [{'role': 'assistant', 'tool_calls': [{'id': 'call_1YL',
         'type': 'function', 'function': {'arguments': '{"order_id":"order_12345"}',
-        'name': 'get_delivery_date'}}]}, {'role': 'tool', 'tool_call_id': 'call_1YLHAVwHwDPjEBuMpWQfSktO',
+        'name': 'get_delivery_date'}}]}, {'role': 'tool', 'tool_call_id': 'call_HA',
         'content': '2024-10-15'}]
         """
         while True:
             if model_response.response_type == "tool_call":
-                raw_response = self._extract_raw_response(model_response) # TODO: streaming
+                raw_response = self._extract_raw_response(model_response)
                 tool_callings = raw_response.get_calls()
-                tool_responses = self._process_tool_call(tool_callings)
-                raw_response.insert_results(tool_responses)
+                tool_execution_result = self._process_tool_call(tool_callings, model_state)
+                if tool_execution_result.return_directly:
+                    return tool_execution_result.responses, model_state
+                     
+                raw_response.insert_results(tool_execution_result.responses)
                 tool_responses_message = raw_response.get_messages()
                 model_state.extend(tool_responses_message)
             else:
                 return model_response, model_state
 
-            model_response = self._execute_model(model_state, model_preference=model_preference)
+            model_response = self._execute_model(
+                model_state=model_state,
+                model_preference=model_preference,
+            )
 
-    def _process_tool_call(self, tool_callings):        
-        tool_responses = self.tool_library(tool_callings)
-        return tool_responses
+    def _process_tool_call(
+        self, 
+        tool_callings: Dict[str, Any], 
+        model_state: List[Dict[str, Any]]
+    ) -> Dict[str, str]:
+        tool_execution_result = self.tool_library(
+            tool_callings=tool_callings,
+            model_state=model_state
+        )
+        return tool_execution_result
 
-    def _prepare_response(self, raw_response, response_type, model_state, message):
-        if response_type in ["text_generation", "structured"]:
-            if self.output_guardrail:
-                self._execute_output_guardrail(raw_response)        
-            if self.response_template:
-                response = self._format_response_template(raw_response)
-        else:
-            response = raw_response
+    def _prepare_response(
+        self, 
+        raw_response: Union[str, Dict[str, Any], ModelStreamResponse], 
+        response_type: str,
+        message: Union[str, Dict[str, Any], Message]
+    ) -> Union[str, Dict[str, Any], ModelStreamResponse]:
+        formated_response = None
+        if not isinstance(raw_response, ModelStreamResponse):
+            if "text_generation" in response_type or "structured" in response_type:
+                if self.output_guardrail:
+                    self._execute_output_guardrail(raw_response)        
+                if self.response_template:
+                    formated_response = self._format_response_template(raw_response)
+        return self._define_response_mode(formated_response or raw_response, message)
 
-        return self._define_response_mode(response, model_state, message)
-
-    def _prepare_output_guardrail_execution(self, model_response):
+    def _prepare_output_guardrail_execution(
+        self, 
+        model_response: Union[str, Dict[str, Any]]
+    ) -> Dict[str, Any]:
         if isinstance(model_response, str):
             data = model_response
         else:
@@ -388,40 +473,19 @@ class Agent(Module):
         guardrail_params = {"data": data}
         return guardrail_params
 
-    def _define_response_mode(self, response, model_state, message):
-        if self.response_mode == "plain_response":
-            return response
-        elif self.response_mode == "steps":
-            return self._apply_steps_format(model_state, response)
-        elif isinstance(message, Message):
-            if self.response_mode.startswith(("context", "outputs", "response")):
-                message.set(f"{self.response_mode}.{self.name}", response)
-            return message
-        else:
-            raise ValueError(
-                "For `response_mode` other than `plain_response` and "
-                "`steps` the message object must be of type Message"
-            )
-
-    def _apply_steps_format(self, model_state, response):
-        steps_response = chatml_to_steps_format(model_state, response)
-        return steps_response
-
     def _prepare_task(
-        self, message: Union[str, Message, Dict[str, str], List[Dict[str, Any]]]
-    ) -> List[Dict[str, Any]]:
-        """Prepare model input in ChatML format"""
+        self, message: Union[str, Message, Dict[str, str]], **kwargs
+    ) -> Dict[str, Any]:
+        """Prepare model input in ChatML format and execution params."""
         task_messages = None
+        runtime_task_messages = kwargs.pop("task_messages", None)        
         
-        if isinstance(message, list):
-            task_messages = message # Assume the task is already done
-        elif isinstance(message, (str, dict)):
-            content = self._process_str_dict_task(message)
-        elif isinstance(message, Message):
-            content = self._process_message_task(message)
-            task_messages = self._get_task_messages(message)
-        else:
-            raise ValueError("Unsupported message type")
+        content = self._process_task_inputs(message, **kwargs)
+        
+        if isinstance(message, Message):
+            task_messages = self._get_task_messages_from_message(message)        
+        if runtime_task_messages is not None: # Override with runtime task_messages
+            task_messages = runtime_task_messages
         
         if content is None and task_messages is None:
             raise ValueError("No data was detected to make the model input")
@@ -429,216 +493,134 @@ class Agent(Module):
         if content is not None:
             chat_content = [{"role": "user", "content": content}]
             if task_messages is None:
-                return chat_content
+                model_state = chat_content
             else:
                 task_messages.extend(chat_content)
-                return task_messages
+                model_state = task_messages
         else:
-            return task_messages
+            model_state = task_messages
 
-    def _process_str_dict_task(self, message: Union[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
-        if self.task_template:
-            content = self._format_task_template(message)
-            return content
-        else:
-            if isinstance(message, dict):
-                raise AttributeError("message is a dict, that requires a `task_template`")
-            return message
+        model_preference = kwargs.pop("model_preference", None)
+        if model_preference is None and isinstance(message, Message):
+            model_preference = self.get_model_preference_from_message(message)
 
-    def _process_message_task(self, message: Message) -> Optional[Union[str, List[Dict[str, Any]]]]:
-        to_check = (self.task_inputs, self.task_multimodal_inputs, self.task_template)
-        if all(v is None for v in to_check):
-            return None
-        
+        return {
+            "model_state": model_state,
+            "model_preference": model_preference,
+        }
+
+    def _process_task_inputs(
+        self, message: Union[str, Message, Dict[str, str]], **kwargs
+    ) -> Union[str, Dict[str, Any]]:
         content = ""
 
-        context_content = self._context_manager(message)
+        context_content = self._context_manager(message, **kwargs)
         if context_content:
             content += context_content
 
-        task_content = self._process_task_content(message)
+        if isinstance(message, Message):
+            task_inputs = self._extract_message_values(self.task_inputs, message)
+        else:
+            task_inputs = message
+
+        if task_inputs is None:
+            raise AttributeError("When using a `Message` in `nn.Agent` it is necessary to "
+                                 "have configured `task_inputs` or `task_template`")
+
+        if self.task_template:
+            if task_inputs:
+                task_content = self._format_task_template(task_inputs)
+            # It's possible to use `task_template` as the default task message
+            # if no `task_inputs` is selected. This can be useful for multimodal
+            # models that require a text message to be sent along with the data                
+            else:                
+                task_content = self.task_template
+        else:
+            task_content = task_inputs
+
+        task_content = apply_xml_tags("task", task_content)
         content += task_content
         content = content.strip() # Remove whitespace
         
-        if self.task_multimodal_inputs: # Process multimodal content
-            multimodal_content = self._process_task_multimodal_inputs(message)
-            if multimodal_content:
-                multimodal_content.append({"type": "text", "text": content})
-                return multimodal_content
+        multimodal_content = self._process_task_multimodal_inputs(message, **kwargs)
+        if multimodal_content:
+            multimodal_content.append({"type": "text", "text": content})
+            return multimodal_content
         return content
 
-    def _context_manager(self, message: Message) -> Optional[str]:
-        """
-        Manage agent context and task content, combining cache, 
-        inputs, and templates, and applying XML tags.
-        """
-        content_parts = ""
+    def _context_manager(
+        self, message: Union[str, Message, Dict[str, str]], **kwargs
+    ) -> Optional[str]:
+        """Mount context."""
+        context_content = ""
+        
+        if self.context_cache: # Fixed Context Cache
+            context_content += self.context_cache        
 
-        if self.context_cache:
-            content_parts += self.context_cache
+        context_inputs = None
+        runtime_context_inputs = kwargs.pop("context_inputs", None)
+        if runtime_context_inputs is not None:
+            context_inputs = runtime_context_inputs
+        elif isinstance(message, Message):
+            context_inputs = self._extract_message_values(self.context_inputs, message)
 
-        msg_context = self._process_context_inputs(message)
-        if msg_context:
-            content_parts += msg_context
-
-        if content_parts:
-            content = "\n\n".join(str(part) for part in content_parts)
-            return apply_xml_tags("context", content)
+        if context_inputs is not None:
+            if self.context_inputs_template:
+                msg_context = self._format_template(context_inputs, self.context_inputs_template)
+            else:
+                if isinstance(context_inputs, str):
+                    msg_context = context_inputs
+                elif isinstance(context_inputs, list):
+                    msg_context = " ".join(str(v) for v in context_inputs if v is not None)
+                elif isinstance(context_inputs, dict):
+                    msg_context = "\n\n".join(str(v) for v in context_inputs.values())                
+            context_content += "\n\n" + msg_context
+            
+        if context_content:
+            return apply_xml_tags("context", context_content)
         return None
 
-    def _extract_message_values(self, inputs: Any, message: Message) -> Union[str, Dict[str, Any], List[Any], None]:
-        """Process inputs based on their type (str, dict, list) by extracting content from the message."""
-        if isinstance(inputs, str):
-            return self._get_content_from_message(inputs, message)
-        elif isinstance(inputs, dict):
-            return {
-                key: self._get_content_from_message(path, message)
-                for key, path in inputs.items()
-            }
-        elif isinstance(inputs, list):
-            return [
-                self._get_content_from_message(path, message)
-                for path in inputs
-                if self._get_content_from_message(path, message) is not None
-            ]
-        return None    
+    def _process_task_multimodal_inputs(
+        self, message: Union[str, Message, Dict[str, str]], **kwargs
+    ) -> Optional[List[Dict[str, Any]]]:
+        """
+        Processes multimodal inputs (image, audio, file) via kwargs or message.
+        Returns a list of multimodal content in ChatML format.
+        """
+        multimodal_paths = None
+        task_multimodal_inputs = kwargs.get("task_multimodal_inputs", None)
+        if task_multimodal_inputs is not None:
+            multimodal_paths = task_multimodal_inputs
+        elif isinstance(message, Message) and self.task_multimodal_inputs is not None:
+            multimodal_paths = self._extract_message_values(self.task_multimodal_inputs, message)
 
-    def _process_context_inputs(self, message: Message) -> Optional[str]:
-        """Process context inputs based on their type and format the result."""
-        input_data = self._extract_message_values(self.context_inputs, message)
-        return self._process_context_value(input_data)
-
-    def _process_context_value(self, context_value: Any) -> Optional[str]:
-        """Process a single context value based on its type."""
-        if isinstance(context_value, str):
-            return context_value
-        elif isinstance(context_value, list):
-            return " ".join(str(v) for v in context_value) if context_value else None
-        elif isinstance(context_value, dict):
-            return self._format_context_dict(context_value)
-        return None
-
-    def _format_context_dict(self, context_dict: dict) -> Optional[str]:
-        """Format a dictionary context, applying a template if available."""
-        if not context_dict:
+        if multimodal_paths is None:
             return None
-        if self.context_template:
-            return self._format_template(context_dict, self.context_template)
-        return "\n\n".join(str(v) for v in context_dict.values())
 
-    def _process_task_content(self, message: Message) -> Optional[str]:
-        """Process task content based on task inputs or template, wrapping it with XML tags."""
-        if self.task_inputs:
-            content = self._process_task_inputs(message)
-            if content is None:
-                raise ValueError("When accessing Message values ​​for `task_inputs` None was returned")
-            if isinstance(content, dict):
-                content = self._format_task_dict(content)
-            elif isinstance(content, str) and self.task_template:
-                content = self._format_template(content, self.task_template)
-        # It's possible to use `task_template` as the default task message
-        # if no `task_inputs` is selected. This can be useful for multimodal
-        # models that require a text message to be sent along with the data                
-        elif self.task_template:
-            content = self.task_template
-        else:
-            raise AttributeError("When using a `Message` in `nn.Agent` it is necessary to "
-                                 "have configured `task_inputs` or `task_template`")
-        task_content = apply_xml_tags("task", content)
-        return task_content
-
-    def _process_task_inputs(self, message: Message) -> Union[str, Dict[str, Any], None]:
-        """Process task inputs based on their type, returning raw data."""
-        input_data = self._extract_message_values(self.task_inputs, message)
-        if isinstance(input_data, list):
-            return " ".join(str(v) for v in input_data) if input_data else None
-        return input_data
-
-    def _format_task_dict(self, task_dict: dict) -> Optional[str]:
-        """Format a dictionary task input, applying a template if available."""
-        if not task_dict:
-            return None
-        if self.task_template:
-            return self._format_task_template(task_dict)
-        return "\n\n".join(str(v) for v in task_dict.values())
-
-    """
-    def _process_task_multimodal_inputs_old(self, message: Message) -> List[Dict[str, Any]]:
-        # TODO: suporte para consumir todas as entradas de images or outro
         content = []
         
-        if isinstance(self.task_multimodal_inputs.data, dict):
-            for image_path in self.task_multimodal_inputs.data.get("image", []):
-                image_data = self._get_content_from_message(image_path, message)
-                if image_data:
-                    if not image_data.startswith("http") and not is_base64(image_data):
-                        base64_image = encode_local_file_in_base64(image_data)
-                        image_data = f"data:image/jpeg;base64,{base64_image}"
-                    content.append({"type": "image_url", "image_url": {"url": image_data}})
+        formatters = {
+            "image": self._format_image_input,
+            "audio": self._format_audio_input,
+            "file": self._format_file_input,
+        }
 
-            for audio_path in self.task_multimodal_inputs.data.get("audio", []):
-                audio_data = self._get_content_from_message(audio_path, message)
-                if audio_data:
-                    audio_format = Path(audio_data).suffix
+        for media_type, formatter in formatters.items():
+            media_sources = multimodal_paths.get(media_type, [])
+            if not isinstance(media_sources, list):
+                logger.warning(f"Expected list for multimodal config key `{media_type}`, "
+                               f"got `{type(media_sources)}`")
+                continue
 
-                    if not audio_data.startswith("http") and not is_base64(audio_data):
-                        base64_audio = encode_local_file_in_base64(audio_data)
-                    elif audio_data.startswith("http"):
-                        base64_audio = encode_base64_from_url(audio_data)
-                    else:
-                        base64_audio = audio_data
-
-                    content.append(
-                        {
-                            "type": "input_audio",
-                            "input_audio": {"data": base64_audio, "format": audio_format},
-                        }
-                    )
-
-            for file_path in self.task_multimodal_inputs.data.get("file", []):
-                file_data = self._get_content_from_message(file_path, message)                
-                if file_data:
-                    filename = get_filename(file_data)
-                    if file_data.startswith("http"):
-                        file_data = download_file(file_data)                        
-                    if file_data is not is_base64(file_data):
-                        base64_pdf = encode_local_file_in_base64(file_data)
-                    file_data = f"data:application/pdf;base64,{base64_pdf}"                    
-                    content.append(
-                        {"type": "file", "file": {"filename": filename, "file_data": file_data}}
-                    )
+            for media_source in media_sources:
+                if media_source:
+                    formatted_input = formatter(media_source)
+                    if formatted_input:
+                        content.append(formatted_input)
 
         return content
-    """
-    def _prepare_data_uri(self, source: str, force_encode: bool = False) -> str:
-        """
-        Prepares a data string (URL or Data URI base64).
-        If force_encode=True, always tries to download and encode URL.
-        Otherwise, keeps the URL if it is HTTP and not base64.
-        Returns None in case of encoding/download error.
-        """
-        if not source:
-            return None
 
-        if is_base64(source):
-            # If it is already base64, assume it is ready (no prefix)
-            # Prefix will be added by formatter if needed
-            return source
-
-        is_url = source.startswith("http")
-
-        if is_url and not force_encode:
-             # Keep the URL as is if you don't force the encoding
-             return source
-
-        # Need to encode (either local or force_encode=True for URL)
-        try:
-            return encode_data_to_base64(source)
-        except Exception as e:
-            logger.error(f"Failed to encode source {source}: {e}")
-            return None
-
-    def _format_image_input(self, image_source: str) -> Dict[str, Any]:
+    def _format_image_input(self, image_source: str) -> Optional[Dict[str, Any]]:
         """Formats the image input for the model"""
         base64_image = self._prepare_data_uri(image_source, force_encode=True)
 
@@ -651,12 +633,12 @@ class Agent(Module):
         
         return {"type": "image_url", "image_url": {"url": image_data_url}}
 
-    def _format_audio_input(self, audio_source: str) -> Dict[str, Any]:
+    def _format_audio_input(self, audio_source: str) -> Optional[Dict[str, Any]]:
         """Formats the audio input for the model"""
         base64_audio = self._prepare_data_uri(audio_source, force_encode=True)
 
         if not base64_audio:
-            return None        
+            return None
 
         audio_format_suffix = Path(audio_source).suffix.lstrip(".")
         mime_type = get_mime_type(audio_source)
@@ -672,7 +654,7 @@ class Agent(Module):
             "input_audio": {"data": base64_audio, "format": format_key},
         }
 
-    def _format_file_input(self, file_source: str) -> Dict[str, Any]:
+    def _format_file_input(self, file_source: str) -> Optional[Dict[str, Any]]:
         """Formats the file input for the model"""
         base64_file = self._prepare_data_uri(file_source, force_encode=True)
 
@@ -692,45 +674,9 @@ class Agent(Module):
             "file": {"filename": filename, "file_data": file_data_uri}
         }
 
-    def _process_task_multimodal_inputs(self, message: Message) -> List[Dict[str, Any]]:
-        """
-        Processes multimodal inputs (image, audio, file) from the configuration
-        and the Message object, returning a list of dictionaries formatted for the model.
-        """
-        content = []
-        multimodal_config = self.task_multimodal_inputs
-
-        formatters = {
-            "image": self._format_image_input,
-            "audio": self._format_audio_input,
-            "file": self._format_file_input,
-        }
-
-        for media_type, formatter in formatters.items():
-            
-            path_keys = multimodal_config.get(media_type, [])
-            if not isinstance(path_keys, list):
-                 logger.warning("Warning: Expected list for multimodal config key "
-                                f"`{media_type}`, got `{type(path_keys)}`")
-                 continue # Skip this media type if the config is badly formatted
-
-            for path_key in path_keys:
-                media_source = self._get_content_from_message(path_key, message)
-                if media_source:
-                    formatted_input = formatter(media_source)
-                    if formatted_input:
-                        content.append(formatted_input)
-                else:
-                    logger.debug(f"No valid datat to `path_key={path_key}`")
-
-        return content
-
-    def _get_task_messages(self, message: Message) -> Optional[List[Dict[str, Any]]]:
+    def _get_task_messages_from_message(self, message: Message) -> Optional[List[Dict[str, Any]]]:
         """Returns a message history (ChatML format) from message"""        
-        messages_history = None
-        if self.task_messages:
-            messages_history = self._get_content_from_message(self.task_messages, message)        
-        return messages_history
+        return self._get_content_from_message(self.task_messages, message)
 
     def _set_context_inputs(self, context_inputs: Optional[Union[str, List[str]]] = None):
         if isinstance(context_inputs, (str, list)) or context_inputs is None:
@@ -752,12 +698,12 @@ class Agent(Module):
             raise TypeError("`context_cache` requires a string or None"
                             f"given `{type(context_cache)}`")
 
-    def _set_context_template(self, context_template: Optional[str] = None):
-        if isinstance(context_template, str) or context_template is None:
-            self.register_buffer("context_template", context_template)
+    def _set_context_inputs_template(self, context_inputs_template: Optional[str] = None):
+        if isinstance(context_inputs_template, str) or context_inputs_template is None:
+            self.register_buffer("context_inputs_template", context_inputs_template)
         else:
-            raise TypeError("`context_template` requires a string or None"
-                            f"given `{type(context_template)}`")
+            raise TypeError("`context_inputs_template` requires a string or None"
+                            f"given `{type(context_inputs_template)}`")
 
     def _set_prefilling(self, prefilling: Optional[str] = None):
         if isinstance(prefilling, str) or prefilling is None:
@@ -769,7 +715,7 @@ class Agent(Module):
     def _set_response_mode(self, response_mode: str):
         if isinstance(response_mode, str):
             if (
-                response_mode in ["plain_response", "steps","response"] # deprecated
+                response_mode in ["plain_response", "steps", "response"] # deprecated
                 or 
                 response_mode.startswith(("context", "outputs"))
             ):
@@ -783,13 +729,6 @@ class Agent(Module):
         else:
             raise TypeError("`response_mode` requires a string "
                             f"given `{type(response_mode)}`")
-
-    def _set_return_reasoning(self, return_reasoning: bool):
-        if isinstance(return_reasoning, bool):
-            self.register_buffer("return_reasoning", return_reasoning)
-        else:
-            raise TypeError("`return_reasoning` requires a bool "
-                            f"given `{type(return_reasoning)}`")
 
     def _set_tools(self, tools: Optional[List[Callable]] = None):
         if (
@@ -843,6 +782,13 @@ class Agent(Module):
             raise TypeError("`system_message` requires a string or None "
                             f"given `{type(system_message)}`")
 
+    def _set_include_date(self, include_date: Optional[bool] = False):
+        if isinstance(include_date, bool):
+            self.register_buffer("include_date", include_date)
+        else:
+            raise TypeError("`include_date` requires a bool "
+                            f"given `{type(include_date)}`")
+
     def _set_instructions(self, instructions: Optional[str] = None):
         if isinstance(instructions, str) or instructions is None:
             self.instructions = Parameter(instructions, PromptSpec.INSTRUCTIONS)
@@ -872,13 +818,6 @@ class Agent(Module):
         else:
             raise TypeError("`task_messages` requires a string or None "
                             f"given `{type(task_messages)}`")
-
-    def _set_team_members(self, team_members: Optional[str] = None):
-        if isinstance(team_members, str) or team_members is None:
-            self.register_buffer("team_members", team_members)
-        else:
-            raise TypeError("`team_members` requires a string or None "
-                            f"given `{type(team_members)}`")
 
     def _set_system_prompt_template(self, system_prompt_template: Optional[str] = None):
         if isinstance(system_prompt_template, str) or system_prompt_template is None:
@@ -1001,8 +940,10 @@ class Agent(Module):
             "examples": self.examples.data,
             "system_extra_message": self.system_extra_message,
         }
-        if self.team_members:
-            template_inputs["team_members"] = self.team_members
+
+        if self.include_date:
+            template_inputs["current_date"] = datetime.now().strftime("%m/%d/%Y")
+            
         system_prompt = self._format_template(
             template_inputs, self.system_prompt_template
         )
