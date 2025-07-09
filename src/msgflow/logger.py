@@ -12,7 +12,8 @@ import msgspec
 from msgflow.envs import envs
 
 _FORMAT = (f"{envs.logging_prefix}%(levelname)s %(asctime)s "
-           "%(filename)s:%(lineno)d] %(message)s")
+           "[%(filename)s:%(lineno)d] %(message)s")
+           
 _DATE_FORMAT = "%m-%d %H:%M:%S"
 
 DEFAULT_LOGGING_CONFIG = {
