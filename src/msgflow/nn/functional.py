@@ -83,11 +83,11 @@ def map_gather(
         kwargs = kwargs_list[i] if kwargs_list else {}
         futures.append(executor.submit(to_send, *args, **kwargs))
 
-    done, _ = concurrent.futures.wait(futures, timeout=timeout)
+    concurrent.futures.wait(futures, timeout=timeout)
     responses: List[Any] = []
-    for future in done:
+    for FUTURE in futures:
         try:
-            responses.append(future.result())
+            responses.append(FUTURE.result())
         except Exception as e:
             logger.error(str(e))
             responses.append(None)
@@ -169,9 +169,9 @@ def scatter_gather(
         kwargs = kwargs_list[i] if kwargs_list and i < len(kwargs_list) else {}
         futures.append(executor.submit(f, *args, **kwargs))
     
-    done, _ = concurrent.futures.wait(futures, timeout=timeout)
+    concurrent.futures.wait(futures, timeout=timeout)
     responses: List[Any] = []
-    for FUTURE in done:
+    for FUTURE in futures:
         try:
             responses.append(FUTURE.result())
         except Exception as e:
@@ -231,8 +231,8 @@ def msg_scatter_gather(
         for f, msg in zip(to_send, messages)
     ]
     
-    done, _ = concurrent.futures.wait(futures, timeout=timeout)
-    for f, message, FUTURE in zip(to_send, messages, done):
+    concurrent.futures.wait(futures, timeout=timeout)
+    for f, message, FUTURE in zip(to_send, messages, futures):
         f_name = get_callable_name(f)
         try:
             message.set(f"{response_mode}.{f_name}", FUTURE.result())
@@ -269,10 +269,10 @@ def bcast_gather(
 
     executor = Executor.get_instance()
     futures = [executor.submit(f, *args, **kwargs) for f in to_send]
-    done, _ = concurrent.futures.wait(futures, timeout=timeout)
-
+    
+    concurrent.futures.wait(futures, timeout=timeout)
     responses: List[Any] = []
-    for FUTURE in done:
+    for FUTURE in futures:
         try:
             responses.append(FUTURE.result())
         except Exception as e:
@@ -322,8 +322,8 @@ def msg_bcast_gather(
     executor = Executor.get_instance()
     futures = [executor.submit(f, message) for f in to_send]
 
-    done, _ = concurrent.futures.wait(futures, timeout=timeout)
-    for f, FUTURE in zip(to_send, done):
+    concurrent.futures.wait(futures, timeout=timeout)
+    for f, FUTURE in zip(to_send, futures):
         f_name = get_callable_name(f)
         try:
             message.set(f"{response_mode}.{f_name}", FUTURE.result())
@@ -355,9 +355,9 @@ def wait_for(to_send: Callable, *args, timeout: Optional[float] = None, **kwargs
 
     executor = Executor.get_instance()
     future = executor.submit(to_send, *args, **kwargs)
-    done, _ = concurrent.futures.wait(future, timeout=timeout)    
+    concurrent.futures.wait(future, timeout=timeout)    
     try:        
-        return done[0].result()
+        return future.result()
     except Exception as e:
         logger.error(str(e))
         return None
