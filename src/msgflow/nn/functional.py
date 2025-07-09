@@ -51,18 +51,16 @@ def map_gather(
             (if provided) is not the same length as `args_list`.
 
     Examples:
-        def add(x, y):
-            return x + y
-        results = map_gather(add, args_list=[(1, 2), (3, 4), (5, 6)])
+        def add(x, y): return x + y
+        results = F.map_gather(add, args_list=[(1, 2), (3, 4), (5, 6)])
         print(results)  # (3, 7, 11)
 
-        def multiply(x, y=2):
-            return x * y
-        results = map_gather(multiply, args_list=[(1,), (3,), (5,)], 
+        def multiply(x, y=2): return x * y
+        results = F.map_gather(multiply, args_list=[(1,), (3,), (5,)], 
                             kwargs_list=[{'y': 3}, {'y': 4}, {'y': 5}])
         print(results)  # (3, 12, 25)
 
-        results = map_gather(multiply, args_list=[(1,), (3,), (5,)])
+        results = F.map_gather(multiply, args_list=[(1,), (3,), (5,)])
         print(results)  # (2, 6, 10)
     """
     if not callable(to_send):
@@ -142,13 +140,13 @@ def scatter_gather(
 
         # Example 1: Using only args_list
         args = [ (1, 2), (3,), (10, 20) ] # multiply will use its default y
-        results = scatter_gather(callables, args_list=args)
+        results = F.scatter_gather(callables, args_list=args)
         print(results) # (3, 6, 30)
 
         # Example 2: Using args_list e kwargs_list
         args = [ (1,), (), (10,) ]
         kwargs = [ {'y': 2}, {'x': 3, 'y': 3}, {'y': 20} ]
-        results = scatter_gather(callables, args_list=args, kwargs_list=kwargs)
+        results = F.scatter_gather(callables, args_list=args, kwargs_list=kwargs)
         print(results) # (3, 9, 30)
 
         # Example 3: Using only kwargs_list (useful if functions have defaults or don't need positional args)
@@ -156,7 +154,7 @@ def scatter_gather(
         def farewell(person_name): return f"Goodbye, {person_name}"
         funcs = [greet, greet, farewell]
         kwargs_for_funcs = [ {}, {'name': "Earth"}, {'person_name': "Commander"} ]
-        results = scatter_gather(funcs, kwargs_list=kwargs_for_funcs)
+        results = F.scatter_gather(funcs, kwargs_list=kwargs_for_funcs)
         print(results) # ("Hello, World", "Hello, Earth", "Goodbye, Commander")
     """
     if not isinstance(to_send, list) or not all(callable(f) for f in to_send):
@@ -263,6 +261,23 @@ def bcast_gather(
 
     Raises:
         TypeError: If `to_send` is not a list of callables.
+
+    Examples:
+        def square(x): return x * x
+        def cube(x): return x * x * x
+        def fail(x): raise ValueError("Intentional error")
+
+        # Example 1: 
+        results = F.bcast_gather([square, cube], 3)
+        print(results)  # (9, 27)        
+
+        # Example 2: Simulate error
+        results = F.bcast_gather([square, fail, cube], 2)
+        print(results)  # (4, None, 8)
+
+        # Example 3: Timeout
+        results = F.bcast_gather([square, cube], 4, timeout=0.01)
+        print(results) # (16, 64)         
     """
     if not to_send or not all(isinstance(f, Callable) for f in to_send):
         raise TypeError("`to_send` must be a non-empty list of callable objects")
@@ -355,7 +370,7 @@ def wait_for(to_send: Callable, *args, timeout: Optional[float] = None, **kwargs
 
     executor = Executor.get_instance()
     future = executor.submit(to_send, *args, **kwargs)
-    concurrent.futures.wait(future, timeout=timeout)    
+    concurrent.futures.wait([future], timeout=timeout)    
     try:        
         return future.result()
     except Exception as e:
