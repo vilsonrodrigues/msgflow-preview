@@ -58,10 +58,11 @@ def map_gather(
 
         def multiply(x, y=2):
             return x * y
-        results = map_gather(multiply, args_list=[(1,), (3,), (5,)], kwargs_list=[{'y': 3}, {'y': 4}, {'y': 5}])
+        results = map_gather(multiply, args_list=[(1,), (3,), (5,)], 
+                            kwargs_list=[{'y': 3}, {'y': 4}, {'y': 5}])
         print(results)  # (3, 12, 25)
 
-        results = map_gather(multiply, args_list=[(1,), (3,), (5,)])  # Usa y=2 por default
+        results = map_gather(multiply, args_list=[(1,), (3,), (5,)])
         print(results)  # (2, 6, 10)
     """
     if not callable(to_send):
