@@ -364,6 +364,14 @@ def wait_for(to_send: Callable, *args, timeout: Optional[float] = None, **kwargs
 
     Raises:
         TypeError: If `to_send` is not a callable.
+
+    Examples:
+        async def f1(x):
+            return x * x
+
+        # Example 1:
+        results = F.wait_for(f1, 3)
+        print(results) # 9
     """
     if not callable(to_send):
         raise TypeError("`to_send` must be a callable object")
@@ -421,15 +429,19 @@ def background_task(
         TypeError: If `to_send` is not a callable.
 
     Examples:
-        # Sync f
-        background_task(my_function, arg1, arg2)
-        
-        # Async f
-        async def async_func(x, y, z=None): ...
-        background_task(async_func, 1, 2, z=3)
-        
-        # One param
-        background_task(my_function, message)   
+        # Example 1:
+        import time
+        def print_message(message: str):
+            time.sleep(1)
+            print(f"[Sync] Message: {message}")
+        F.background_task(print_message, "Hello from sync function")
+
+        # Example 2:
+        import asyncio
+        async def async_print_message(message: str):
+            await asyncio.sleep(1)
+            print(f"[Async] Message: {message}")
+        F.background_task(async_print_message, "Hello from async function")        
     """
     if not callable(to_send):
         raise TypeError("`to_send` must be a callable object")
