@@ -204,10 +204,10 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         response = ModelResponse()
         metadata = dotdict()
 
-        xml_to_dict = kwargs.pop("xml_to_dict")
+        typed_xml = kwargs.pop("typed_xml")
         generation_schema = kwargs.pop("generation_schema")
 
-        if generation_schema is not None and xml_to_dict is False:
+        if generation_schema is not None and typed_xml is False:
             schema = msgspec.json.schema(generation_schema)
             json_schema = adapt_struct_schema_to_json_schema(schema)
             kwargs["response_format"] = json_schema
@@ -242,7 +242,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                 aggregator.process(call_index, id, name, arguments)
             response_content = aggregator
         elif choice.message.content:
-            if xml_to_dict is True:
+            if typed_xml is True:
                 response.set_response_type("{}structured".format(prefix_response_type))
                 response_content = xml_to_typed_dict(choice.message.content)
                 if generation_schema: # Type validation
@@ -337,7 +337,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         generation_schema: Optional[msgspec.Struct] = None,
         tool_schemas: Optional[Dict] = None,
         tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
-        xml_to_dict: Optional[bool] = False,
+        typed_xml: Optional[bool] = False,
     ) -> Union[ModelResponse, ModelStreamResponse]:
         """
         Args:
@@ -363,14 +363,14 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                     3. Forced Tool: 
                         Call exactly one specific tool. 
                         tool_choice: {"type": "function", "function": {"name": "get_weather"}}
-            xml_to_dict:
+            typed_xml:
                 Converts the model output, which should be typed-XML, into a typed-dict.
 
         Raises:
             ValueError:
                 Raised if `generation_schema` and `stream=True`.
             ValueError:                
-                Raised if `xml_to_dict=True` and `stream=True`.
+                Raised if `typed_xml=True` and `stream=True`.
         """        
         if isinstance(messages, str):
             messages = [{"role": "user", "content": messages}]
@@ -388,8 +388,8 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
             if generation_schema is not None:
                 raise ValueError("`generation_schema` is not `stream=True` compatible")
 
-            if xml_to_dict is True:
-                raise ValueError("`xml_to_dict=True` is not `stream=True` compatible")
+            if typed_xml is True:
+                raise ValueError("`typed_xml=True` is not `stream=True` compatible")
             
             stream_response = ModelStreamResponse()
             F.background_task(
@@ -404,7 +404,7 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
         else:
             response = self._generate(
                 **generation_params, 
-                xml_to_dict=xml_to_dict, 
+                typed_xml=typed_xml, 
                 generation_schema=generation_schema
             )
             return response

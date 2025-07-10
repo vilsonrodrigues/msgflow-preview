@@ -25,7 +25,7 @@ from msgflow.generation.templates import (
     PromptSpec,
     SIGNATURE_DEFAULT_SYSTEM_MESSAGE,    
     SYSTEM_PROMPT_TEMPLATE,
-    XML_TO_DICT_TEMPLATE,
+    TYPED_XML_TEMPLATE,
 )
 from msgflow.logger import logger
 from msgflow.message import Message
@@ -96,7 +96,7 @@ class Agent(Module):
         model_preference: Optional[str] = None,
         prefilling: Optional[str] = None,
         generation_schema: Optional[msgspec.Struct] = None,
-        xml_to_dict: Optional[bool] = False,        
+        typed_xml: Optional[bool] = False,        
         response_mode: Optional[str] = "plain_response",
         tools: Optional[List[Callable]] = None,
         tool_choice: Optional[str] = None,
@@ -106,7 +106,7 @@ class Agent(Module):
         #verbose: Optional[bool] = False,
         description: Optional[str] = None,
         system_prompt_template: Optional[str] = SYSTEM_PROMPT_TEMPLATE,
-        xml_to_dict_template: Optional[str] = XML_TO_DICT_TEMPLATE,
+        typed_xml_template: Optional[str] = TYPED_XML_TEMPLATE,
         _annotations: Optional[Dict[str, type]] = {"message": Union[str, Dict[str, str]], "return": str},
     ):
         """
@@ -157,7 +157,7 @@ class Agent(Module):
                 will continue its response from there.              
             generation_schema:
                 Schema that defines how the output should be structured.
-            xml_to_dict:
+            typed_xml:
                 Converts the model output, which should be typed-XML, into a typed-dict.            
             response_mode: 
                 What the response should be.
@@ -181,12 +181,12 @@ class Agent(Module):
             signature:
                 A DSPy-based signature. A signature creates a task_template, a generation_scheme, 
                 instructions and examples (both if passed). Can be combined with standard 
-                generation_schemas like ReAct and ChainOfThought. Can also be combined with `xml_to_dict`.
+                generation_schemas like ReAct and ChainOfThought. Can also be combined with `typed_xml`.
             description:
                 The Agent description (docstring). It's useful when using an agent-as-a-tool.
             system_prompt_template:
                 A Jinja template to format system prompt.
-            xml_to_dict_template:
+            typed_xml_template:
                 A Jinja template to inject instructions to use xml to dict.
             _annotations
                 Define the input and output annotations to use the agent-as-a-function.
@@ -203,17 +203,17 @@ class Agent(Module):
             if response_template is not None:
                 raise ValueError("`response_template` is not `stream=True` compatible")
 
-            if xml_to_dict is True:
-                raise ValueError("`xml_to_dict=True` is not `stream=True` compatible")
+            if typed_xml is True:
+                raise ValueError("`typed_xml=True` is not `stream=True` compatible")
 
-        self._set_xml_to_dict_template(xml_to_dict_template)
+        self._set_typed_xml_template(typed_xml_template)
 
         if signature is not None:
             signature_params = dotdict({
                 "signature": signature, 
                 "instructions": instructions,
                 "system_message": system_message,
-                "xml_to_dict": xml_to_dict,
+                "typed_xml": typed_xml,
             })
             if generation_schema is not None:
                 signature_params.generation_schema = generation_schema
@@ -225,7 +225,7 @@ class Agent(Module):
             self._set_instructions(instructions)
             self._set_system_message(system_message)
             self._set_task_template(task_template)
-            self._set_xml_to_dict(xml_to_dict)
+            self._set_typed_xml(typed_xml)
             
         self.set_name(name)
         self.set_description(description)
@@ -309,7 +309,7 @@ class Agent(Module):
             "tool_schemas": tool_schemas,
             "tool_choice": self.tool_choice,
             "generation_schema": self.generation_schema,
-            "xml_to_dict": self.xml_to_dict
+            "typed_xml": self.typed_xml
         })
 
         if model_preference:
@@ -833,16 +833,16 @@ class Agent(Module):
             raise TypeError("`system_extra_message` requires a string or None "
                             f"given `{type(system_extra_message)}`")
 
-    def _set_xml_to_dict_template(self, xml_to_dict_template: str):
-        if isinstance(xml_to_dict_template, str):
-            self.register_buffer("xml_to_dict_template", xml_to_dict_template)
+    def _set_typed_xml_template(self, typed_xml_template: str):
+        if isinstance(typed_xml_template, str):
+            self.register_buffer("typed_xml_template", typed_xml_template)
         else:
-            raise TypeError("`xml_to_dict_template` requires a string "
-                            f"given `{type(xml_to_dict_template)}`")        
+            raise TypeError("`typed_xml_template` requires a string "
+                            f"given `{type(typed_xml_template)}`")        
 
-    def _set_xml_to_dict(self, xml_to_dict: Optional[bool] = False):
-        if isinstance(xml_to_dict, bool):
-            if xml_to_dict:
+    def _set_typed_xml(self, typed_xml: Optional[bool] = False):
+        if isinstance(typed_xml, bool):
+            if typed_xml:
                 json_schema = None
                 if self.generation_schema:
                     schema = msgspec.json.schema(self.generation_schema)                  
@@ -852,12 +852,12 @@ class Agent(Module):
                     "json_schema": json_schema
                 }
                 xml_instructions = self._format_template(
-                    template_inputs, self.xml_to_dict_template
+                    template_inputs, self.typed_xml_template
                 )
                 self._set_instructions(xml_instructions)
-            self.register_buffer("xml_to_dict", xml_to_dict)
+            self.register_buffer("typed_xml", typed_xml)
         else:
-            raise TypeError(f"`xml_to_dict` requires a bool given `{type(xml_to_dict)}`")
+            raise TypeError(f"`typed_xml` requires a bool given `{type(typed_xml)}`")
 
     def _set_signature(
         self, 
@@ -865,7 +865,7 @@ class Agent(Module):
         generation_schema: Optional[msgspec.Struct] = None,
         instructions: Optional[str] = None,
         system_message: Optional[str] = None,
-        xml_to_dict: Optional[bool] = False
+        typed_xml: Optional[bool] = False
     ):
         if signature is not None:
 
@@ -914,19 +914,19 @@ class Agent(Module):
 
             # Create expected outputs
             expected_output = get_expected_output_from_signature(inputs_desc, outputs_desc)
-            if xml_to_dict is False:
+            if typed_xml is False:
                 expected_output += "\nWrite an encoded JSON."
             self._set_expected_output(expected_output)
 
             # Create examples
             if examples is not None:
                 input_examples_dict, output_json_string = examples
-                input_examples_string = self._format_task_template(input_examples_dict, xml_to_dict)
+                input_examples_string = self._format_task_template(input_examples_dict, typed_xml)
                 examples = format_examples([(input_examples_string, output_json_string)])
             self._set_examples(examples)
 
             # Set xml output
-            self._set_xml_to_dict(xml_to_dict)
+            self._set_typed_xml(typed_xml)
 
     def _get_system_prompt(self) -> str:
         """

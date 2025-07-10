@@ -33,7 +33,7 @@ The current date is: {{ current_date }}
 """
 
 
-XML_TO_DICT_TEMPLATE =  """
+TYPED_XML_TEMPLATE =  """
 {% if instructions %}{{ instructions }}{% endif %}
 
 You SHOULD write your response in a structured manner using XML tags.
