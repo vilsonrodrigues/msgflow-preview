@@ -146,7 +146,7 @@ class ToolLibrary(Module):
         self.set_name(f"{name}_tool_library")
         self.library = ModuleDict()
         self.register_buffer("special_library", [])
-        self.register_buffer("tool_configs", dotdict())
+        self.register_buffer("tool_configs", {})
         for tool in tools:
             self.add(tool)
         if special_tools:
