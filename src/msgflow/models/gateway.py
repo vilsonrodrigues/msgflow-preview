@@ -1,5 +1,5 @@
 from datetime import time, datetime
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from msgflow.exceptions import ModelRouterError
 from msgflow.logger import logger
@@ -19,15 +19,12 @@ class ModelGateway:
     def __init__(
         self,
         models: List[BaseModel],
-        max_retries: Optional[int] = 3,
         time_constraints: Optional[Dict[str, List[Tuple[str, str]]]] = None
     ):
         """
         Args:
             models: 
                 A list of BaseModel instances (at least 2).
-            max_retries: 
-                Maximum number of *consecutive* model failures before raising a ModelRouterError.
             time_constraints: An optional dictionary mapping model_id to a list of string tuples 
                 (start_time, end_time). The listed models will NOT be used if the current time is
                 within any of the specified ranges. Strings must be in the format "HH:MM" (e.g. 
@@ -42,20 +39,16 @@ class ModelGateway:
                 Raised for misconfiguration in time formats or duplicate model IDs.
             TypeError: 
                 Raised for invalid argument types.                
-        """
-        if not isinstance(max_retries, int) or max_retries < 1:
-            raise ValueError("`max_retries` must be a positive integer")
-
+        """        
         self._model_id_to_index: Dict[str, int] = {}
-        self.max_retries = max_retries
         self.raw_time_constraints = time_constraints
         self._set_models(models)
 
         try:
             self.parsed_time_constraints = self._parse_time_constraints(time_constraints) if time_constraints else {}
         except ValueError as e:
-             logger.error(f"Error to parse time_constraints: {e}")
-             raise ValueError(f"Invalid format in time_constraints: {e}") from e
+            logger.error(f"Error to parse time_constraints: {e}")
+            raise ValueError(f"Invalid format in time_constraints: {e}") from e
 
         # Validates if the model_ids in time_constraints exist (uses the keys from the parsed dict)
         for model_id in self.parsed_time_constraints:
@@ -66,39 +59,6 @@ class ModelGateway:
         logger.debug(f"ModelGateway initialized with {len(self.models)} models. Type: `{self.model_type}`. Max fails: `{self.max_retries}`")
         if self.parsed_time_constraints:
             logger.debug(f"Time constraints applied to models: {list(self.parsed_time_constraints.keys())}")
-
-    def _set_models(self, models: List[BaseModel]):
-        if not models or not isinstance(models, list):
-             raise TypeError("`models` must be a non-empty list of `BaseModel` instances")
-
-        if not all(isinstance(model, BaseModel) for model in models):
-            raise TypeError("`models` requires inheriting from `BaseModel`")
-
-        if len(models) < 2:
-             logger.warning(f"`models` has only {len(models)} models. Fallback will not be effective")
-
-        model_types = set()
-        model_ids = set()
-        for i, model in enumerate(models):
-            if not hasattr(model, "model_type") or not model.model_type:
-                 raise AttributeError(f"Model in {i} position does not have a valid `model_type` attribute")
-            if not hasattr(model, "model_id") or not model.model_id:
-                 raise AttributeError(f"Model in {i} position  does not have a valid `model_id` attribute")
-            if not hasattr(model, "provider"):
-                 raise AttributeError(f"Model `{model.model_id}` does not have a valid `provider` attribute")
-
-            model_types.add(model.model_type)
-            if model.model_id in model_ids:
-                 raise ValueError(f"Duplicate model ID found: `{model.model_id}`. IDs must be unique")
-            model_ids.add(model.model_id)
-            self._model_id_to_index[model.model_id] = i
-
-        if len(model_types) > 1:
-            raise TypeError("All models in `models` must be of the same `model_type`. "
-                            f"Given: `{model_types}`")
-
-        self.models = models
-        self.model_type = list(model_types)[0]
 
     def _parse_time_constraints(self, constraints: Optional[Dict[str, List[Tuple[str, str]]]] = None) -> Dict[str, List[Tuple[time, time]]]:
         """
@@ -155,107 +115,74 @@ class ModelGateway:
                     return True
         return False
 
-    def _rotate_model(self) -> int:
-        """Advances to the next model in the list, cyclically"""
-        if not self.models:
-            return 0
-        original_index = self.current_model_index
-        self.current_model_index = (self.current_model_index + 1) % len(self.models)
-        logger.debug(f"Rotating model from index `{original_index}` to `{self.current_model_index}`")
-        return self.current_model_index
+    def _set_models(self, models: List[BaseModel]):
+        if not models or not isinstance(models, list):
+             raise TypeError("`models` must be a non-empty list of `BaseModel` instances")
 
-    def _select_start_model(self, model_preference: Optional[str] = None) -> int:
-        """Sets the starting index based on the model_preference or keeps the current one"""
-        if model_preference:
-            if model_preference in self._model_id_to_index:
-                start_index = self._model_id_to_index[model_preference]
-                # We don't set self.current_model_index here yet,
-                # because _execute_model may need to iterate before reaching it
-                # We return the index to _execute_model to decide the actual starting point
-                logger.debug(f"Attempt to start with specified model: `{model_preference}` (index `{start_index}`)")
-                return start_index
-            else:
-                logger.debug(f"The model_id `{model_preference}` specified for starting was not found. Using current/default model (index `{self.current_model_index}`)")
-                return self.current_model_index
-        else:
-             logger.debug(f"No initial model specified. Using current index: `{self.current_model_index}`")
-             return self.current_model_index
+        if not all(isinstance(model, BaseModel) for model in models):
+            raise TypeError("`models` requires inheriting from `BaseModel`")
+
+        if len(models) < 2:
+             logger.warning(f"`models` has only {len(models)} models. Fallback will not be effective")
+
+        model_types = set()
+        model_ids = set()
+        for i, model in enumerate(models):
+            if not hasattr(model, "model_type") or not model.model_type:
+                 raise AttributeError(f"Model in {i} position does not have a valid `model_type` attribute")
+            if not hasattr(model, "model_id") or not model.model_id:
+                 raise AttributeError(f"Model in {i} position  does not have a valid `model_id` attribute")
+            if not hasattr(model, "provider"):
+                 raise AttributeError(f"Model `{model.model_id}` does not have a valid `provider` attribute")
+
+            model_types.add(model.model_type)
+            if model.model_id in model_ids:
+                 raise ValueError(f"Duplicate model ID found: `{model.model_id}`. IDs must be unique")
+            model_ids.add(model.model_id)
+            self._model_id_to_index[model.model_id] = i
+
+        if len(model_types) > 1:
+            raise TypeError("All models in `models` must be of the same `model_type`. "
+                            f"Given: `{model_types}`")
+
+        self.models = models
+        self.model_type = list(model_types)[0]
 
     def _execute_model(self, model_preference: Optional[str] = None, **kwargs: Any) -> Any:
         """
         Attempts to execute the call on the configured models, respecting
-        time constraints and failure limits
+        time constraints and failure limits.
         """
         if not self.models:
-             raise ModelRouterError([], [], message="No model configured on gateway")
+            raise ModelRouterError([], [], message="No model configured on gateway")
 
-        start_index = self._select_start_model(model_preference)
-        self.current_model_index = start_index
+        available_models = [model for model in self.models if not self._is_time_restricted(model.model_id)]
+        
+        if not available_models:
+            raise ModelRouterError([], [], message="No model available due to time constraints")
 
-        failures = 0
-        exceptions_encountered: List[Exception] = []
-        model_info_on_failure: List[Tuple[str, str, Exception]] = []
-        models_attempted_indices_in_cycle: Set[int] = set() # Track attempts within a fail/skip cycle
+        if model_preference:
+            preferred_model = next((m for m in available_models if m.model_id == model_preference), None)
+            if preferred_model:
+                available_models = [preferred_model] + [m for m in available_models if m != preferred_model]
 
-        while failures < self.max_retries:
-            # Check if we have tried all models in this cycle
-            if len(models_attempted_indices_in_cycle) == len(self.models):
-                 logger.debug(f"All `{len(self.models)}` models were tried/skipped in this cycle without success.")
-                # If we tried all of them and there was no success (either by failure or skip),
-                # we consider that the retry cycle failed
-                # We do not increment 'failures' here, but we exit the inner loop
-                 break # Exit the while loop, the exception will be raised outside
-
-            current_model_idx = self.current_model_index
-            # Only adds to the set if it hasn't been tried yet *in this cycle*
-            if current_model_idx in models_attempted_indices_in_cycle:
-                # This shouldn't happen if the rotation logic is correct,
-                # but it's an extra safety precaution.
-                logger.debug(f"Index model `{current_model_idx}` has already been tried in this cycle, rotating")
-                self._rotate_model()
-                continue
-
-            current_model = self.models[current_model_idx]
-            model_id = current_model.model_id
-            provider = current_model.provider
-
-            # Adds to the set of models tried *in this cycle*
-            models_attempted_indices_in_cycle.add(current_model_idx)
-
-            #1. Check time constraints
-            if self._is_time_restricted(model_id):
-                logger.debug(f"Model `{model_id}` ({provider}) at index {current_model_idx} is temporarily restricted, skipping")
-                self._rotate_model()
-                # Do not increment 'failures', but continue in the while loop
-                continue # Go to next iteration (next model)
-
-            #2. Try to run the model
+        failures = []
+        
+        for model in available_models:
             try:
-                logger.debug(f"Trying to call model `{model_id}` ({provider}) at index {current_model_idx}")
-                response = current_model(**kwargs)
-                logger.debug(f"Model `{model_id}` ({provider}) executed successfully")
+                response = model(**kwargs)
                 return response
-
-            #3. Dealing with execution failures
             except Exception as e:
-                logger.debug(f"Model `{model_id}` ({provider}) at index {current_model_idx} failed to execute:{e}", exc_info=False)
-                exceptions_encountered.append(e)
-                model_info_on_failure.append((model_id, provider, e))
-                failures += 1 
-                logger.info(f"Failure {failures}/{self.max_retries}, rotating to the next model")
-                self._rotate_model()
+                logger.debug(f"Model `{model.model_id}` ({model.provider}) failed to execute: {e}", exc_info=False)
+                failures.append((model.model_id, model.provider, e))
 
-        # If exited the loop (failures >= max_retries or break because all were tried/skipped)
-        error_message = "Failed to execute call"
-        if failures >= self.max_retries:
-             error_message = f"Maximum failure limit ({self.max_retries}) reached after trying {len(model_info_on_failure)} models"
-        elif len(models_attempted_indices_in_cycle) == len(self.models) and not exceptions_encountered:
-             error_message = f"No models available to run at the moment (all may be time constrained)"
-        elif len(models_attempted_indices_in_cycle) == len(self.models):
-             error_message = f"All {len(self.models)} models were tried/skipped without success"
-
+        error_message = f"All {len(available_models)} available models failed"
         logger.error(error_message)
-        raise ModelRouterError(exceptions_encountered, model_info_on_failure, message=error_message)
+        raise ModelRouterError(
+            [failure[2] for failure in failures], 
+            failures, 
+            message=error_message
+        )
 
     def __call__(self, *, model_preference: Optional[str] = None, **kwargs: Any) -> Union[ModelResponse, ModelStreamResponse]:
         """
@@ -277,19 +204,17 @@ class ModelGateway:
         return self._execute_model(model_preference=model_preference, **kwargs)
 
     async def acall(self, *args, **kwargs):
-        """ Async interface to __call__."""
+        """Async interface to `__call__`."""
         return self.__call__(*args, **kwargs)
 
     def serialize(self) -> Dict[str, Any]:
         """Serializes the gateway state including time constraints as strings."""
         serialized_models = [model.serialize() for model in self.models]
         state = {
-            "max_retries": self.max_retries,
             "time_constraints": self.raw_time_constraints,
             "models": serialized_models
         }
-        data = {"msgflow_type": self.msgflow_type,
-                "state": state}
+        data = {"msgflow_type": self.msgflow_type, "state": state}
         return data
 
     @classmethod
@@ -299,7 +224,7 @@ class ModelGateway:
 
         Args:
             data: The dictionary of serialized models.
-        """
+        """        
         if data.get("msgflow_type") != cls.msgflow_type:
              raise ValueError(f"Incorrect msgflow type. Expected `{cls.msgflow_type}`, "
                               f"given `{data.get('msgflow_type')}`")
@@ -307,26 +232,9 @@ class ModelGateway:
         state = data.get("state", {})
         serialized_models = state.get("models", [])
         if not serialized_models:
-            raise ValueError("Serialized data does not contain models")
+            raise ValueError("Os dados serializados não contêm modelos")
 
         models = [Model.from_serialized(**m_data) for m_data in serialized_models]
-
-        max_failures = state.get("max_retries")
         time_constraints = state.get("time_constraints")
 
-        return cls(
-            models=models,
-            max_retries=max_failures,
-            time_constraints=time_constraints
-        )
-
-    def get_model_info(self) -> List[Dict[str, str]]:
-        return [model.get_model_info() for model in self.models]
-
-    def get_available_models(self) -> List[BaseModel]:
-        """Returns a list of models that are NOT currently time-restricted."""
-        available = []
-        for model in self.models:
-            if not self._is_time_restricted(model.model_id):
-                available.append(model)
-        return available
+        return cls(models=models, time_constraints=time_constraints)
