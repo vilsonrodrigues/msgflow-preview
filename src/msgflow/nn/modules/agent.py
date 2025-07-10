@@ -52,6 +52,16 @@ from msgflow.telemetry.span import trace_agent_prepare_model_execution
 # wrote and then it will continue from there
 # the system can change the response to the stream if x condition is met. nein
 
+class ToolFlowControl:
+    """
+    Base class for creating custom tool flow controls 
+    based on generation schamas.
+    
+    Each generation schema, such as ReAct, can be 
+    treated as a custom tool flow control by
+    inheriting from this class.
+    """
+
 
 class Agent(Module):
     """
@@ -344,8 +354,8 @@ class Agent(Module):
             model_response, model_state = self._process_tool_call_response(
                 model_response, model_state, model_preference,
             )
-        elif is_subclass_of(self.generation_schema, ReAct):
-            model_response, model_state = self._process_react_response(
+        elif is_subclass_of(self.generation_schema, ToolFlowControl):
+            model_response, model_state = self._process_tool_flow_control_response(
                 model_response, model_state, model_preference,
             )
         
@@ -361,12 +371,16 @@ class Agent(Module):
         else:
             raise ValueError(f"Unsupported `response_type={response_type}`")
 
-    def _process_react_response(
+    def _process_tool_flow_control_response(
         self,
         model_response: Union[ModelResponse, ModelStreamResponse],
         model_state: Dict[str, Any],
         model_preference: Optional[str] = None,
     ) -> Tuple[Union[str, Dict[str, Any], ModelStreamResponse], Dict[str, Any]]:
+        """
+        This function is set up to handle the fields returned by "ReAct".
+        If the fields are different, you must rewrite this function.
+        """
         while True:
             raw_response = self._extract_raw_response(model_response)
 

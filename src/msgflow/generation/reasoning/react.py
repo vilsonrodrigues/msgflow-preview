@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 from msgspec import Struct
 from typing_extensions import Generic, TypeVar
-
+from msgflow.nn.modules.agent import ToolFlowControl
 
 T = TypeVar("T", default=str)
 
@@ -24,7 +24,8 @@ class ReActStep(Struct):
     thought: Thought
     actions: List[ToolCall] = [] 
 
-class ReAct(Struct, Generic[T]):
+
+class ReAct(Struct, ToolFlowControl, Generic[T]): 
     current_step: Optional[ReActStep] = None
     final_answer: Optional[T] = None  
 
