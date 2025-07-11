@@ -110,6 +110,7 @@ class Agent(Module):
         response_mode: Optional[str] = "plain_response",
         tools: Optional[List[Callable]] = None,
         tool_choice: Optional[str] = None,
+        template_inputs: Optional[str] = None,
         response_template: Optional[str] = None,
         fixed_messages: Optional[List[Dict[str, Any]]] = None,
         signature: Optional[Union[str, Signature]] = None,
@@ -173,6 +174,9 @@ class Agent(Module):
                 What the response should be.
                 * `plain_response` (default): Returns the final agent response directly.
                 * other: Write on field in Message object.
+            template_inputs:
+                Fields of the Message object that will be the inputs to templates.
+                System, context and Task templates may receive parameters during execution.
             tools:
                 A list of callable objects.
             tool_choice:
@@ -183,7 +187,7 @@ class Agent(Module):
                     2. required: 
                         Call one or more functions. tool_choice: "required"
                     3. Forced Function: 
-                        Call exactly one specific function. E.g. 'add'.
+                        Call exactly one specific function. E.g. "add".
             response_template:
                 A Jinja template to format response.
             fixed_messages:
@@ -258,6 +262,7 @@ class Agent(Module):
         self._set_response_template(response_template)
         self._set_task_multimodal_inputs(task_multimodal_inputs)
         self._set_task_inputs(task_inputs)
+        self._set_template_inputs(template_inputs)
         self._set_tool_choice(tool_choice)
         self._set_tools(tools)
 
@@ -274,9 +279,10 @@ class Agent(Module):
         model_state: List[Dict[str, Any]],
         prefilling: Optional[str] = None,
         model_preference: Optional[str] = None,
+        template_inputs: Optional[Dict[str, Any]] = None
     ) -> Union[ModelResponse, ModelStreamResponse]:
         model_execution_params = self._prepare_model_execution(
-            model_state, prefilling, model_preference,
+            model_state, prefilling, model_preference, template_inputs
         )
         if self.input_guardrail:
             self._execute_input_guardrail(model_execution_params)
@@ -289,6 +295,7 @@ class Agent(Module):
         model_state: List[Dict[str, Any]],
         prefilling: Optional[str] = None,
         model_preference: Optional[str] = None,
+        template_inputs: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         agent_state = []
 
@@ -297,7 +304,7 @@ class Agent(Module):
 
         agent_state.extend(model_state)
 
-        system_prompt = self._get_system_prompt()
+        system_prompt = self._get_system_prompt(template_inputs)
 
         tool_schemas = self.tool_library.get_tool_json_schemas()
         if not tool_schemas:
@@ -492,9 +499,13 @@ class Agent(Module):
     ) -> Dict[str, Any]:
         """Prepare model input in ChatML format and execution params."""
         task_messages = None
-        runtime_task_messages = kwargs.pop("task_messages", None)        
-        
-        content = self._process_task_inputs(message, **kwargs)
+        runtime_task_messages = kwargs.pop("task_messages", None)
+
+        template_inputs = kwargs.pop("template_inputs", None) # Runtime params to templates
+        if template_inputs is None and isinstance(message, Message):
+            template_inputs = message.get(self.template_inputs)
+
+        content = self._process_task_inputs(message, template_inputs=template_inputs, **kwargs)
         
         if isinstance(message, Message):
             task_messages = self._get_task_messages_from_message(message)        
@@ -521,11 +532,12 @@ class Agent(Module):
         return {
             "model_state": model_state,
             "model_preference": model_preference,
+            "template_inputs": template_inputs,
         }
 
     def _process_task_inputs(
         self, message: Union[str, Message, Dict[str, str]], **kwargs
-    ) -> Union[str, Dict[str, Any]]:
+    ) -> Union[str, Dict[str, Any]]:        
         content = ""
 
         context_content = self._context_manager(message, **kwargs)
@@ -552,6 +564,9 @@ class Agent(Module):
         else:
             task_content = task_inputs
 
+        if kwargs.get("template_inputs", None):
+            task_content = self._format_template(kwargs["template_inputs"], task_content)
+
         task_content = apply_xml_tags("task", task_content)
         content += task_content
         content = content.strip() # Remove whitespace
@@ -565,7 +580,7 @@ class Agent(Module):
     def _context_manager(
         self, message: Union[str, Message, Dict[str, str]], **kwargs
     ) -> Optional[str]:
-        """Mount context."""
+        """Mount context."""        
         context_content = ""
         
         if self.context_cache: # Fixed Context Cache
@@ -587,10 +602,12 @@ class Agent(Module):
                 elif isinstance(context_inputs, list):
                     msg_context = " ".join(str(v) for v in context_inputs if v is not None)
                 elif isinstance(context_inputs, dict):
-                    msg_context = "\n\n".join(str(v) for v in context_inputs.values())                
-            context_content += "\n\n" + msg_context
+                    msg_context = "\n\n".join(str(v) for v in context_inputs.values())              
+            context_content += "\n\n" + msg_context            
             
         if context_content:
+            if kwargs.get("template_inputs", None):
+                context_content = self._format_template(kwargs["template_inputs"], context_content)
             return apply_xml_tags("context", context_content)
         return None
 
@@ -642,7 +659,8 @@ class Agent(Module):
             return None
 
         mime_type = get_mime_type(image_source) # Try to guess from the original source
-        if not mime_type.startswith("image/"): mime_type = "image/jpeg" # Fallback        
+        if not mime_type.startswith("image/"):
+            mime_type = "image/jpeg" # Fallback        
         image_data_url = f"data:{mime_type};base64,{base64_image}"
         
         return {"type": "image_url", "image_url": {"url": image_data_url}}
@@ -847,6 +865,13 @@ class Agent(Module):
             raise TypeError("`system_extra_message` requires a string or None "
                             f"given `{type(system_extra_message)}`")
 
+    def _set_template_inputs(self, template_inputs: Optional[str] = None):
+        if isinstance(template_inputs, str) or template_inputs is None:
+            self.register_buffer("template_inputs", template_inputs)
+        else:
+            raise TypeError("`template_inputs` requires a string or None "
+                            f"given `{type(template_inputs)}`")        
+
     def _set_typed_xml_template(self, typed_xml_template: str):
         if isinstance(typed_xml_template, str):
             self.register_buffer("typed_xml_template", typed_xml_template)
@@ -942,7 +967,7 @@ class Agent(Module):
             # Set xml output
             self._set_typed_xml(typed_xml)
 
-    def _get_system_prompt(self) -> str:
+    def _get_system_prompt(self, template_inputs: Optional[Dict[str, Any]] = None) -> str:
         """
         Render the system prompt using the Jinja template.
         Returns an empty string if no segments are provided.
@@ -961,4 +986,8 @@ class Agent(Module):
         system_prompt = self._format_template(
             template_inputs, self.system_prompt_template
         )
+        if template_inputs: # Runtime inputs to system template
+            system_prompt = self._format_template(
+                template_inputs, self.system_prompt
+            )
         return system_prompt
