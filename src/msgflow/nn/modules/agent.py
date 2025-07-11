@@ -548,7 +548,7 @@ class Agent(Module):
         else:
             task_inputs = message
 
-        if task_inputs is None:
+        if task_inputs is None and self.task_template is None:
             raise AttributeError("When using a `Message` in `nn.Agent` it is necessary to "
                                  "have configured `task_inputs` or `task_template`")
 
