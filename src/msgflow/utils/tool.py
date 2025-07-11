@@ -19,10 +19,11 @@ def tool_config(
     *, 
     return_direct: Optional[bool] = False,
     background: Optional[bool] = False,
-    handoff: Optional[bool] = False,    
+    handoff: Optional[bool] = False,
+    call_as_response: Optional[bool] = False,
     name_override: Optional[str] = None,
 ) -> Callable:
-    """Decorator to inject custom properties into a function or class instance.
+    """Decorator to inject meta-properties into a function or class instance.
 
     This decorator adds metadata properties to a function or an instance of a class, allowing 
     tools to control behavior such as whether results are returned directly or passed for 
@@ -36,6 +37,9 @@ def tool_config(
             has been scheduled will be the response to the model.
         handoff: 
             If True, indicates that this function will receive the `model_state` from the Agent.
+        call_as_response:
+            If True, returns the tool call as its result. This property requires 
+            'return_direct = True' and will automatically change it to True if it is passed as false.
         name_override:
             A custom name to override the default tool name derived from the function 
             or class. If not provided, the original name is used.
@@ -45,15 +49,21 @@ def tool_config(
 
     Raises:
         ValueError: 
-           `background=True` is not compatible with `return_direct=True` and `handoff=True`.
+           `background=True` is not compatible with `return_direct=True`, 
+           `call_as_response=True` and `handoff=True`.
     """
     def decorator(f):
         if background is True and (return_direct is True or handoff is True):
-            raise ValueError("`background=True` is not compatible with "
-                             "`return_direct=True` and `handoff=True`")
+            raise ValueError("`background=True` is not compatible with `return_direct=True`"
+                             ", `call_as_response=True` and `handoff=True`")
+        
+        if call_as_response is True and return_direct is False:
+            return_direct = True
+
         tool_config = {
             "tool_config": dotdict({
                 "background": background,
+                "call_as_response": call_as_response,
                 "handoff": handoff,                
                 "return_direct": return_direct,
             })

@@ -127,6 +127,7 @@ def _convert_module_to_nn_tool(impl: Callable) -> ToolBase:
 
 class ToolLibrary(Module):
     """ToolLibrary is a Module type that manage tool calls over the tool library."""
+
     def __init__(
         self,
         name: str,
@@ -238,6 +239,14 @@ class ToolLibrary(Module):
                 result = f"""The `{tool_name}` tool was started in the background.
                 This tool will not generate a return"""
                 responses[tool_id] = result
+                continue
+
+            if config.get("call_as_response", False): # Return direct
+                responses[tool_name] = {
+                    "tool_name": tool_name,
+                    "parameters": tool_params
+                }
+                return_directly = True
                 continue
 
             if config.get("handoff", False): # Add model_state
