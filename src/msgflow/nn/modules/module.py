@@ -506,7 +506,7 @@ class Module:
             
     def _set_annotations(self, annotations: Dict[str, type]):
         if isinstance(annotations, dict):
-            self.register_buffer("annotations", annotations)
+            super().__setattr__("annotations", annotations)
         else:
             raise TypeError(f"`annotations` need be a `dict` given {type(annotations)}")
 
