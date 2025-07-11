@@ -2,7 +2,8 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 from msgspec import Struct
 from typing_extensions import Generic, TypeVar
-from msgflow.nn.modules.agent import ToolFlowControl
+from msgflow.utils.tool import ToolFlowControl
+
 
 T = TypeVar("T", default=str)
 

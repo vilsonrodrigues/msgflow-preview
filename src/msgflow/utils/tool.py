@@ -4,6 +4,17 @@ from typing import Callable, Dict, Optional, Union
 from msgflow.dotdict import dotdict
 
 
+class ToolFlowControl:
+    """
+    Base class for creating custom tool flow controls 
+    based on generation schamas.
+    
+    Each generation schema, such as ReAct, can be 
+    treated as a custom tool flow control by
+    inheriting from this class.
+    """
+
+
 def tool_config(
     *, 
     return_direct: Optional[bool] = False,

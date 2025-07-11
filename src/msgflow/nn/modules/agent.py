@@ -43,6 +43,7 @@ from msgflow.utils.chat import (
 )
 from msgflow.utils.inspect import get_mime_type
 from msgflow.utils.msgspec import StructFactory
+from msgflow.utils.tool import ToolFlowControl
 from msgflow.utils.validation import is_subclass_of
 from msgflow.utils.xml import apply_xml_tags
 from msgflow.telemetry.span import trace_agent_prepare_model_execution
@@ -51,16 +52,6 @@ from msgflow.telemetry.span import trace_agent_prepare_model_execution
 # it is possible to continue generating a model. Just resend to it what it
 # wrote and then it will continue from there
 # the system can change the response to the stream if x condition is met. nein
-
-class ToolFlowControl:
-    """
-    Base class for creating custom tool flow controls 
-    based on generation schamas.
-    
-    Each generation schema, such as ReAct, can be 
-    treated as a custom tool flow control by
-    inheriting from this class.
-    """
 
 
 class Agent(Module):
