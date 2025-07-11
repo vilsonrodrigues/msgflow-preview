@@ -653,17 +653,17 @@ class Agent(Module):
 
     def _format_image_input(self, image_source: str) -> Optional[Dict[str, Any]]:
         """Formats the image input for the model"""
-        base64_image = self._prepare_data_uri(image_source, force_encode=True)
+        encoded_image = self._prepare_data_uri(image_source, force_encode=False)
 
-        if not base64_image:
+        if not encoded_image:
             return None
 
-        mime_type = get_mime_type(image_source) # Try to guess from the original source
-        if not mime_type.startswith("image/"):
-            mime_type = "image/jpeg" # Fallback        
-        image_data_url = f"data:{mime_type};base64,{base64_image}"
-        
-        return {"type": "image_url", "image_url": {"url": image_data_url}}
+        if not encoded_image.startswith("http"):
+            mime_type = get_mime_type(image_source) # Try to guess from the original source
+            if not mime_type.startswith("image/"):
+                mime_type = "image/jpeg" # Fallback        
+            encoded_image = f"data:{mime_type};base64,{encoded_image}"        
+        return {"type": "image_url", "image_url": {"url": encoded_image}}
 
     def _format_audio_input(self, audio_source: str) -> Optional[Dict[str, Any]]:
         """Formats the audio input for the model"""
