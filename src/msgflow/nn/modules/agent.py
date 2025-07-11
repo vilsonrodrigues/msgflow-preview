@@ -983,11 +983,8 @@ class Agent(Module):
         if self.include_date:
             template_inputs["current_date"] = datetime.now().strftime("%m/%d/%Y")
             
-        system_prompt = self._format_template(
-            template_inputs, self.system_prompt_template
-        )
+        system_prompt = self._format_template(template_inputs, self.system_prompt_template)
+
         if template_inputs: # Runtime inputs to system template
-            system_prompt = self._format_template(
-                template_inputs, self.system_prompt
-            )
+            system_prompt = self._format_template(template_inputs, system_prompt)
         return system_prompt
