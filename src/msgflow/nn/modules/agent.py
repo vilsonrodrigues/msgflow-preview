@@ -97,7 +97,7 @@ class Agent(Module):
         model_preference: Optional[str] = None,
         prefilling: Optional[str] = None,
         generation_schema: Optional[msgspec.Struct] = None,
-        typed_xml: Optional[bool] = False,        
+        typed_xml: Optional[bool] = False,
         response_mode: Optional[str] = "plain_response",
         tools: Optional[List[Callable]] = None,
         tool_choice: Optional[str] = None,
@@ -105,6 +105,7 @@ class Agent(Module):
         response_template: Optional[str] = None,
         fixed_messages: Optional[List[Dict[str, Any]]] = None,
         signature: Optional[Union[str, Signature]] = None,
+        return_model_state: Optional[bool] = False,
         #verbose: Optional[bool] = False,
         description: Optional[str] = None,
         system_prompt_template: Optional[str] = SYSTEM_PROMPT_TEMPLATE,
@@ -187,6 +188,8 @@ class Agent(Module):
                 A DSPy-based signature. A signature creates a task_template, a generation_scheme, 
                 instructions and examples (both if passed). Can be combined with standard 
                 generation_schemas like ReAct and ChainOfThought. Can also be combined with `typed_xml`.
+            return_model_state:
+                If True, returns a dictionary containing model_state and the agent's response.
             description:
                 The Agent description (docstring). It's useful when using an agent-as-a-tool.
             system_prompt_template:
@@ -249,6 +252,7 @@ class Agent(Module):
         self._set_include_date(include_date)
         self._set_system_prompt_template(system_prompt_template)
         self._set_response_mode(response_mode)
+        self._set_return_model_state(return_model_state)
         self._set_stream(stream)
         self._set_response_template(response_template)
         self._set_task_multimodal_inputs(task_multimodal_inputs)
@@ -363,7 +367,7 @@ class Agent(Module):
 
         if response_type in self._supported_outputs:
             response = self._prepare_response(
-                raw_response, response_type, message
+                raw_response, response_type, model_state, message
             )
             return response
         else:
@@ -463,6 +467,7 @@ class Agent(Module):
         self, 
         raw_response: Union[str, Dict[str, Any], ModelStreamResponse], 
         response_type: str,
+        model_state: List[Dict[str, Any]],        
         message: Union[str, Dict[str, Any], Message]
     ) -> Union[str, Dict[str, Any], ModelStreamResponse]:
         formated_response = None
@@ -471,8 +476,11 @@ class Agent(Module):
                 if self.output_guardrail:
                     self._execute_output_guardrail(raw_response)        
                 if self.response_template:
-                    formated_response = self._format_response_template(raw_response)
-        return self._define_response_mode(formated_response or raw_response, message)
+                    formated_response = self._format_response_template(raw_response)        
+        response = agent_response = formated_response or raw_response
+        if self.return_model_state:
+            response = dotdict({"response": agent_response, "model_state": model_state})
+        return self._define_response_mode(response, message)
 
     def _prepare_output_guardrail_execution(
         self, 
@@ -834,6 +842,13 @@ class Agent(Module):
         else:
             raise TypeError("`examples` requires a string or None "
                             f"given `{type(examples)}`")
+
+    def _set_return_model_state(self, return_model_state: Optional[bool] = False):
+        if isinstance(return_model_state, bool):
+            self.register_buffer("return_model_state", return_model_state)
+        else:
+            raise TypeError("`return_model_state` requires a bool "
+                            f"given `{type(return_model_state)}`")
 
     def _set_task_messages(self, task_messages: Optional[str] = None):
         if isinstance(task_messages, str) or task_messages is None:
