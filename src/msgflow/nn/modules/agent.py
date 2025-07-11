@@ -963,7 +963,7 @@ class Agent(Module):
         Render the system prompt using the Jinja template.
         Returns an empty string if no segments are provided.
         """
-        template_inputs = {
+        fixed_template_inputs = {
             "system_message": self.system_message.data,
             "instructions": self.instructions.data,
             "expected_output": self.expected_output.data,
@@ -972,9 +972,9 @@ class Agent(Module):
         }
 
         if self.include_date:
-            template_inputs["current_date"] = datetime.now().strftime("%m/%d/%Y")
+            fixed_template_inputs["current_date"] = datetime.now().strftime("%m/%d/%Y")
             
-        system_prompt = self._format_template(template_inputs, self.system_prompt_template)
+        system_prompt = self._format_template(fixed_template_inputs, self.system_prompt_template)
 
         if template_inputs: # Runtime inputs to system template
             system_prompt = self._format_template(template_inputs, system_prompt)
