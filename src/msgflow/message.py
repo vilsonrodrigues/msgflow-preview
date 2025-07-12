@@ -12,6 +12,11 @@ class _CoreMessage(dotdict):
         self.execution_id = str(uuid4())
         self.user_id = user_id
         self.chat_id = chat_id
+        self.metadata = {
+            "execution_id": self.execution_id,
+            "user_id": self.user_id,
+            "chat_id": self.chat_id
+        }
 
     def clone(self) -> Self:
         return deepcopy(self)
