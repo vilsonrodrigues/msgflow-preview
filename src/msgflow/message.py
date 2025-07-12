@@ -9,13 +9,10 @@ class _CoreMessage(dotdict):
 
     def __init__(self, user_id: str, chat_id: str):
         super().__init__()
-        self.execution_id = str(uuid4())
-        self.user_id = user_id
-        self.chat_id = chat_id
         self.metadata = {
-            "execution_id": self.execution_id,
-            "user_id": self.user_id,
-            "chat_id": self.chat_id
+            "execution_id": str(uuid4()),
+            "user_id": user_id,
+            "chat_id": chat_id
         }
 
     def clone(self) -> Self:
