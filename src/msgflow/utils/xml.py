@@ -39,17 +39,20 @@ def _xml_to_typed_value(element: ET.Element) -> Any:
         raise ValueError(f"Unknown dtype: {dtype_attr}")
 
 
-def xml_to_typed_dict(xml_string: str) -> Dict[str, Any]:
+def xml_to_typed_dict(typed_xml: str, extract_main_key: Optional[bool] = True) -> Dict[str, Any]:
     """Converts an XML into a typed dictionary, returning direct values ​​for single tags.
     
     Args:
-        xml_string: Text content xml-based
+        typed_xml:
+            Text content xml-based.
+        extract_main_key:
+            If True, extract the value from main key.
 
     Returns:
         A dict with typed entities extracted
 
     ::: example
-        xml_string = '''
+        typed_xml = '''
         <person dtype="dict">
             <name dtype="str">Prevost</name>
             <age dtype="int">69</age>
@@ -61,11 +64,11 @@ def xml_to_typed_dict(xml_string: str) -> Dict[str, Any]:
         <message>God loves everyone, and evil will not prevail.</message>
         <good_pope dtype="bool">true</good_pope>
         '''
-        print(xml_to_typed_dict(xml_string))
+        print(xml_to_typed_dict(typed_xml))
     """
     # Add root in xml string
-    xml_string = apply_xml_tags("root", xml_string)
-    root = ET.fromstring(xml_string)
+    typed_xml = apply_xml_tags("root", typed_xml)
+    root = ET.fromstring(typed_xml)
     tag_count = defaultdict(int)
     temp_result = defaultdict(list)
     
@@ -81,6 +84,8 @@ def xml_to_typed_dict(xml_string: str) -> Dict[str, Any]:
             result[tag] = values[0]  # Return single value
         else:
             result[tag] = values     # Return list
+    if extract_main_key:
+        result = next(iter(result.values()))
     result = dotdict(result)
     return result
 
