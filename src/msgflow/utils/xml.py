@@ -85,7 +85,7 @@ def xml_to_typed_dict(typed_xml: str, extract_main_key: Optional[bool] = True) -
         else:
             result[tag] = values     # Return list
     if extract_main_key:
-        result = next(iter(result.values()))
+        result = dict(next(iter(result.values())))
     result = dotdict(result)
     return result
 
