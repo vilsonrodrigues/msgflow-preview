@@ -51,12 +51,17 @@ def tool_config(
         ValueError: 
            `background=True` is not compatible with `return_direct=True`, 
            `call_as_response=True` and `handoff=True`.
+        ValueError: 
+           `handoff=True` is not compatible with `call_as_response=True`.
     """
     def decorator(f):
         if background is True and (return_direct is True or handoff is True):
             raise ValueError("`background=True` is not compatible with `return_direct=True`"
                              ", `call_as_response=True` and `handoff=True`")
         
+        if handoff is True and call_as_response is True:
+            raise ValueError("`handoff=True` is not compatible with `call_as_response=True`")
+
         if call_as_response is True and return_direct is False:
             return_direct = True
 
