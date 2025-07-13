@@ -39,14 +39,14 @@ def _xml_to_typed_value(element: ET.Element) -> Any:
         raise ValueError(f"Unknown dtype: {dtype_attr}")
 
 
-def xml_to_typed_dict(typed_xml: str, extract_main_key: Optional[bool] = True) -> Dict[str, Any]:
-    """Converts an XML into a typed dictionary, returning direct values ​​for single tags.
+def xml_to_typed_dict(typed_xml: str, extract_root_values: Optional[bool] = True) -> Dict[str, Any]:
+    """Converts an XML into a typed dictionary, returning direct values for single tags.
     
     Args:
         typed_xml:
             Text content xml-based.
-        extract_main_key:
-            If True, extract the value from main key.
+        extract_root_values:
+            If True, extract the value from root.
 
     Returns:
         A dict with typed entities extracted
@@ -84,7 +84,7 @@ def xml_to_typed_dict(typed_xml: str, extract_main_key: Optional[bool] = True) -
             result[tag] = values[0]  # Return single value
         else:
             result[tag] = values     # Return list
-    if extract_main_key:
+    if extract_root_values:
         result = dict(next(iter(result.values())))
     result = dotdict(result)
     return result
