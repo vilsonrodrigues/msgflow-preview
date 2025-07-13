@@ -159,8 +159,8 @@ class dotdict(dict):
         return msgspec.json.encode(self.to_dict())
 
     def __repr__(self):
-        attrs_str = "\n".join(f"   {k}={repr(v)}" for k, v in self.to_dict().items())
-        return f"{self.__class__.__name__}(\n{attrs_str}\n)"
+        attrs_str = "\n".join(f"   '{k}': {repr(v)}" for k, v in self.to_dict().items())
+        return f"{self.__class__.__name__}({{\n{attrs_str}\n}})"
 
     def __str__(self):
         return str(self.to_dict())
