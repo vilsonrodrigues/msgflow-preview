@@ -101,7 +101,7 @@ class Agent(Module):
         response_mode: Optional[str] = "plain_response",
         tools: Optional[List[Callable]] = None,
         tool_choice: Optional[str] = None,
-        template_inputs: Optional[str] = None,
+        injected_kwargs: Optional[str] = None,
         response_template: Optional[str] = None,
         fixed_messages: Optional[List[Dict[str, Any]]] = None,
         signature: Optional[Union[str, Signature]] = None,
@@ -166,9 +166,9 @@ class Agent(Module):
                 What the response should be.
                 * `plain_response` (default): Returns the final agent response directly.
                 * other: Write on field in Message object.
-            template_inputs:
+            injected_kwargs:
                 Fields of the Message object that will be the inputs to templates.
-                System, context and Task templates may receive parameters during execution.
+                System, context and task templates may receive parameters during execution.
             tools:
                 A list of callable objects.
             tool_choice:
@@ -257,7 +257,7 @@ class Agent(Module):
         self._set_response_template(response_template)
         self._set_task_multimodal_inputs(task_multimodal_inputs)
         self._set_task_inputs(task_inputs)
-        self._set_template_inputs(template_inputs)
+        self._set_injected_kwargs(injected_kwargs)
         self._set_tool_choice(tool_choice)
         self._set_tools(tools)
 
@@ -274,10 +274,10 @@ class Agent(Module):
         model_state: List[Dict[str, Any]],
         prefilling: Optional[str] = None,
         model_preference: Optional[str] = None,
-        template_inputs: Optional[Dict[str, Any]] = None
+        injected_kwargs: Optional[Dict[str, Any]] = None
     ) -> Union[ModelResponse, ModelStreamResponse]:
         model_execution_params = self._prepare_model_execution(
-            model_state, prefilling, model_preference, template_inputs
+            model_state, prefilling, model_preference, injected_kwargs
         )
         if self.input_guardrail:
             self._execute_input_guardrail(model_execution_params)
@@ -290,7 +290,7 @@ class Agent(Module):
         model_state: List[Dict[str, Any]],
         prefilling: Optional[str] = None,
         model_preference: Optional[str] = None,
-        template_inputs: Optional[Dict[str, Any]] = None
+        injected_kwargs: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         agent_state = []
 
@@ -299,7 +299,7 @@ class Agent(Module):
 
         agent_state.extend(model_state)
 
-        system_prompt = self._get_system_prompt(template_inputs)
+        system_prompt = self._get_system_prompt(injected_kwargs)
 
         tool_schemas = self.tool_library.get_tool_json_schemas()
         if not tool_schemas:
@@ -500,11 +500,13 @@ class Agent(Module):
         task_messages = None
         runtime_task_messages = kwargs.pop("task_messages", None)
 
-        template_inputs = kwargs.pop("template_inputs", None) # Runtime params to templates
-        if template_inputs is None and isinstance(message, Message):
-            template_inputs = message.get(self.template_inputs)
+        injected_kwargs = kwargs.pop("injected_kwargs", None) # Runtime params to templates
+        if injected_kwargs is None and isinstance(message, Message):
+            injected_kwargs = message.get(self.injected_kwargs)
+        if injected_kwargs is not None and not isinstance(injected_kwargs, dict):
+            raise TypeError(f"`injected_kwargs` can be None or a dict, given {type(injected_kwargs)}")
 
-        content = self._process_task_inputs(message, template_inputs=template_inputs, **kwargs)
+        content = self._process_task_inputs(message, injected_kwargs=injected_kwargs, **kwargs)
         
         if isinstance(message, Message):
             task_messages = self._get_task_messages_from_message(message)        
@@ -531,7 +533,7 @@ class Agent(Module):
         return {
             "model_state": model_state,
             "model_preference": model_preference,
-            "template_inputs": template_inputs,
+            "injected_kwargs": injected_kwargs,
         }
 
     def _process_task_inputs(
@@ -563,8 +565,8 @@ class Agent(Module):
         else:
             task_content = task_inputs
 
-        if kwargs.get("template_inputs", None):
-            task_content = self._format_template(kwargs["template_inputs"], task_content)
+        if kwargs.get("injected_kwargs", None):
+            task_content = self._format_template(kwargs["injected_kwargs"], task_content)
 
         task_content = apply_xml_tags("task", task_content)
         content += task_content
@@ -605,8 +607,8 @@ class Agent(Module):
             context_content += "\n\n" + msg_context            
             
         if context_content:
-            if kwargs.get("template_inputs", None):
-                context_content = self._format_template(kwargs["template_inputs"], context_content)
+            if kwargs.get("injected_kwargs", None):
+                context_content = self._format_template(kwargs["injected_kwargs"], context_content)
             return apply_xml_tags("context", context_content)
         return None
 
@@ -871,12 +873,12 @@ class Agent(Module):
             raise TypeError("`system_extra_message` requires a string or None "
                             f"given `{type(system_extra_message)}`")
 
-    def _set_template_inputs(self, template_inputs: Optional[str] = None):
-        if isinstance(template_inputs, str) or template_inputs is None:
-            self.register_buffer("template_inputs", template_inputs)
+    def _set_injected_kwargs(self, injected_kwargs: Optional[str] = None):
+        if isinstance(injected_kwargs, str) or injected_kwargs is None:
+            self.register_buffer("injected_kwargs", injected_kwargs)
         else:
-            raise TypeError("`template_inputs` requires a string or None "
-                            f"given `{type(template_inputs)}`")        
+            raise TypeError("`injected_kwargs` requires a string or None "
+                            f"given `{type(injected_kwargs)}`")        
 
     def _set_typed_xml_template(self, typed_xml_template: str):
         if isinstance(typed_xml_template, str):
@@ -973,12 +975,12 @@ class Agent(Module):
             # Set xml output
             self._set_typed_xml(typed_xml)
 
-    def _get_system_prompt(self, template_inputs: Optional[Dict[str, Any]] = None) -> str:
+    def _get_system_prompt(self, injected_kwargs: Optional[Dict[str, Any]] = None) -> str:
         """
         Render the system prompt using the Jinja template.
         Returns an empty string if no segments are provided.
         """
-        fixed_template_inputs = {
+        template_inputs = {
             "system_message": self.system_message.data,
             "instructions": self.instructions.data,
             "expected_output": self.expected_output.data,
@@ -987,10 +989,10 @@ class Agent(Module):
         }
 
         if self.include_date:
-            fixed_template_inputs["current_date"] = datetime.now().strftime("%m/%d/%Y")
+            template_inputs["current_date"] = datetime.now().strftime("%m/%d/%Y")
             
-        system_prompt = self._format_template(fixed_template_inputs, self.system_prompt_template)
+        system_prompt = self._format_template(template_inputs, self.system_prompt_template)
 
-        if template_inputs: # Runtime inputs to system template
-            system_prompt = self._format_template(template_inputs, system_prompt)
+        if injected_kwargs: # Runtime inputs to system template
+            system_prompt = self._format_template(injected_kwargs, system_prompt)
         return system_prompt
