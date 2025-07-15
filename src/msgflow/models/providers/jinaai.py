@@ -198,7 +198,7 @@ class JinaAITextClassifier(TextClassifierModel, HTTPXModelClient, _BaseJinaAI):
         Args:
             data: 
                 Input text to classify.
-        """        
+        """
         if isinstance(data, str):
             data = [data]
         inputs = [{"text": item} for item in data]
