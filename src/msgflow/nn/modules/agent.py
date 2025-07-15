@@ -137,9 +137,9 @@ class Agent(Module):
             output_guardrail:
                 Guardrail to output.
             task_inputs:
-                Fields of the Message object that will be the input to the task.
+                Field of the Message object that will be the input to the task.
             task_multimodal_inputs: 
-                Fields of the Message object that will be the multimodal input 
+                Field of the Message object that will be the multimodal input 
                 to the task.
             task_messages:
                 Field of the Message object that will be a list of chats in 
@@ -147,13 +147,13 @@ class Agent(Module):
             task_template:
                 A Jinja template to format task.
             context_inputs: 
-                Fields of the Message object that will be the context to the task.
+                Field of the Message object that will be the context to the task.
             context_cache:
                 A fixed context.
             context_inputs_template:
                 A template to context inputs.
             model_preference:
-                Fields of the Message object that will be the model preference.
+                Field of the Message object that will be the model preference.
                 This is only valid if the model is of type ModelGateway.
             prefilling:
                 Forces an initial message from the model. From that message it 
@@ -167,8 +167,7 @@ class Agent(Module):
                 * `plain_response` (default): Returns the final agent response directly.
                 * other: Write on field in Message object.
             injected_kwargs:
-                Fields of the Message object that will be the inputs to templates.
-                System, context and task templates may receive parameters during execution.
+                Field of the Message object that will be the inputs to templates and tools.
             tools:
                 A list of callable objects.
             tool_choice:
@@ -274,7 +273,7 @@ class Agent(Module):
         model_state: List[Dict[str, Any]],
         prefilling: Optional[str] = None,
         model_preference: Optional[str] = None,
-        injected_kwargs: Optional[Dict[str, Any]] = None
+        injected_kwargs: Optional[Dict[str, Any]] = {}
     ) -> Union[ModelResponse, ModelStreamResponse]:
         model_execution_params = self._prepare_model_execution(
             model_state, prefilling, model_preference, injected_kwargs
@@ -290,7 +289,7 @@ class Agent(Module):
         model_state: List[Dict[str, Any]],
         prefilling: Optional[str] = None,
         model_preference: Optional[str] = None,
-        injected_kwargs: Optional[Dict[str, Any]] = None
+        injected_kwargs: Optional[Dict[str, Any]] = {}
     ) -> Dict[str, Any]:
         agent_state = []
 
@@ -350,15 +349,16 @@ class Agent(Module):
         message: Union[str, Dict[str, str], Message],
         model_response: Union[ModelResponse, ModelStreamResponse],
         model_state: List[Dict[str, Any]],
-        model_preference: Optional[str] = None, 
+        model_preference: Optional[str] = None,
+        injected_kwargs: Optional[Dict[str, Any]] = {}
     ) -> Union[str, Dict[str, str], Message, ModelStreamResponse]:
         if "tool_call" in model_response.response_type:
             model_response, model_state = self._process_tool_call_response(
-                model_response, model_state, model_preference,
+                model_response, model_state, model_preference, injected_kwargs
             )
         elif is_subclass_of(self.generation_schema, ToolFlowControl):
             model_response, model_state = self._process_tool_flow_control_response(
-                model_response, model_state, model_preference,
+                model_response, model_state, model_preference, injected_kwargs
             )
         
         raw_response = self._extract_raw_response(model_response)
@@ -378,6 +378,7 @@ class Agent(Module):
         model_response: Union[ModelResponse, ModelStreamResponse],
         model_state: Dict[str, Any],
         model_preference: Optional[str] = None,
+        injected_kwargs: Optional[Dict[str, Any]] = {}
     ) -> Tuple[Union[str, Dict[str, Any], ModelStreamResponse], Dict[str, Any]]:
         """
         This function is set up to handle the fields returned by "ReAct".
@@ -391,7 +392,9 @@ class Agent(Module):
                 tool_callings = [
                     (act.id, act.name, act.arguments) for act in actions
                 ]
-                tool_execution_result = self._process_tool_call(tool_callings, model_state)
+                tool_execution_result = self._process_tool_call(
+                    tool_callings, model_state, injected_kwargs
+                )
 
                 if tool_execution_result.return_directly:
                     return tool_execution_result.responses, model_state
@@ -425,7 +428,8 @@ class Agent(Module):
         self,
         model_response: Union[ModelResponse, ModelStreamResponse],
         model_state: Optional[Dict[str, Any]],
-        model_preference: Optional[str] = None
+        model_preference: Optional[str] = None,
+        injected_kwargs: Optional[Dict[str, Any]] = {}
     ) -> Tuple[Union[str, Dict[str, Any], ModelStreamResponse], Dict[str, Any]]:
         """
         ToolCall example: [{'role': 'assistant', 'tool_calls': [{'id': 'call_1YL',
@@ -437,7 +441,9 @@ class Agent(Module):
             if model_response.response_type == "tool_call":
                 raw_response = self._extract_raw_response(model_response)
                 tool_callings = raw_response.get_calls()
-                tool_execution_result = self._process_tool_call(tool_callings, model_state)
+                tool_execution_result = self._process_tool_call(
+                    tool_callings, model_state, injected_kwargs
+                )
                 if tool_execution_result.return_directly:
                     return tool_execution_result.responses, model_state
                      
@@ -455,11 +461,13 @@ class Agent(Module):
     def _process_tool_call(
         self, 
         tool_callings: Dict[str, Any], 
-        model_state: List[Dict[str, Any]]
+        model_state: List[Dict[str, Any]],
+        injected_kwargs: Optional[Dict[str, Any]] = {}        
     ) -> Dict[str, str]:
         tool_execution_result = self.tool_library(
             tool_callings=tool_callings,
-            model_state=model_state
+            model_state=model_state,
+            injected_kwargs=injected_kwargs
         )
         return tool_execution_result
 
@@ -500,11 +508,11 @@ class Agent(Module):
         task_messages = None
         runtime_task_messages = kwargs.pop("task_messages", None)
 
-        injected_kwargs = kwargs.pop("injected_kwargs", None) # Runtime params to templates
-        if injected_kwargs is None and isinstance(message, Message):
-            injected_kwargs = message.get(self.injected_kwargs)
-        if injected_kwargs is not None and not isinstance(injected_kwargs, dict):
-            raise TypeError(f"`injected_kwargs` can be None or a dict, given {type(injected_kwargs)}")
+        injected_kwargs = kwargs.pop("injected_kwargs", {}) # Runtime params to templates
+        if not injected_kwargs and isinstance(message, Message):
+            injected_kwargs = message.get(self.injected_kwargs, {})
+        if injected_kwargs:
+            injected_kwargs = dotdict(injected_kwargs)
 
         content = self._process_task_inputs(message, injected_kwargs=injected_kwargs, **kwargs)
         

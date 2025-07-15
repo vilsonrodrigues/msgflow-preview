@@ -200,7 +200,8 @@ class ToolLibrary(Module):
     def forward(
         self, 
         tool_callings: List[Tuple[str, str, Any]],
-        model_state: List[Dict[str, Any]] = None
+        model_state: Optional[List[Dict[str, Any]]] = None,
+        injected_kwargs: Optional[Dict[str, Any]] = {}
     ) -> Dict[str, Any]:
         """Executes tool calls with logic for `handoff`, `return_direct` and serialization.
 
@@ -212,7 +213,9 @@ class ToolLibrary(Module):
                     ('322', 'tool_name2', '')]
             model_state: 
                 The current state of the Agent for the `handoff` functionality.
-                    
+            injected_kwargs:
+                Extra kwargs to be used in tools.
+
         Returns:
             A dict containing `return_directly` and `responses`. Where responses will be 
             a mapping from `tool_name` to `tool_response` if `return_directly=True` or `tool_id`
@@ -231,6 +234,20 @@ class ToolLibrary(Module):
 
             tool = self.library[tool_name]
             config = self.tool_configs.get(tool_name)
+
+            inject_kwargs = config.get("inject_kwargs", False)
+            if inject_kwargs is not False:
+                if not injected_kwargs:
+                    raise ValueError(f"The tool `{tool_name}` expect injected parameters "
+                                    f"(`{inject_kwargs}`), but no one were provided.")
+                if isinstance(inject_kwargs, list):
+                    for key in inject_kwargs:
+                        if key not in injected_kwargs:
+                            raise ValueError(f"The tool `{tool_name}` requires the injected parameter "
+                                             f"`{key}`, but it was not found.")
+                        tool_params[key] = injected_kwargs[key]
+                elif inject_kwargs is True:
+                    tool_params.update(injected_kwargs)                           
 
             if config.get("background", False):
                 return_directly = False

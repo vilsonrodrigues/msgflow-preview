@@ -1,6 +1,6 @@
 from functools import wraps
 from types import FunctionType, MethodType
-from typing import Callable, Dict, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 from msgflow.dotdict import dotdict
 
 
@@ -21,6 +21,7 @@ def tool_config(
     background: Optional[bool] = False,
     handoff: Optional[bool] = False,
     call_as_response: Optional[bool] = False,
+    inject_kwargs: Optional[Union[bool, List[str]]] = False,
     name_override: Optional[str] = None,
 ) -> Callable:
     """Decorator to inject meta-properties into a function or class instance.
@@ -39,7 +40,10 @@ def tool_config(
             If True, indicates that this function will receive the `model_state` from the Agent.
         call_as_response:
             If True, returns the tool call as its result. This property requires 
-            'return_direct = True' and will automatically change it to True if it is passed as false.
+            `return_direct = True` and will automatically change it to True if it is passed as false.
+        inject_kwargs:
+            Indicates if the tool should receive kwargs. If True, the tool receives all kwargs. 
+            If a list of kwargs is passed, only those kwargs will be passed.
         name_override:
             A custom name to override the default tool name derived from the function 
             or class. If not provided, the original name is used.
@@ -53,6 +57,8 @@ def tool_config(
            `call_as_response=True` and `handoff=True`.
         ValueError: 
            `handoff=True` is not compatible with `call_as_response=True`.
+        ValueError: 
+           `inject_kwargs=True` is not compatible with `call_as_response=True`.           
     """
     def decorator(f):
         if background is True and (return_direct is True or handoff is True):
@@ -62,6 +68,9 @@ def tool_config(
         if handoff is True and call_as_response is True:
             raise ValueError("`handoff=True` is not compatible with `call_as_response=True`")
 
+        if inject_kwargs is not False and call_as_response is True:
+            raise ValueError("`inject_kwargs=True` is not compatible with `call_as_response=True`")
+
         if call_as_response is True and return_direct is False:
             return_direct = True
 
@@ -69,7 +78,8 @@ def tool_config(
             "tool_config": dotdict({
                 "background": background,
                 "call_as_response": call_as_response,
-                "handoff": handoff,                
+                "handoff": handoff,
+                "inject_kwargs": inject_kwargs,
                 "return_direct": return_direct,
             })
         }
