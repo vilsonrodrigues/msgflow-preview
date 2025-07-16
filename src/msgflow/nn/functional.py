@@ -1,6 +1,7 @@
 # https://mpitutorial.com/tutorials/mpi-scatter-gather-and-allgather/
 import asyncio
 import concurrent.futures
+from concurrent.futures import Future
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from msgflow._private.executor import Executor
 from msgflow.logger import logger
@@ -441,10 +442,23 @@ def background_task(
         async def async_print_message(message: str):
             await asyncio.sleep(1)
             print(f"[Async] Message: {message}")
-        F.background_task(async_print_message, "Hello from async function")        
+        F.background_task(async_print_message, "Hello from async function")
+
+        # Example 3 (with error):
+        def failing_task():
+            raise ValueError("This task failed!")
+        F.background_task(failing_task)  # Error will be logged        
     """
     if not callable(to_send):
         raise TypeError("`to_send` must be a callable object")
 
+    def log_future(future: Future) -> None:
+        """Callback to log exception of a Future."""
+        try:
+            future.result()
+        except Exception as e:
+            logger.error(f"Background task error: {str(e)}", exc_info=True)
+
     executor = Executor.get_instance()
-    executor.submit(to_send, *args, **kwargs)
+    future = executor.submit(to_send, *args, **kwargs)
+    future.add_done_callback(log_future)
