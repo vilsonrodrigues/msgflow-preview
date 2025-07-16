@@ -18,6 +18,7 @@ from typing import (
 import msgspec
 from code2mermaid import code_to_mermaid
 from jinja2 import Template
+from mermaid import Mermaid
 from opentelemetry import trace
 
 from msgflow.dotdict import dotdict
@@ -395,18 +396,45 @@ class Module:
     # msgflow funcs
 
     def _get_mermaid(
-        self, title: Optional[str] = None, orientation: Optional[str] = "TD"
+        self, 
+        title: Optional[str] = None, 
+        orientation: Optional[str] = "TD",
+        remove_self: Optional[bool] = True
     ) -> str:
         mermaid = code_to_mermaid(
             inspect.getsource(self.forward),
-            remove_self=True,
+            remove_self=remove_self,
             title=title,
             orientation=orientation,
         )
         return mermaid
 
-    def plot(self, title: Optional[str] = None, orientation: Optional[str] = "TD"):
-        mermaid = self._get_mermaid(title, orientation)
+    def plot(
+        self, 
+        title: Optional[str] = None, 
+        orientation: Optional[str] = "TD",
+        remove_self: Optional[bool] = True
+    ) -> Mermaid:
+        """
+        Generates and renders a Mermaid diagram of the `forward` method.
+
+        This method extracts the source code of the `forward` method and converts
+        it into a Mermaid diagram for visualization. Optionally, it can clean up 
+        the code by removing references to `self` to produce a cleaner diagram.
+
+        Args:
+            title:
+                Title to display at the top of the Mermaid diagram.
+            orientation:
+                Diagram orientation. Options include "TD" (top-down), "LR" (left-right), etc.
+            remove_self: 
+                Whether to remove references to `self` from the code before generating
+                the diagram. Useful for cleaner output.
+
+        Returns:
+            The rendered Mermaid diagram.
+        """
+        mermaid = self._get_mermaid(title, orientation, remove_self)
         return plot_mermaid(mermaid)
 
     def _get_content_from_or_input(self, path: str, message: Message) -> Any:
