@@ -311,7 +311,10 @@ class OpenAIChatCompletion(_BaseOpenAI, ChatCompletionModel):
                     name = tool_call.function.name
                     arguments = tool_call.function.arguments
                     aggregator.process(call_index, id, name, arguments)
-                elif chunk.choices[0].delta.annotations is not None:
+                elif (
+                    hasattr(chunk.choices[0].delta, "annotations") and
+                    chunk.choices[0].delta.annotations is not None
+                ):
                     annotations_content = [
                         item.model_dump() for item in chunk.choices[0].delta.annotations
                     ]
