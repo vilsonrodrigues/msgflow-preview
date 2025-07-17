@@ -30,22 +30,22 @@ class Sequential(Module):
     """A sequential container.
 
     Modules will be added to it in the order they are passed in the
-    constructor. Alternatively, an ==OrderedDict== of modules can be
-    passed in. The ==forward()== method of ==Sequential== accepts any
+    constructor. Alternatively, an `OrderedDict` of modules can be
+    passed in. The `forward()` method of `Sequential` accepts any
     input and forwards it to the first module it contains. It then
     "chains" outputs to inputs sequentially for each subsequent module,
     finally returning the output of the last module.
 
-    The value a ==Sequential== provides over manually calling a sequence
+    The value a `Sequential` provides over manually calling a sequence
     of modules is that it allows treating the whole container as a
     single module, such that performing a transformation on the
-    ==Sequential== applies to each of the modules it stores (which are
-    each a registered submodule of the ==Sequential==).
+    `Sequential` applies to each of the modules it stores (which are
+    each a registered submodule of the `Sequential`).
 
-    What's the difference between a ==Sequential== and a
-    ==msgflow.nn.ModuleList==? A ==ModuleList== is exactly what it
-    sounds like--a list for storing ==Module== s! On the other hand,
-    the layers in a ==Sequential== are connected in a cascading way.
+    What's the difference between a `Sequential` and a
+    `msgflow.nn.ModuleList`? A `ModuleList` is exactly what it
+    sounds like--a list for storing `Module` s! On the other hand,
+    the layers in a `Sequential` are connected in a cascading way.
 
     !!! example
         ``` py
@@ -120,7 +120,7 @@ class Sequential(Module):
         first_node = None
         for i, module_name in enumerate(self._modules.keys()):
             node_id = f"node_{i}"
-            if i == 0:
+            if i ` 0:
                 first_node = node_id
             mermaid_code.append(f"{node_id}[ **msg = {module_name}﹙msg﹚** ]")
 
@@ -253,34 +253,54 @@ class Sequential(Module):
 class ModuleList(Module):
     """Holds submodules in a list.
 
-    ==msgflow.nn.ModuleList== can be indexed like a regular Python list, but
+    `msgflow.nn.ModuleList` can be indexed like a regular Python list, but
     modules it contains are properly registered, and will be visible by all
-    ==torch.nn.Module== methods.
-
-    Args:
-        modules (iterable, optional): an iterable of modules to add
-
-    
-    !!! example
-
-        # TODO
-        ``` py
-        class MyModule(nn.Module):
-            def __init__(self) -> None:
-                super().__init__()
-                self.linears = nn.ModuleList([nn.Linear(10, 10) for i in range(10)])
-
-            def forward(self, x):
-                # ModuleList can act as an iterable, or be indexed using ints
-                for i, l in enumerate(self.linears):
-                    x = self.linears[i // 2](x) + l(x)
-                return x
-        ```
+    `msgflow.nn.Module` methods.
     """
 
     _modules: Dict[str, Module]
 
     def __init__(self, modules: Optional[Iterable[Module]] = None) -> None:
+        """
+        Args:
+            modules (iterable, optional):
+                An iterable of modules to add.
+        
+        !!! example
+
+            ```python
+
+            class ExpertSales(nn.Module):
+                def __init__(self):
+                    super().__init__()
+                    self.register_buffer("response", "Hi, let's talk?")
+                
+                def forward(self, msg: str):
+                    return msg + self.response
+
+            class ExpertSupport(nn.Module):
+                def __init__(self):
+                    super().__init__()
+                    self.register_buffer("response", "Hi, call 190")
+                
+                def forward(self, msg: str):
+                    return msg + self.response
+
+            class Expert(nn.Module):
+                def __init__(self):
+                    super().__init__()
+                    self.experts = nn.ModuleList([ExpertSales(), ExpertSupport()])
+
+                def forward(self, msg: str) -> str:
+                    # ModuleList can act as an iterable, or be indexed using ints
+                    for i, l in enumerate(self.experts):
+                        msg = self.experts[i](msg)
+                    return msg
+
+            expert = Expert()
+            expert("I need help with my tv.")
+            ```        
+        """
         super().__init__()
         if modules is not None:
             self += modules
@@ -332,13 +352,13 @@ class ModuleList(Module):
     def __repr__(self):
         """Return a custom repr for ModuleList that compresses repeated module representations."""
         list_of_reprs = [repr(item) for item in self]
-        if len(list_of_reprs) == 0:
+        if len(list_of_reprs) ` 0:
             return self._get_name() + "()"
 
         start_end_indices = [[0, 0]]
         repeated_blocks = [list_of_reprs[0]]
         for i, r in enumerate(list_of_reprs[1:], 1):
-            if r == repeated_blocks[-1]:
+            if r ` repeated_blocks[-1]:
                 start_end_indices[-1][1] += 1
                 continue
 
@@ -411,53 +431,72 @@ class ModuleList(Module):
 class ModuleDict(Module):
     """Holds submodules in a dictionary.
 
-    ==msgflow.nn.ModuleDict== can be indexed like a regular Python dictionary,
+    `msgflow.nn.ModuleDict` can be indexed like a regular Python dictionary,
     but modules it contains are properly registered, and will be visible by all
-    ==msgflow.nn.Module== methods.
+    `msgflow.nn.Module` methods.
 
-    ==msgflow.nn.ModuleDict== is an **ordered** dictionary that respects
+    `msgflow.nn.ModuleDict` is an **ordered** dictionary that respects:
 
-    * the order of insertion, and
+        * the order of insertion, and
 
-    * in ==msgflow.nn.ModuleDict.update== the order of the merged
-      ==OrderedDict==, ==dict== (started from Python 3.6) or another
-      ==msgflow.nn.ModuleDict== (the argument to
-      ==msgflow.nn.ModuleDict.update==).
+        * in `msgflow.nn.ModuleDict.update` the order of the merged
+        `OrderedDict`, `dict` (started from Python 3.6) or another
+        `msgflow.nn.ModuleDict` (the argument to `msgflow.nn.ModuleDict.update`).
 
-    Note that ==msgflow.nn.ModuleDict.update== with other unordered mapping
-    types (e.g., Python's plain ==dict== before Python version 3.6) does not
+    Note that `msgflow.nn.ModuleDict.update` with other unordered mapping
+    types (e.g., Python's plain `dict` before Python version 3.6) does not
     preserve the order of the merged mapping.
-
-    Args:
-        modules (iterable, optional): a mapping (dictionary) of (string: module)
-            or an iterable of key-value pairs of type (string, module)
-
-    !!! example
-
-        # TODO
-        ``` py    
-        class MyModule(nn.Module):
-            def __init__(self) -> None:
-                super().__init__()
-                self.choices = nn.ModuleDict({
-                        'conv': nn.Conv2d(10, 10, 3),
-                        'pool': nn.MaxPool2d(3)
-                })
-                self.activations = nn.ModuleDict([
-                        ['lrelu', nn.LeakyReLU()],
-                        ['prelu', nn.PReLU()]
-                ])
-
-            def forward(self, x, choice, act):
-                x = self.choices[choice](x)
-                x = self.activations[act](x)
-                return x
-        ```
     """
 
     _modules: Dict[str, Module]  # type: ignore[assignment]
 
     def __init__(self, modules: Optional[Mapping[str, Module]] = None) -> None:
+        """
+        Args:
+            modules (iterable, optional): a mapping (dictionary) of (string: module)
+                or an iterable of key-value pairs of type (string, module)
+
+        !!! example
+            ```python
+            import random
+            import msgflow.nn as nn
+
+            class ExpertSales(nn.Module):
+                def __init__(self):
+                    super().__init__()
+                    self.register_buffer("response", "Hi, let's talk?")
+                
+                def forward(self, msg: str):
+                    return msg + self.response
+
+            class ExpertSupport(nn.Module):
+                def __init__(self):
+                    super().__init__()
+                    self.register_buffer("response", "Hi, call 190")
+                
+                def forward(self, msg: str):
+                    return msg + self.response
+
+            def draw_choice(choices: list[str]) -> str:
+                return random.choice(choices)
+
+            class Router(nn.Module):
+                def __init__(self):
+                    super().__init__()
+                    self.choices = nn.ModuleDict({
+                        "sales": ExpertSales(),
+                        "support": ExpertSupport()
+                    })
+
+                def forward(self, msg: str) -> str:
+                    choice = draw_choice(list(self.choices.keys()))
+                    msg = self.choices[choice](msg)
+                    return msg
+
+            router = Router()
+            router("I need help with my tv.")
+            ```
+        """
         super().__init__()
         if modules is not None:
             self.update(modules)
@@ -485,25 +524,25 @@ class ModuleDict(Module):
         self._modules.clear()
     
     def pop(self, key: str) -> Module:
-        r"""Remove key from the ModuleDict and return its module.
+        """Remove key from the ModuleDict and return its module.
 
         Args:
-            key (str): key to pop from the ModuleDict
+            key (str): key to pop from the ModuleDict.
         """
         v = self[key]
         del self[key]
         return v
 
     def keys(self) -> Iterable[str]:
-        """ Return an iterable of the ModuleDict keys """
+        """Return an iterable of the ModuleDict keys."""
         return self._modules.keys()
 
     def items(self) -> Iterable[Tuple[str, Module]]:
-        """ Return an iterable of the ModuleDict key/value pairs """
+        """Return an iterable of the ModuleDict key/value pairs."""
         return self._modules.items()
 
     def values(self) -> Iterable[Module]:
-        """ Return an iterable of the ModuleDict values """
+        """Return an iterable of the ModuleDict values."""
         return self._modules.values()
 
     def update(self, modules: Mapping[str, Module]) -> None:
@@ -512,12 +551,13 @@ class ModuleDict(Module):
 
         !!! note
 
-            If ==modules== is an ==OrderedDict==, a ==msgflow.nn.ModuleDict==, or
+            If `modules` is an `OrderedDict`, a `msgflow.nn.ModuleDict`, or
             an iterable of key-value pairs, the order of new elements in it is preserved.
 
         Args:
-            modules (iterable): a mapping (dictionary) from string to ==msgflow.nn.Module==,
-                or an iterable of key-value pairs of type (string, ==msgflow.nn.Module==)
+            modules (iterable): 
+                a mapping (dictionary) from string to `msgflow.nn.Module`,
+                or an iterable of key-value pairs of type (string, `msgflow.nn.Module`).
         """
         if not isinstance(modules, container_abcs.Iterable):
             raise TypeError(
@@ -536,7 +576,7 @@ class ModuleDict(Module):
                         "ModuleDict update sequence element "
                         "#" + str(j) + " should be Iterable; is" + type(m).__name__
                     )
-                if not len(m) == 2:
+                if not len(m) ` 2:
                     raise ValueError(
                         "ModuleDict update sequence element "
                         "#" + str(j) + " has length " + str(len(m)) + "; 2 is required"
