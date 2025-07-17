@@ -2,12 +2,13 @@ import platform
 import os
 from contextlib import contextmanager
 from functools import wraps
-from typing import Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import msgspec
 from opentelemetry.trace import SpanKind, Status, StatusCode
 
 from msgflow.envs import envs
+from msgflow.message import Message
 from msgflow.telemetry.tracer import get_tracer
 from msgflow.version import __version__ as msgflow_version
 
@@ -18,7 +19,7 @@ class Spans:
         self.tracer = get_tracer()
 
     @contextmanager
-    def span_context(self, name, attributes=None, kind=SpanKind.INTERNAL):
+    def span_context(self, name: str, attributes: Dict[str, Any] = None, kind: str = SpanKind.INTERNAL):
         """Generic context manager to create and manage a span."""
         with self.tracer.start_as_current_span(name, kind=kind) as span:
             if attributes:
@@ -27,7 +28,12 @@ class Spans:
             yield span
 
     @contextmanager
-    def init_flow(self, module_name, message, encoded_state_dict):
+    def init_flow(
+        self, 
+        module_name: str, 
+        message: Optional[Message] = None, # TODO: pass metadata directly
+        encoded_state_dict: Optional[str] =  None
+    ):
         attributes = {}
         attributes["msgflow.version"] = msgflow_version
         attributes["msgflow.workflow.name"] = module_name
@@ -46,7 +52,7 @@ class Spans:
             yield span
 
     @contextmanager
-    def init_module(self, module_name):
+    def init_module(self, module_name: str):
         attributes = {}
         attributes["msgflow.nn.module.name"] = module_name
         span_name = "Module Initialized"
@@ -54,7 +60,7 @@ class Spans:
             yield span
 
     @contextmanager
-    def tool_usage(self, tool_callings):
+    def tool_usage(self, tool_callings: List[Tuple[str, str, Any]]):
         calls = [{"id": call[0], "name": call[1], "parameters": call[2]} 
                  for call in tool_callings]
         encoded_calls = msgspec.json.encode(calls)
@@ -104,9 +110,14 @@ def instrument(
     return decorator                    
 
 def instrument_tool_library_call(forward):
-    def wrapper(self, tool_callings, model_state):
+    def wrapper(
+        self, 
+        tool_callings: List[Tuple[str, str, Any]],
+        model_state: Optional[List[Dict[str, Any]]] = None,
+        injected_kwargs: Optional[Dict[str, Any]] = {}
+    ):
         with self._spans.tool_usage(tool_callings) as span:
-            tool_execution_result = forward(self, tool_callings, model_state)
+            tool_execution_result = forward(self, tool_callings, model_state, injected_kwargs)
             if envs.telemetry_capture_tool_call_responses:
                 span.set_attribute("msgflow.nn.tool.responses", tool_execution_result.to_json())
             return tool_execution_result
