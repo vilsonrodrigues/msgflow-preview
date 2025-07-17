@@ -76,7 +76,7 @@ class Sequential(Module):
 
     _modules: Dict[str, Module] = OrderedDict()
 
-    def __init__(self, *args):
+    def __init__(self, *args: Union[Module, OrderedDict[str, Module]]):
         super().__init__()
         if len(args) == 1 and isinstance(args[0], OrderedDict):
             for key, module in args[0].items():
@@ -86,9 +86,14 @@ class Sequential(Module):
                 self.add_module(str(idx), module)
 
     def forward(self, *args, **kwargs):
-        for module in self:
-            message = module(*args, **kwargs)
-        return message
+        modules_iter = iter(self._modules.values())
+        first_module = next(modules_iter)
+        output = first_module(*args, **kwargs)
+        
+        for module in modules_iter:
+            output = module(output)
+        
+        return output
 
     def _get_mermaid(
         self,
