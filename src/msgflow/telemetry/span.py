@@ -32,7 +32,7 @@ class Spans:
         self, 
         module_name: str, 
         message: Optional[Message] = None, # TODO: pass metadata directly
-        encoded_state_dict: Optional[str] =  None
+        encoded_state_dict: Optional[bytes] =  None
     ):
         attributes = {}
         attributes["msgflow.version"] = msgflow_version
