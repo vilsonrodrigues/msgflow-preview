@@ -18,9 +18,9 @@ from msgflow.nn.modules.module import Module, _addindent
 
 
 __all__ = [
-    "Sequential",
+    "ModuleDict",    
     "ModuleList",
-    "ModuleDict",
+    "Sequential",    
 ]
 
 T = TypeVar("T", bound=Module)
@@ -85,9 +85,9 @@ class Sequential(Module):
             for idx, module in enumerate(args):
                 self.add_module(str(idx), module)
 
-    def forward(self, message: Union[str, Dict[str, Any], Message]):
+    def forward(self, message: Any, *args, **kwargs):
         for module in self:
-            message = module(message)
+            message = module(message, *args, **kwargs)
         return message
 
     def _get_mermaid(
@@ -120,7 +120,7 @@ class Sequential(Module):
         first_node = None
         for i, module_name in enumerate(self._modules.keys()):
             node_id = f"node_{i}"
-            if i ` 0:
+            if i == 0:
                 first_node = node_id
             mermaid_code.append(f"{node_id}[ **msg = {module_name}﹙msg﹚** ]")
 
