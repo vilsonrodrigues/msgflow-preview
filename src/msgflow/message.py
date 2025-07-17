@@ -31,9 +31,9 @@ class Message(_CoreMessage):
         images: Optional[Dict[str, Any]] = {},
         videos: Optional[Dict[str, Any]] = {},
         extra: Optional[Dict[str, Any]] = {},
-        user_id: Optional[str] = str(uuid4()),
+        user_id: Optional[str] = None,
         user_name: Optional[str] = None,
-        chat_id: Optional[str] = str(uuid4()),
+        chat_id: Optional[str] = None,
     ):
         super().__init__(user_id, user_name, chat_id)
         self.content = content
