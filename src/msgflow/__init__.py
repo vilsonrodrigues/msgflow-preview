@@ -11,6 +11,7 @@ from .utils.chat import ChatML
 from .utils.inspect import get_fn_name
 from .utils.msgspec import load, save
 from .utils.tool import tool_config
+from .telemetry.span import instrument
 
 
 __all__ = [
@@ -30,4 +31,5 @@ __all__ = [
     "save",
     "set_envs",
     "tool_config",
+    "instrument"
 ]
