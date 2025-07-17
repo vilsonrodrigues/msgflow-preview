@@ -12,7 +12,7 @@ from msgflow.nn.modules.module import Module
 from msgflow.utils.chat import generate_tool_json_schema
 from msgflow.utils.convert import convert_camel_to_snake_case
 from msgflow.utils.tenacity import tool_retry
-from msgflow.telemetry.span import trace_tool_library_call
+from msgflow.telemetry.span import instrument_tool_library_call
 
 # TODO: dynamic fns have dependencies, so they must be imported before running
 # consider the possibility of having specific fn pools/libraries for each user
@@ -196,7 +196,7 @@ class ToolLibrary(Module):
         # entao use a fn original
         return [self.library[tool_name].get_json_schema() for tool_name in self.library]
 
-    @trace_tool_library_call
+    @instrument_tool_library_call
     def forward(
         self, 
         tool_callings: List[Tuple[str, str, Any]],

@@ -7,7 +7,7 @@ from msgflow._private.executor import Executor
 from msgflow.logger import logger
 from msgflow.message import Message
 from msgflow.nn.modules.module import get_callable_name
-from msgflow.telemetry.span import trace
+from msgflow.telemetry.span import instrument
 
 
 __all__ = ["map_gather", "scatter_gather", "bcast_gather",
@@ -15,7 +15,7 @@ __all__ = ["map_gather", "scatter_gather", "bcast_gather",
            "msg_scatter_gather", "msg_bcast_gather"]
 
 
-@trace("msgflow.nn.F.map_gather")
+@instrument("msgflow.nn.F.map_gather")
 def map_gather(
     to_send: Callable,
     *,
@@ -93,7 +93,7 @@ def map_gather(
     return tuple(responses)
 
 
-@trace("msgflow.nn.F.scatter_gather")
+@instrument("msgflow.nn.F.scatter_gather")
 def scatter_gather(
     to_send: List[Callable],
     args_list: Optional[List[Tuple[Any, ...]]] = None,
@@ -179,7 +179,7 @@ def scatter_gather(
     return tuple(responses)
 
 
-@trace("msgflow.nn.F.msg_scatter_gather")
+@instrument("msgflow.nn.F.msg_scatter_gather")
 def msg_scatter_gather(
     to_send: List[Callable],
     messages: List[Message],
@@ -241,7 +241,7 @@ def msg_scatter_gather(
     return tuple(messages)
 
 
-@trace("msgflow.nn.F.bcast_gather")
+@instrument("msgflow.nn.F.bcast_gather")
 def bcast_gather(
     to_send: List[Callable],
     *args,
@@ -297,7 +297,7 @@ def bcast_gather(
     return tuple(responses)
 
 
-@trace("msgflow.nn.F.msg_bcast_gather")
+@instrument("msgflow.nn.F.msg_bcast_gather")
 def msg_bcast_gather(
     to_send: List[Callable],
     message: Message,
@@ -349,7 +349,7 @@ def msg_bcast_gather(
     return message
 
 
-@trace("msgflow.nn.F.wait_for")
+@instrument("msgflow.nn.F.wait_for")
 def wait_for(to_send: Callable, *args, timeout: Optional[float] = None, **kwargs) -> Any:
     """
     Wait for a callable execution.
@@ -387,7 +387,7 @@ def wait_for(to_send: Callable, *args, timeout: Optional[float] = None, **kwargs
         return None
 
 
-@trace("msgflow.nn.F.wait_for_event")
+@instrument("msgflow.nn.F.wait_for_event")
 def wait_for_event(event: asyncio.Event) -> None:
     """
     Waits synchronously for an asyncio.Event to be set.
@@ -411,7 +411,7 @@ def wait_for_event(event: asyncio.Event) -> None:
         logger.error(str(e))
 
 
-@trace("msgflow.nn.F.background_task")
+@instrument("msgflow.nn.F.background_task")
 def background_task(
     to_send: Callable,
     *args,

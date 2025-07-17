@@ -5,7 +5,7 @@ from functools import wraps
 from typing import Dict, Optional
 
 import msgspec
-from opentelemetry.trace import SpanKind
+from opentelemetry.trace import SpanKind, Status, StatusCode
 
 from msgflow.envs import envs
 from msgflow.telemetry.tracer import get_tracer
@@ -17,22 +17,14 @@ class Spans:
     def __init__(self):
         self.tracer = get_tracer()
 
-    def start_span(self, name, attributes=None, kind=SpanKind.INTERNAL):
-        """ Base method for start a span. """
-        return self.tracer.start_span(name, attributes=attributes, kind=kind)
-
-    def end_span(self, span):
-        """ Base method for ending a span. """
-        span.end()
-
     @contextmanager
     def span_context(self, name, attributes=None, kind=SpanKind.INTERNAL):
-        """ Generic context manager to create and manage a span. """
-        span = self.start_span(name, attributes, kind)
-        try:
+        """Generic context manager to create and manage a span."""
+        with self.tracer.start_as_current_span(name, kind=kind) as span:
+            if attributes:
+                for key, value in attributes.items():
+                    span.set_attribute(key, value)
             yield span
-        finally:
-            self.end_span(span)
 
     @contextmanager
     def init_flow(self, module_name, message, encoded_state_dict):
@@ -40,9 +32,7 @@ class Spans:
         attributes["msgflow.version"] = msgflow_version
         attributes["msgflow.workflow.name"] = module_name
         if message:
-            attributes["msgflow.execution_id"] = message.get("execution_id")
-            attributes["msgflow.user_id"] = message.get("user_id")
-            attributes["msgflow.chat_id"] = message.get("chat_id")        
+            attributes["msgflow.metadata"] = message.get("metadata")
         if encoded_state_dict:
             attributes["msgflow.state_dict"] = encoded_state_dict
         if envs.telemetry_capture_platform:            
@@ -72,26 +62,26 @@ class Spans:
         with self.span_context("Tool Usage", attributes) as span:
             yield span
 
-    @contextmanager
-    def custom_span(self, name, attributes=None, kind=SpanKind.INTERNAL):
-        with self.span_context(name, attributes, kind) as span:
-            yield span        
-
 spans = Spans()
 
-def trace(
+def instrument(
     name: Optional[str] = None,
     attributes: Optional[Dict[str, str]] = None, 
 ):
     def decorator(func):        
         @wraps(func)
         def wrapper(*args, **kwargs):
-            with spans.custom_span(name or func.__name__, attributes=attributes) as span:
-                return func(*args, **kwargs)
+            with spans.span_context(name or func.__name__, attributes=attributes) as span:
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    span.record_exception(e)
+                    span.set_status(Status(StatusCode.ERROR, str(e)))
+                    raise            
         return wrapper
-    return decorator                         
+    return decorator                    
 
-def trace_tool_library_call(forward):
+def instrument_tool_library_call(forward):
     def wrapper(self, tool_callings, model_state):
         with self._spans.tool_usage(tool_callings) as span:
             tool_execution_result = forward(self, tool_callings, model_state)
@@ -100,12 +90,12 @@ def trace_tool_library_call(forward):
             return tool_execution_result
     return wrapper
 
-def trace_agent_prepare_model_execution(_prepare_model_execution):
+def instrument_agent_prepare_model_execution(_prepare_model_execution):
     def wrapper(self, *args, **kwargs):
         prefix_span = "msgflow.nn.Agent"
         attributes = {}
         attributes[f"{prefix_span}.method.name"] = "_prepare_model_execution"
-        with self._spans.custom_span("Prepare Model Execution", attributes) as span:            
+        with self._spans.span_context("Prepare Model Execution", attributes) as span:            
             model_execution_params = _prepare_model_execution(self, *args, **kwargs)
             if envs.telemetry_capture_agent_prepare_model_execution:
                 encoded_state = msgspec.json.encode(model_execution_params["messages"])

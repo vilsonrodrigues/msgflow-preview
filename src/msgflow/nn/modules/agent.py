@@ -46,7 +46,7 @@ from msgflow.utils.msgspec import StructFactory
 from msgflow.utils.tool import ToolFlowControl
 from msgflow.utils.validation import is_subclass_of
 from msgflow.utils.xml import apply_xml_tags
-from msgflow.telemetry.span import trace_agent_prepare_model_execution
+from msgflow.telemetry.span import instrument_agent_prepare_model_execution
 
 
 # it is possible to continue generating a model. Just resend to it what it
@@ -283,7 +283,7 @@ class Agent(Module):
         model_response = self.model(**model_execution_params)
         return model_response
 
-    @trace_agent_prepare_model_execution
+    @instrument_agent_prepare_model_execution
     def _prepare_model_execution(
         self,
         model_state: List[Dict[str, Any]],

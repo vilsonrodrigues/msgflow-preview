@@ -15,7 +15,7 @@ from msgflow.models.types import (
     TextEmbedderModel,
 )
 from msgflow.utils.pooling import apply_pooling
-from msgflow.telemetry.span import trace
+from msgflow.telemetry.span import instrument
 
 
 def _ct2_transformers_converter(model_id: str, output_dir: str):
@@ -99,7 +99,7 @@ class CTranslate2TextEmbedder(_BaseCTranslate2, TextEmbedderModel):
         embeddings = apply_pooling(last_hidden_state, self.pooling_strategy)
         return embeddings
 
-    @trace("ctranslate2.generation", {"response.type": "text_embedder"})
+    @instrument("ctranslate2.generation", {"response.type": "text_embedder"})
     def _generate(self, data):
         response = ModelResponse()       
         model_output = self._execute_model(data)
@@ -133,7 +133,7 @@ class CTranslate2TextClassifier(_BaseCTranslate2, TextClassifierModel):
         labels = [self.id2label[id] for id in predicted_class_ids]
         return labels
 
-    @trace("ctranslate2.generation", {"response.type": "text_classification"})
+    @instrument("ctranslate2.generation", {"response.type": "text_classification"})
     def _generate(self, data):
         response = ModelResponse()                
         model_output = self._execute_model(data)        
