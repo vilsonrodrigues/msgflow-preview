@@ -85,9 +85,9 @@ class Sequential(Module):
             for idx, module in enumerate(args):
                 self.add_module(str(idx), module)
 
-    def forward(self, message: Any, *args, **kwargs):
+    def forward(self, *args, **kwargs):
         for module in self:
-            message = module(message, *args, **kwargs)
+            message = module(*args, **kwargs)
         return message
 
     def _get_mermaid(
