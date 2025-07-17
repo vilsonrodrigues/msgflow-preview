@@ -352,13 +352,13 @@ class ModuleList(Module):
     def __repr__(self):
         """Return a custom repr for ModuleList that compresses repeated module representations."""
         list_of_reprs = [repr(item) for item in self]
-        if len(list_of_reprs) ` 0:
+        if len(list_of_reprs) == 0:
             return self._get_name() + "()"
 
         start_end_indices = [[0, 0]]
         repeated_blocks = [list_of_reprs[0]]
         for i, r in enumerate(list_of_reprs[1:], 1):
-            if r ` repeated_blocks[-1]:
+            if r == repeated_blocks[-1]:
                 start_end_indices[-1][1] += 1
                 continue
 
@@ -576,7 +576,7 @@ class ModuleDict(Module):
                         "ModuleDict update sequence element "
                         "#" + str(j) + " should be Iterable; is" + type(m).__name__
                     )
-                if not len(m) ` 2:
+                if not len(m) == 2:
                     raise ValueError(
                         "ModuleDict update sequence element "
                         "#" + str(j) + " has length " + str(len(m)) + "; 2 is required"
