@@ -2,7 +2,7 @@ import platform
 import os
 from contextlib import contextmanager
 from functools import wraps
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional
 
 import msgspec
 from opentelemetry.trace import SpanKind, Status, StatusCode
@@ -67,7 +67,29 @@ spans = Spans()
 def instrument(
     name: Optional[str] = None,
     attributes: Optional[Dict[str, str]] = None, 
-):
+) -> Callable:
+    """
+    Decorator that instruments a function with a tracing span.
+
+    This decorator creates a span using the provided name and attributes
+    when the decorated function is called. If an exception occurs during
+    execution, the exception is recorded in the span and the span status is
+    set to error.
+
+    Args:
+        name:
+            The name of the span. If not provided, the function's name is used.
+        attributes:
+            A dict of attributes to attach to the span.
+            Useful for adding metadata for tracing purposes.
+
+    Returns:
+        A decorated function that is wrapped with span instrumentation.
+
+    Raises:
+        Exception: Reraises any exception thrown by the wrapped function after
+            recording it in the span.
+    """    
     def decorator(func):        
         @wraps(func)
         def wrapper(*args, **kwargs):
