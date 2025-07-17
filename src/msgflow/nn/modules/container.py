@@ -44,36 +44,46 @@ class Sequential(Module):
 
     What's the difference between a `Sequential` and a
     `msgflow.nn.ModuleList`? A `ModuleList` is exactly what it
-    sounds like--a list for storing `Module` s! On the other hand,
+    sounds like--a list for storing `Module`s! On the other hand,
     the layers in a `Sequential` are connected in a cascading way.
 
     !!! example
-        ``` py
-        # TODO
-        # Using Sequential to create a small model. When **model** is run,
-        # input will first be passed to **Conv2d(1,20,5)**. The output of
-        # **Conv2d(1,20,5)** will be used as the input to the first
-        # **ReLU**; the output of the first **ReLU** will become the input
-        # for **Conv2d(20,64,5)**. Finally, the output of
-        # **Conv2d(20,64,5)** will be used as input to the second **ReLU**
-        model = nn.Sequential(
-                  nn.Conv2d(1,20,5),
-                  nn.ReLU(),
-                  nn.Conv2d(20,64,5),
-                  nn.ReLU()
-                )
+        ```python
+        from collections import OrderedDict
+        import msgflow.nn as nn
+        class ExpertSales(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.register_buffer("response", "Hi, let's talk?")
+            
+            def forward(self, msg: str):
+                return msg + self.response
+
+        class ExpertSupport(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.register_buffer("response", "Hi, call 190")
+            
+            def forward(self, msg: str):
+                return msg + self.response
+
+        # Using Sequential to create a small workflow. When **expert** is run,
+        # input will first be passed to **ExpertSales**. The output of
+        # **ExpertSales** will be used as the input to the first
+        # **ExpertSupport**; Finally, the output of
+        # **ExpertSupport** will be the experts response.
+        experts = nn.Sequential(ExpertSales(), ExpertSupport())        
+        experts("I need help with my tv.")
 
         # Using Sequential with OrderedDict. This is functionally the
         # same as the above code
-        model = nn.Sequential(OrderedDict([
-                  ('conv1', nn.Conv2d(1,20,5)),
-                  ('relu1', nn.ReLU()),
-                  ('conv2', nn.Conv2d(20,64,5)),
-                  ('relu2', nn.ReLU())
-                ]))
+        experts_dict = nn.Sequential(OrderedDict([
+            ("expert_sales", ExpertSales()),
+            ("expert_support", ExpertSupport())
+        ]))
+        experts_dict("I need help with my tv.")
         ```
     """
-
     _modules: Dict[str, Module] = OrderedDict()
 
     def __init__(self, *args: Union[Module, OrderedDict[str, Module]]):
@@ -85,7 +95,7 @@ class Sequential(Module):
             for idx, module in enumerate(args):
                 self.add_module(str(idx), module)
 
-    def forward(self, *args, **kwargs):
+    def forward(self, *args, **kwargs) -> Any:
         modules_iter = iter(self._modules.values())
         first_module = next(modules_iter)
         output = first_module(*args, **kwargs)
