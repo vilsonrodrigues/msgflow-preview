@@ -7,11 +7,12 @@ from msgflow.dotdict import dotdict
 
 class _CoreMessage(dotdict):
 
-    def __init__(self, user_id: str, chat_id: str):
+    def __init__(self, user_id: str, user_name: str, chat_id: str):
         super().__init__()
         self.metadata = {
             "execution_id": str(uuid4()),
             "user_id": user_id,
+            "user_name": user_name,
             "chat_id": chat_id
         }
 
@@ -31,9 +32,10 @@ class Message(_CoreMessage):
         videos: Optional[Dict[str, Any]] = {},
         extra: Optional[Dict[str, Any]] = {},
         user_id: Optional[str] = str(uuid4()),
+        user_name: Optional[str] = None,
         chat_id: Optional[str] = str(uuid4()),
     ):
-        super().__init__(user_id, chat_id)
+        super().__init__(user_id, user_name, chat_id)
         self.content = content
         self.texts = texts
         self.context = context
