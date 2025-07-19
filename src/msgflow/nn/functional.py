@@ -4,8 +4,8 @@ import concurrent.futures
 from concurrent.futures import Future
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from msgflow._private.executor import Executor
+from msgflow.dotdict import dotdict
 from msgflow.logger import logger
-from msgflow.message import Message
 from msgflow.nn.modules.module import get_callable_name
 from msgflow.telemetry.span import instrument
 
@@ -130,8 +130,10 @@ def scatter_gather(
         specific callable, its corresponding response in the tuple will be `None`.
 
     Raises:
-        TypeError: If `to_send` is not a callable list.
-        ValueError: If the lengths of `args_list` (if provided) or `kwargs_list`
+        TypeError:
+            If `to_send` is not a callable list.
+        ValueError:
+            If the lengths of `args_list` (if provided) or `kwargs_list`
             (if provided) do not match the length of `to_send`.
 
     Examples:
@@ -182,11 +184,11 @@ def scatter_gather(
 @instrument("msgflow.nn.F.msg_scatter_gather")
 def msg_scatter_gather(
     to_send: List[Callable],
-    messages: List[Message],
+    messages: List[dotdict],
     *,
     response_mode: Optional[str] = "outputs",    
     timeout: Optional[float] = None,
-) -> Tuple[Message, ...]:
+) -> Tuple[dotdict, ...]:
     """
     Scatter a list of messages to a list of modules and gather the responses.
 
@@ -196,21 +198,23 @@ def msg_scatter_gather(
 
     Args:
         to_send: List of callable objects (e.g. functions or `Module` instances).    
-        messages: List of `msgflow.Message` instances to be distributed.
+        messages: List of `msgflow.dotdict` instances to be distributed.
         response_mode: Field where the responses will be stored (default: "outputs").
         timeout: Maximum time (in seconds) to wait for responses (optional).
 
     Returns:
-        Tuple[Message]: Tuple containing the messages updated with the responses.
+        Tuple containing the messages updated with the responses.
 
     Raises:
-        TypeError: If `messages` is not a list of `Message`, `to_send` is not a list
+        TypeError: 
+            If `messages` is not a list of `dotdict`, `to_send` is not a list
             of callables, or `response_mode` is not a string.
-        ValueError: If `response_mode` is an empty string, or the lengths of `messages`
+        ValueError:
+            If `response_mode` is an empty string, or the lengths of `messages`
             and `to_send` do not match.
     """
-    if not messages or not all(isinstance(msg, Message) for msg in messages):
-        raise TypeError("`messages` must be a non-empty list of `msgflow.Message` instances")
+    if not messages or not all(isinstance(msg, dotdict) for msg in messages):
+        raise TypeError("`messages` must be a non-empty list of `msgflow.dotdict` instances")
 
     if not to_send or not all(isinstance(f, Callable) for f in to_send):
         raise TypeError("`to_send` must be a non-empty list of callable objects")
@@ -261,7 +265,8 @@ def bcast_gather(
         Tuple containing the responses.
 
     Raises:
-        TypeError: If `to_send` is not a list of callables.
+        TypeError: 
+            If `to_send` is not a list of callables.
 
     Examples:
         def square(x): return x * x
@@ -300,11 +305,11 @@ def bcast_gather(
 @instrument("msgflow.nn.F.msg_bcast_gather")
 def msg_bcast_gather(
     to_send: List[Callable],
-    message: Message,
+    message: dotdict,
     response_mode: Optional[str] = "outputs",
     *,
     timeout: Optional[float] = None,
-) -> Message:
+) -> dotdict:
     """
     Broadcasts a single message to multiple modules and gathers the responses.
 
@@ -314,20 +319,22 @@ def msg_bcast_gather(
 
     Args:
         to_send: List of callable objects (e.g. functions or `Module` instances).    
-        message: Instance of `msgflow.Message` to broadcast.
+        message: Instance of `msgflow.dotdict` to broadcast.
         response_mode: Field in the message where the responses will be stored (default: "outputs").
         timeout: Maximum time (in seconds) to wait for responses (optional).
 
     Returns:
-        Message: The original message with the module responses added.
+        The original message with the module responses added.
 
     Raises:
-        TypeError: If `message` is not an instance of `Message`, `to_send` is not a list
+        TypeError: 
+            If `message` is not an instance of `dotdict`, `to_send` is not a list
             of callables, or `response_mode` is not a string.
-        ValueError: If `response_mode` is an empty string or `to_send` is empty.
+        ValueError: 
+            If `response_mode` is an empty string or `to_send` is empty.
     """
-    if not isinstance(message, Message):
-        raise TypeError("`message` must be an instance of `msgflow.Message`")
+    if not isinstance(message, dotdict):
+        raise TypeError("`message` must be an instance of `msgflow.dotdict`")
     if not to_send or not all(isinstance(module, Callable) for module in to_send):
         raise TypeError("`to_send` must be a non-empty list of callable objects")
     if not isinstance(response_mode, str):
@@ -364,7 +371,8 @@ def wait_for(to_send: Callable, *args, timeout: Optional[float] = None, **kwargs
         Callable responses.
 
     Raises:
-        TypeError: If `to_send` is not a callable.
+        TypeError: 
+            If `to_send` is not a callable.
 
     Examples:
         async def f1(x):
