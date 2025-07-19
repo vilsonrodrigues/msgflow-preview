@@ -2,6 +2,7 @@ from .cache import response_cache
 from .data.databases.database import DataBase
 from .data.retrievers.retriever import Retriever
 from .dotdict import dotdict
+from .dsl.inline import inline
 from .envs import set_envs
 from .generation.signature import InputField, OutputField, Signature
 from .message import Message
@@ -26,6 +27,7 @@ __all__ = [
     "Signature",
     "dotdict",
     "get_fn_name",
+    "inline",
     "load",
     "response_cache",
     "save",
