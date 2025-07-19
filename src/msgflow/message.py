@@ -1,25 +1,9 @@
-from copy import deepcopy
 from uuid import uuid4
 from typing import Any, Dict, Optional, Union
-from typing_extensions import Self
 from msgflow.dotdict import dotdict
 
 
-class _CoreMessage(dotdict):
-
-    def __init__(self, user_id: str, user_name: str, chat_id: str):
-        super().__init__()
-        self.metadata = {
-            "execution_id": str(uuid4()),
-            "user_id": user_id,
-            "user_name": user_name,
-            "chat_id": chat_id
-        }
-
-    def clone(self) -> Self:
-        return deepcopy(self)
-
-class Message(_CoreMessage):
+class Message(dotdict):
 
     def __init__(
         self,
@@ -35,7 +19,13 @@ class Message(_CoreMessage):
         user_name: Optional[str] = None,
         chat_id: Optional[str] = None,
     ):
-        super().__init__(user_id, user_name, chat_id)
+        super().__init__()
+        self.metadata = {
+            "execution_id": str(uuid4()),
+            "user_id": user_id,
+            "user_name": user_name,
+            "chat_id": chat_id
+        }
         self.content = content
         self.texts = texts
         self.context = context
