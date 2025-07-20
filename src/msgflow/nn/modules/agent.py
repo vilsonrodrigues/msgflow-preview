@@ -14,7 +14,7 @@ import msgspec
 
 from msgflow.dotdict import dotdict
 from msgflow.generation.reasoning.react import ReAct
-from msgflow.generation.signature import (
+from msgflow.dsl.signature import (
     Signature,
     SIGNATURE_SYSTEM_MESSAGES,
     get_examples_from_signature,
