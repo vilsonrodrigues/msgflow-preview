@@ -343,8 +343,6 @@ def msg_bcast_gather(
         raise TypeError("`message` must be an instance of `msgflow.dotdict`")
     if not to_send or not all(isinstance(module, Callable) for module in to_send):
         raise TypeError("`to_send` must be a non-empty list of callable objects")
-    if not isinstance(response_mode, str):
-        raise TypeError(f"`response_mode` must be a string, but it was received `{type(response_mode)}`")
 
     executor = Executor.get_instance()
     futures = [executor.submit(f, message) for f in to_send]
