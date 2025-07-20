@@ -382,9 +382,11 @@ def inline(
 
     Raises:
         TypeError:
+            If notation is not a str.
+        TypeError:
             If message is not a `msgflow.dotdict` instance.
         TypeError:
-            If modules is not a `Mapping` instance.            
+            If modules is not a Mapping.     
         ValueError:
             If a module is not found, if the DSL syntax is invalid, 
             or if a condition cannot be parsed.
@@ -425,10 +427,12 @@ def inline(
             message=input_msg
         )
     """
+    if not isinstance(notation, str):
+        raise TypeError("`notation` must be a str")
     if not isinstance(message, dotdict):
         raise TypeError("`message` must be an instance of `msgflow.dotdict`") 
     if not isinstance(modules, Mapping):
-        raise TypeError("`modules` must be an instance of `Mapping`")     
+        raise TypeError("`modules` must be a `Mapping`")     
     dsl = InlineDSL()
     message = dsl(notation, modules, message)
     return message
