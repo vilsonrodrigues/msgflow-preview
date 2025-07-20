@@ -14,12 +14,10 @@ _type_converters = {
     "list": lambda x: x
 }
 
-
 def apply_xml_tags(id: str, content: str, output_id: Optional[str] = None) -> str:
     if output_id is None:
         output_id = id
     return f"<{id}>\n{content}\n</{output_id}>"
-
 
 def _xml_to_typed_value(element: ET.Element) -> Any:
     """Convert an XML element to a Python value based on type."""    
@@ -37,7 +35,6 @@ def _xml_to_typed_value(element: ET.Element) -> Any:
         return converter(element.text)
     else:
         raise ValueError(f"Unknown dtype: {dtype_attr}")
-
 
 def xml_to_typed_dict(typed_xml: str, extract_root_values: Optional[bool] = True) -> Dict[str, Any]:
     """Converts an XML into a typed dictionary, returning direct values for single tags.
@@ -88,7 +85,6 @@ def xml_to_typed_dict(typed_xml: str, extract_root_values: Optional[bool] = True
         result = dict(next(iter(result.values())))
     result = dotdict(result)
     return result
-
 
 def dict_to_typed_xml(data: Dict[str, Any]) -> str:
     """Converts a dictionary into a typed XML string without a root tag, formatted readably."""
