@@ -61,6 +61,8 @@ def tool_config(
            `inject_kwargs=True` is not compatible with `call_as_response=True`.           
     """
     def decorator(f):
+        _return_direct = return_direct # Local copy
+
         if background is True and (return_direct is True or handoff is True):
             raise ValueError("`background=True` is not compatible with `return_direct=True`"
                              ", `call_as_response=True` and `handoff=True`")
@@ -71,8 +73,8 @@ def tool_config(
         if inject_kwargs is not False and call_as_response is True:
             raise ValueError("`inject_kwargs=True` is not compatible with `call_as_response=True`")
 
-        if call_as_response is True and return_direct is False:
-            return_direct = True
+        if call_as_response is True and _return_direct is False:
+            _return_direct = True
 
         tool_config = {
             "tool_config": dotdict({
@@ -80,7 +82,7 @@ def tool_config(
                 "call_as_response": call_as_response,
                 "handoff": handoff,
                 "inject_kwargs": inject_kwargs,
-                "return_direct": return_direct,
+                "return_direct": _return_direct,
             })
         }
         if isinstance(f, (FunctionType, MethodType)):
