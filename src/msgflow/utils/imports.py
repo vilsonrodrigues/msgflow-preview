@@ -7,7 +7,7 @@ def import_module_from_lib(_import: str, _from: str):
     except ImportError:
         raise ImportError(f"Could not import module `{_import}`")
     except AttributeError:
-        raise AttributeError(f"Module '{_from}' does not have class `{_import}`")
+        raise AttributeError(f"Module `{_from}` does not have class `{_import}`")
     except Exception as e:
         raise str(e)
 
