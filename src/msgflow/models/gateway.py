@@ -184,7 +184,9 @@ class ModelGateway:
             message=error_message
         )
 
-    def __call__(self, *, model_preference: Optional[str] = None, **kwargs: Any) -> Union[ModelResponse, ModelStreamResponse]:
+    def __call__(
+        self, *, model_preference: Optional[str] = None, **kwargs: Any
+    ) -> Union[ModelResponse, ModelStreamResponse]:
         """
         Executes the call on the gateway.
 
@@ -232,7 +234,7 @@ class ModelGateway:
         state = data.get("state", {})
         serialized_models = state.get("models", [])
         if not serialized_models:
-            raise ValueError("Os dados serializados não contêm modelos")
+            raise ValueError("Serialized data does not contain templates")
 
         models = [Model.from_serialized(**m_data) for m_data in serialized_models]
         time_constraints = state.get("time_constraints")
