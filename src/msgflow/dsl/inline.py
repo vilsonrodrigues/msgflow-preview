@@ -1,5 +1,5 @@
 import re
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from msgflow.dotdict import dotdict
 from msgflow.nn import functional as F
 
@@ -37,6 +37,13 @@ class InlineDSL:
             The condition must follow the format `key_path operator value`, 
             e.g., `output.agent == "xpto"`.
             The `true_branch` and `false_branch` are comma-separated module names.
+            Supports logic operators:
+                * AND (&): condition1 & condition2
+                * OR (||): condition1 || condition2
+                * NOT (!): !(condition)
+            None verification
+                * is None: user.name is None
+                * is not None: user.name is not None
         Example:
             `"{output.agent == 'xpto'?a,b}"`
             Executes `a` if the condition is true, `b` otherwise.
@@ -53,19 +60,19 @@ class InlineDSL:
             "parallel": r"\[(.*?)\]",
             "conditional": r"\{(.*?)\?(.*?)(?:,(.*?))?\}",
             "identifier": r"[a-zA-Z_][a-zA-Z0-9_]*",
-            "comparison": r"([a-zA-Z0-9_.]+)\s*(==|!=|<=|>=|<|>)\s*(.*)"
+            "comparison": r"([a-zA-Z0-9_.]+)\s*(==|!=|<=|>=|<|>|is|is not)\s*(.*)"
         }
 
     def parse(self, notation: str) -> List[Dict[str, Any]]:
         """Parse DSL notation into a list of steps."""
         steps = []
         parts = re.split(self.patterns["arrow"], notation.strip())
-        
+
         for part in parts:
             part = part.strip()
             if not part:
                 continue
-                
+
             conditional_match = re.match(self.patterns["conditional"], part)
             if conditional_match:
                 condition, true_branch, false_branch = conditional_match.groups()
@@ -79,59 +86,153 @@ class InlineDSL:
 
             parallel_match = re.match(self.patterns["parallel"], part)
             if parallel_match:
-                modules = [m.strip() for m in parallel_match.group(1).split(',')]
+                modules = [m.strip() for m in parallel_match.group(1).split(",")]
                 steps.append({
                     "type": "parallel",
                     "modules": modules
                 })
                 continue
-                
+
             if re.match(self.patterns["identifier"], part):
                 steps.append({
                     "type": "module",
                     "module": part
                 })
             else:
-                raise ValueError(f"Invalid DSL syntax or unknown module: `{part}`")
-                
+                raise ValueError(f"Invalid DSL syntax or unknown module: {part}")
+
         return steps
 
     def _parse_branch(self, branch: str) -> List[str]:
-        """Parse a conditional branch into a list of modules."""        
+        """Parse a conditional branch into a list of modules."""
         if not branch:
             return []
-        # Ensures that even a single entry without a comma is treated as a list        
+        # Ensures that even a single entry without a comma is treated as a list
         return [m.strip() for m in branch.split(",") if m.strip()]
 
-    def _evaluate_condition(self, condition: str, message: dotdict) -> bool:
-        """Evaluates a condition using the essage's .get() method."""
-        match = re.match(self.patterns["comparison"], condition)
+    def _tokenize_condition(self, condition: str) -> List[str]:
+        """Tokenize condition string into logical components."""
+        condition = condition.strip() # Remove black spaces
+
+        # Pattern for tokenization that captures logical operators, parentheses and expressions
+        token_pattern = r"(\|\||&|!|\(|\)|[^&|!()]+)"
+        tokens = re.findall(token_pattern, condition)
+
+        # Removes empty tokens and trim
+        return [token.strip() for token in tokens if token.strip()]
+
+    def _parse_logical_expression(
+        self, tokens: List[str], index: Optional[int] = 0
+    ) -> Tuple:
+        """Parse logical expression recursively."""
+        result, index = self._parse_or_expression(tokens, index)
+        return result, index
+
+    def _parse_or_expression(self, tokens: List[str], index: int) -> Tuple:
+        """Parse OR expressions (lowest precedence)."""
+        left, index = self._parse_and_expression(tokens, index)
+
+        while index < len(tokens) and tokens[index] == "||":
+            index += 1  # skip "||"
+            right, index = self._parse_and_expression(tokens, index)
+            left = ("OR", left, right)
+
+        return left, index
+
+    def _parse_and_expression(self, tokens: List[str], index: int) -> Tuple:
+        """Parse AND expressions (medium precedence)."""
+        left, index = self._parse_not_expression(tokens, index)
+
+        while index < len(tokens) and tokens[index] == "&":
+            index += 1  # skip "&"
+            right, index = self._parse_not_expression(tokens, index)
+            left = ("AND", left, right)
+
+        return left, index
+
+    def _parse_not_expression(self, tokens: List[str], index: int) -> Tuple:
+        """Parse NOT expressions (highest precedence)."""
+        if index < len(tokens) and tokens[index] == "!":
+            index += 1  # skip "!"
+            expr, index = self._parse_primary_expression(tokens, index)
+            return ("NOT", expr), index
+        else:
+            return self._parse_primary_expression(tokens, index)
+
+    def _parse_primary_expression(self, tokens: List[str], index: int) -> Tuple:
+        """Parse primary expressions (comparisons or parenthesized expressions)."""
+        if index < len(tokens) and tokens[index] == "(":
+            index += 1  # skip "("
+            expr, index = self._parse_logical_expression(tokens, index)
+            if index < len(tokens) and tokens[index] == ")":
+                index += 1  # skip ")"
+                return expr, index
+            else:
+                raise ValueError("Missing closing parenthesis")
+        else:
+            # This should be a comparison expression
+            if index < len(tokens):
+                comparison_expr = tokens[index]
+                index += 1
+                return ("COMPARISON", comparison_expr), index
+            else:
+                raise ValueError("Expected comparison expression")
+
+    def _evaluate_comparison(self, comparison_str: str, message: dotdict) -> bool:
+        """Evaluate a single comparison expression."""
+        match = re.match(self.patterns["comparison"], comparison_str.strip())
         if not match:
-            raise ValueError(f"Invalid condition format: `{condition}`. "
-                             "Expected `key_path operator value`.")
-            
+            raise ValueError(f"Invalid condition format: {comparison_str}. "
+                             "Expected key_path operator value.")
+
         key_path, operator, expected_value_str = match.groups()
-        
+
         actual_value = message.get(key_path, None)
+        expected_value_str = expected_value_str.strip()
+
+        # Handle None/null checks
+        if operator in ["is", "is not"]:
+            if expected_value_str.lower() in ["none", "null"]:
+                if operator == "is":
+                    return actual_value is None
+                else:  # is not
+                    return actual_value is not None
+            else:
+                raise ValueError(f"`is` and `is not` operators only "
+                                 "support `None` or `null` comparisons")
 
         # Remove quotes from the expected value and attempt
         # to convert to the appropriate type
-        expected_value_str = expected_value_str.strip().strip("'\"")
+        expected_value_str = expected_value_str.strip("'\"")
 
         try:
+            # Handle boolean values
+            if expected_value_str.lower() == "true":
+                expected_value = True
+            elif expected_value_str.lower() == "false":
+                expected_value = False
             # Attempts to convert to int or float for numeric comparisons
-            if '.' in expected_value_str:
+            elif "." in expected_value_str:
                 expected_value = float(expected_value_str)
             else:
-                expected_value = int(expected_value_str)
-            
+                try:
+                    expected_value = int(expected_value_str)
+                except ValueError:
+                    expected_value = expected_value_str
+
             # Try to convert the actual value also to the same type for comparison
-            # If actual_value is None, it cannot be converted, resulting in False 
-            # for most comparisons
             if actual_value is None:
                 # If the value does not exist in the message, we cannot compare numerically
                 return False
-            actual_value = type(expected_value)(actual_value)
+
+            # Handle boolean conversion for actual value
+            if isinstance(expected_value, bool):
+                if isinstance(actual_value, str):
+                    actual_value = actual_value.lower() == "true"
+                else:
+                    actual_value = bool(actual_value)
+            elif isinstance(expected_value, (int, float)):
+                actual_value = type(expected_value)(actual_value)
 
         except (ValueError, TypeError):
             # If conversion fails, treat as string
@@ -140,12 +241,9 @@ class InlineDSL:
             actual_value = str(actual_value) if actual_value is not None else None
 
         # Performs comparison based on the operator
-        # Add handling for `None` in comparisons other than `==` or `!=`
         if actual_value is None and operator not in ["==", "!="]:
-            # If the value does not exist and is not an 
-            # equality/inequality comparison with None
             return False
-        
+
         if operator == "==":
             return actual_value == expected_value
         elif operator == "!=":
@@ -161,10 +259,45 @@ class InlineDSL:
         else:
             raise ValueError(f"Unknown comparison operator: {operator}")
 
+    def _evaluate_logical_tree(self, tree: tuple, message: dotdict) -> bool:
+        """Evaluate a logical expression tree."""
+        if tree[0] == "COMPARISON":
+            return self._evaluate_comparison(tree[1], message)
+        elif tree[0] == "AND":
+            left_result = self._evaluate_logical_tree(tree[1], message)
+            right_result = self._evaluate_logical_tree(tree[2], message)
+            return left_result and right_result
+        elif tree[0] == "OR":
+            left_result = self._evaluate_logical_tree(tree[1], message)
+            right_result = self._evaluate_logical_tree(tree[2], message)
+            return left_result or right_result
+        elif tree[0] == "NOT":
+            expr_result = self._evaluate_logical_tree(tree[1], message)
+            return not expr_result
+        else:
+            raise ValueError(f"Unknown logical operator: {tree[0]}")
+
+    def _evaluate_condition(self, condition: str, message: dotdict) -> bool:
+        """Evaluates a condition with logical operators support."""
+        # Tokenize the condition
+        tokens = self._tokenize_condition(condition)
+
+        if not tokens:
+            raise ValueError("Empty condition")
+
+        # Parse the logical expression
+        tree, final_index = self._parse_logical_expression(tokens)
+
+        if final_index != len(tokens):
+            raise ValueError(f"Unexpected tokens after parsing: {tokens[final_index:]}")
+
+        # Evaluate the tree
+        return self._evaluate_logical_tree(tree, message)
+
     def __call__(self, notation: str, modules: Dict[str, Callable], message: dotdict) -> dotdict:
         """Execute the DSL pipeline."""
         steps = self.parse(notation)
-        current_message = message
+        current_message = message # Começamos com a mensagem fornecida
 
         for step in steps:
             if step["type"] == "module":
@@ -173,16 +306,16 @@ class InlineDSL:
                     raise ValueError(f"Module `{step['module']}` not found.")
                 # Passes the current message to the module and updates the message with the result
                 current_message = module(current_message)
-                
+
             elif step["type"] == "parallel":
                 # Execute modules in parallel using msg_bcast_gather
                 parallel_modules = []
                 for mod_name in step["modules"]:
                     module = modules.get(mod_name)
                     if not module:
-                        raise ValueError(f"Module `{mod_name}` not found for parallel execution.")
+                        raise ValueError(f"Module {mod_name} not found for parallel execution.")
                     parallel_modules.append(module)
-                    
+
                 if not parallel_modules:
                     raise ValueError(f"No valid modules found for parallel execution in {step['modules']}.")
 
@@ -192,13 +325,13 @@ class InlineDSL:
                 # Evaluates condition and executes appropriate branch
                 condition_result = self._evaluate_condition(step["condition"], current_message)
                 branch = step["true_branch"] if condition_result else step["false_branch"]
-                
+
                 for module_name in branch:
                     module = modules.get(module_name)
                     if not module:
                         raise ValueError(f"Module `{module_name}` not found in conditional branch.")
                     current_message = module(current_message) # Pass the updated message
-                    
+
         return current_message
 
 def inline(
@@ -209,24 +342,43 @@ def inline(
 
     Args:
         notation:
-            A string describing the execution pipeline using DSL syntax.
-            Supports sequential (`->`), parallel (`[...]`), and conditional 
-            (`{...?...}`) logic.
+            A string describing the execution pipeline using a Domain-Specific Language (DSL).
+            
+            The DSL supports:
+            
+            **Sequential execution**:
+                Use `->` to define a linear pipeline.
+                Example: `"prep -> transform -> output"`
+            
+            **Parallel execution**:
+                Use square brackets `[...]` to group modules that run in parallel.
+                Example: `"prep -> [feat_a, feat_b] -> combine"`
+            
+            **Conditional execution**:
+                Use curly braces with a ternary-like structure: `{condition ? then_module, else_module}`.
+                Example: `"{user.age > 18 ? adult_module, child_module}"`
+            
+            **Logical operations in conditions**:
+                - **AND**: `cond1 & cond2`
+                - **OR**: `cond1 || cond2`
+                - **NOT**: `!cond`
+                Example: `"{user.is_active & !user.is_banned ? allow, deny}"`
+            
+            **None checking in conditions**:
+                - `is None`: Example: `user.name is None`
+                - `is not None`: Example: `user.name is not None`
+
+            These conditionals are evaluated against the `message` object context.
+
         modules:
-            A dictionary mapping module names (as strings) to callable.
+            A dictionary mapping module names (as strings) to callables.
             Each function must accept and return a `message` object.
+
         message:
-            The input message to be passed through the pipeline.
-
+            The input message (dotdict) to be passed through the pipeline.
+    
     Returns:
-        The transformed message after passing through the pipeline.
-
-    Raises:
-        TypeError:
-            If message is not a `msgflow.dotdict` instance.    
-        ValueError:
-            If a module is not found, if the DSL syntax is invalid, 
-            or if a condition cannot be parsed.
+        The resulting `message` after executing the defined workflow.
 
     Examples:
         from msgflow import dotdict, inline
