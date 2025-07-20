@@ -28,10 +28,10 @@ __all__ = [
     "dotdict",
     "get_fn_name",
     "inline",
+    "instrument",  
     "load",
     "response_cache",
     "save",
     "set_envs",
-    "tool_config",
-    "instrument"
+    "tool_config"
 ]
