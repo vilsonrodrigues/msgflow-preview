@@ -16,10 +16,11 @@ def import_dependencies(dependencies: list[dict]) -> dict:
     """Import multiple dependencies from different libraries, with optional aliases.
 
     Args:
-        dependencies: A list of dictionaries, each with keys:
-            'from' (library name),
-            'import' (module or function name, or '*' for whole library),
-            'as' (optional alias for the module/library).
+        dependencies: 
+            A list of dictionaries, each with keys:
+                * 'from' (library name)
+                * 'import' (module or function name, or '*' for whole library)
+                * 'as' (optional alias for the module/library)
 
     Returns:
         A dictionary with the module names (or aliases) as keys and the imported modules as values.
