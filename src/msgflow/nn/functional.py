@@ -186,7 +186,7 @@ def msg_scatter_gather(
     to_send: List[Callable],
     messages: List[dotdict],
     *,
-    response_mode: Optional[str] = "outputs",    
+    response_mode: Optional[str] = None,    
     timeout: Optional[float] = None,
 ) -> Tuple[dotdict, ...]:
     """
@@ -197,10 +197,14 @@ def msg_scatter_gather(
     respective message. Includes exception handling and optional timeout.
 
     Args:
-        to_send: List of callable objects (e.g. functions or `Module` instances).    
-        messages: List of `msgflow.dotdict` instances to be distributed.
-        response_mode: Field where the responses will be stored (default: "outputs").
-        timeout: Maximum time (in seconds) to wait for responses (optional).
+        to_send:
+            List of callable objects (e.g. functions or `Module` instances).    
+        messages:
+            List of `msgflow.dotdict` instances to be distributed.
+        response_mode:
+            Field where the responses will be stored.
+        timeout:
+            Maximum time (in seconds) to wait for responses.
 
     Returns:
         Tuple containing the messages updated with the responses.
@@ -223,11 +227,6 @@ def msg_scatter_gather(
         raise ValueError(f"The size of `messages` ({len(messages)}) "
                         f"must be equal to that of `to_send`: ({len(to_send)})")
 
-    if not isinstance(response_mode, str):
-        raise TypeError(f"`response_mode` must be a string, but it was received `{type(response_mode)}`")
-    if not response_mode:
-        raise ValueError("`response_mode` cannot be an empty string")
-
     executor = Executor.get_instance()
     futures = [
         executor.submit(f, msg)
@@ -241,7 +240,10 @@ def msg_scatter_gather(
             message.set(f"{response_mode}.{f_name}", FUTURE.result())
         except Exception as e:
             logger.error(f"Error in scattered task for `{f_name}`: {e}")
-            message.set(f"{response_mode}.{f_name}", None)
+            prefix = ""
+            if response_mode is not None:
+                prefix = f"{response_mode}."
+            message.set(f"{prefix}{f_name}", None)
     return tuple(messages)
 
 
@@ -306,7 +308,7 @@ def bcast_gather(
 def msg_bcast_gather(
     to_send: List[Callable],
     message: dotdict,
-    response_mode: Optional[str] = "outputs",
+    response_mode: Optional[str] = None,
     *,
     timeout: Optional[float] = None,
 ) -> dotdict:
@@ -318,10 +320,14 @@ def msg_bcast_gather(
     exception handling and optional timeout to prevent crashes.
 
     Args:
-        to_send: List of callable objects (e.g. functions or `Module` instances).    
-        message: Instance of `msgflow.dotdict` to broadcast.
-        response_mode: Field in the message where the responses will be stored (default: "outputs").
-        timeout: Maximum time (in seconds) to wait for responses (optional).
+        to_send:
+            List of callable objects (e.g. functions or `Module` instances).    
+        message:
+            Instance of `msgflow.dotdict` to broadcast.
+        response_mode:
+            Field in the message where the responses will be stored.
+        timeout:
+            Maximum time (in seconds) to wait for responses.
 
     Returns:
         The original message with the module responses added.
@@ -339,8 +345,6 @@ def msg_bcast_gather(
         raise TypeError("`to_send` must be a non-empty list of callable objects")
     if not isinstance(response_mode, str):
         raise TypeError(f"`response_mode` must be a string, but it was received `{type(response_mode)}`")
-    if not response_mode:
-        raise ValueError("`response_mode` cannot be an empty string")
 
     executor = Executor.get_instance()
     futures = [executor.submit(f, message) for f in to_send]
@@ -352,7 +356,10 @@ def msg_bcast_gather(
             message.set(f"{response_mode}.{f_name}", FUTURE.result())
         except Exception as e:
             logger.error(f"Error in scattered task for `{f_name}`: {e}")
-            message.set(f"{response_mode}.{f_name}", None)
+            prefix = ""
+            if response_mode is not None:
+                prefix = f"{response_mode}."
+            message.set(f"{prefix}{f_name}", None)
     return message
 
 
