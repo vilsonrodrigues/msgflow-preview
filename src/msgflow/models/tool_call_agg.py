@@ -1,11 +1,11 @@
 from collections import OrderedDict
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 import msgspec
 
 
 class ToolCallAggregator:
     
-    def __init__(self, reasoning: str = None):
+    def __init__(self, reasoning: Optional[str] = None):
         self.reasoning = reasoning
         self.tool_calls = OrderedDict()
 
