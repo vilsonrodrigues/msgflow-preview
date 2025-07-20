@@ -2,8 +2,7 @@ import base64
 import io
 import os
 import requests
-import tempfile
-from typing import Union
+from typing import Optional, Union
 
 
 def encode_base64_from_url(url: str) -> str:
@@ -65,19 +64,15 @@ def encode_to_io_object(input_data: Union[bytes, str]) -> io.IOBase:
     )
 
 
-def encode_data_to_bytes(input_data: Union[bytes, str], *, filename="image.png") -> io.BytesIO:
+def encode_data_to_bytes(
+    input_data: Union[bytes, str], *, filename: Optional[str] = "image.png"
+) -> io.BytesIO:
     """
     Converts input to a BytesIO object and sets a name for MIME-type detection.
-
-    Supports:
-    - URLs
-    - Base64
-    - Local files
-    - Raw bytes
+    Supports: URLs, base64, local files and raw bytes.
     """
     if isinstance(input_data, bytes):
         data = input_data
-
     elif isinstance(input_data, str):
         if input_data.startswith(("http://", "https://")):
             response = requests.get(input_data)
@@ -85,10 +80,8 @@ def encode_data_to_bytes(input_data: Union[bytes, str], *, filename="image.png")
             data = response.content
             # Infer filename from URL if possible
             filename = os.path.basename(response.url) or filename
-
-        else:
-            # Try base64
-            try:
+        else:            
+            try: # Try base64
                 data = base64.b64decode(input_data)
             except (base64.binascii.Error, ValueError):
                 # Fallback to file path
