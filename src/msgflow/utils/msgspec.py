@@ -2,7 +2,7 @@ import ast
 import os
 import re
 from collections import OrderedDict
-from typing import Any, Dict, List, Literal, Optional, Set, Union, Tuple
+from typing import Any, Dict, List, Literal, Mapping, Optional, Set, Union, Tuple
 import msgspec
 from msgspec import Meta, Struct, defstruct
 from typing_extensions import Annotated
@@ -387,19 +387,16 @@ class StructFactory:
 
         return result
 
-
-def export_to_toml(obj, filepath):    
+def export_to_toml(obj: object, filepath: Union[str, os.PathLike]):
     with open(filepath, "wb") as f:
         safe_obj = convert_none_to_string(obj)
         f.write(msgspec.toml.encode(safe_obj))    
 
-
-def export_to_json(obj, filepath, indent=4):
+def export_to_json(obj: object, filepath: Union[str, os.PathLike], indent: Optional[int] = 4):
     with open(filepath, "wb") as f:
         obj_b = msgspec.json.encode(obj)
         formatted_obj_b = msgspec.json.format(obj_b, indent=indent)
         f.write(formatted_obj_b)
-
 
 def save(obj: object, f: Union[str, os.PathLike]):
     """
@@ -435,18 +432,15 @@ def save(obj: object, f: Union[str, os.PathLike]):
     else:
         raise ValueError(f"Unsupported format: `{f}`. Use `toml` or `json`.")
 
-
-def read_json(filepath):
+def read_json(filepath: Union[str, os.PathLike]) -> Mapping[str, Any]:
     with open(filepath, "rb") as f:
         return msgspec.json.decode(f.read())
 
-
-def read_toml(filepath):
+def read_toml(filepath: Union[str, os.PathLike]) -> Mapping[str, Any]:
     with open(filepath, "rb") as f:
         obj = msgspec.toml.decode(f.read())
         safe_obj = convert_string_to_none(obj)
         return safe_obj
-
 
 def load(f: Union[str, os.PathLike]) -> Any:
     """
@@ -478,8 +472,7 @@ def load(f: Union[str, os.PathLike]) -> Any:
     else:
         raise ValueError(f"Unsupported file extension: `{f}`. Use `.json` or `.toml`")
 
-
-def struct_to_dict(obj):
+def struct_to_dict(obj: object):
     """
     Recursively converts a msgspec.Struct object to a pure Python dictionary
     """
