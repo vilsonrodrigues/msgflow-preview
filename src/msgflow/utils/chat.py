@@ -273,15 +273,6 @@ def chatml_to_steps_format(
 
     return steps
 
-def text_code_to_callable(text_code: str) -> Callable: # TODO: TIRAR ISSO, NADA DE EXEC
-    """Convert text Python code to a callable object"""
-    local_context = {}
-    global_context = globals()
-    exec(text_code, global_context, local_context)
-    module_name = list(local_context.keys())[0]
-    module = local_context[module_name]
-    return module
-
 def clean_docstring(docstring: str) -> str:
     """
     Cleans the docstring by removing the Args section.
