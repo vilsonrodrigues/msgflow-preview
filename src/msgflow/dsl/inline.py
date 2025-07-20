@@ -1,5 +1,5 @@
 import re
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 from msgflow.dotdict import dotdict
 from msgflow.nn import functional as F
 
@@ -294,10 +294,10 @@ class InlineDSL:
         # Evaluate the tree
         return self._evaluate_logical_tree(tree, message)
 
-    def __call__(self, notation: str, modules: Dict[str, Callable], message: dotdict) -> dotdict:
+    def __call__(self, notation: str, modules: Mapping[str, Callable], message: dotdict) -> dotdict:
         """Execute the DSL pipeline."""
         steps = self.parse(notation)
-        current_message = message # Começamos com a mensagem fornecida
+        current_message = message
 
         for step in steps:
             if step["type"] == "module":
@@ -335,7 +335,7 @@ class InlineDSL:
         return current_message
 
 def inline(
-    notation: str, modules: Dict[str, Callable], message: dotdict
+    notation: str, modules: Mapping[str, Callable], message: dotdict
 ) -> dotdict:
     """
     Executes a workflow defined in DSL notation over a given `message`.
@@ -380,6 +380,15 @@ def inline(
     Returns:
         The resulting `message` after executing the defined workflow.
 
+    Raises:
+        TypeError:
+            If message is not a `msgflow.dotdict` instance.
+        TypeError:
+            If modules is not a `Mapping` instance.            
+        ValueError:
+            If a module is not found, if the DSL syntax is invalid, 
+            or if a condition cannot be parsed.
+
     Examples:
         from msgflow import dotdict, inline
 
@@ -417,7 +426,9 @@ def inline(
         )
     """
     if not isinstance(message, dotdict):
-        raise TypeError("`message` must be an instance of `msgflow.dotdict`")    
+        raise TypeError("`message` must be an instance of `msgflow.dotdict`") 
+    if not isinstance(modules, Mapping):
+        raise TypeError("`modules` must be an instance of `Mapping`")     
     dsl = InlineDSL()
     message = dsl(notation, modules, message)
     return message
