@@ -186,14 +186,14 @@ def msg_scatter_gather(
     to_send: List[Callable],
     messages: List[dotdict],
     *,
-    response_mode: Optional[str] = None,    
+    prefix: Optional[str] = None,    
     timeout: Optional[float] = None,
 ) -> Tuple[dotdict, ...]:
     """
     Scatter a list of messages to a list of modules and gather the responses.
 
     Each message in `messages` is sent to the corresponding callable in `to_send`, 
-    and the responses are stored in the field specified by `response_mode` in the 
+    and the responses are stored in the field specified by `prefix` in the 
     respective message. Includes exception handling and optional timeout.
 
     Args:
@@ -201,7 +201,7 @@ def msg_scatter_gather(
             List of callable objects (e.g. functions or `Module` instances).    
         messages:
             List of `msgflow.dotdict` instances to be distributed.
-        response_mode:
+        prefix:
             Field where the responses will be stored.
         timeout:
             Maximum time (in seconds) to wait for responses.
@@ -212,10 +212,7 @@ def msg_scatter_gather(
     Raises:
         TypeError: 
             If `messages` is not a list of `dotdict`, `to_send` is not a list
-            of callables, or `response_mode` is not a string.
-        ValueError:
-            If `response_mode` is an empty string, or the lengths of `messages`
-            and `to_send` do not match.
+            of callables, or `prefix` is not a string.
     """
     if not messages or not all(isinstance(msg, dotdict) for msg in messages):
         raise TypeError("`messages` must be a non-empty list of `msgflow.dotdict` instances")
@@ -236,14 +233,14 @@ def msg_scatter_gather(
     concurrent.futures.wait(futures, timeout=timeout)
     for f, message, FUTURE in zip(to_send, messages, futures):
         f_name = get_callable_name(f)
+        msg_prefix = ""
+        if prefix is not None:
+            msg_prefix = f"{prefix}."        
         try:
-            message.set(f"{response_mode}.{f_name}", FUTURE.result())
+            message.set(f"{msg_prefix}{f_name}", FUTURE.result())
         except Exception as e:
             logger.error(f"Error in scattered task for `{f_name}`: {e}")
-            prefix = ""
-            if response_mode is not None:
-                prefix = f"{response_mode}."
-            message.set(f"{prefix}{f_name}", None)
+            message.set(f"{msg_prefix}{f_name}", None)
     return tuple(messages)
 
 
@@ -308,7 +305,7 @@ def bcast_gather(
 def msg_bcast_gather(
     to_send: List[Callable],
     message: dotdict,
-    response_mode: Optional[str] = None,
+    prefix: Optional[str] = None,
     *,
     timeout: Optional[float] = None,
 ) -> dotdict:
@@ -316,7 +313,7 @@ def msg_bcast_gather(
     Broadcasts a single message to multiple modules and gathers the responses.
 
     The given message is sent to each callable in `to_send`, and the responses are collected
-    in the field specified by `response_mode`, using the module name as the key. Includes
+    in the field specified by `prefix`, using the module name as the key. Includes
     exception handling and optional timeout to prevent crashes.
 
     Args:
@@ -324,7 +321,7 @@ def msg_bcast_gather(
             List of callable objects (e.g. functions or `Module` instances).    
         message:
             Instance of `msgflow.dotdict` to broadcast.
-        response_mode:
+        prefix:
             Field in the message where the responses will be stored.
         timeout:
             Maximum time (in seconds) to wait for responses.
@@ -335,9 +332,7 @@ def msg_bcast_gather(
     Raises:
         TypeError: 
             If `message` is not an instance of `dotdict`, `to_send` is not a list
-            of callables, or `response_mode` is not a string.
-        ValueError: 
-            If `response_mode` is an empty string or `to_send` is empty.
+            of callables.
     """
     if not isinstance(message, dotdict):
         raise TypeError("`message` must be an instance of `msgflow.dotdict`")
@@ -350,14 +345,14 @@ def msg_bcast_gather(
     concurrent.futures.wait(futures, timeout=timeout)
     for f, FUTURE in zip(to_send, futures):
         f_name = get_callable_name(f)
+        msg_prefix = ""
+        if prefix is not None:
+            msg_prefix = f"{prefix}."
         try:
-            message.set(f"{response_mode}.{f_name}", FUTURE.result())
+            message.set(f"{msg_prefix}{f_name}", FUTURE.result())
         except Exception as e:
             logger.error(f"Error in scattered task for `{f_name}`: {e}")
-            prefix = ""
-            if response_mode is not None:
-                prefix = f"{response_mode}."
-            message.set(f"{prefix}{f_name}", None)
+            message.set(f"{msg_prefix}{f_name}", None)
     return message
 
 
