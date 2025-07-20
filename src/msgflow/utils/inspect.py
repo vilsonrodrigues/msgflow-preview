@@ -3,6 +3,7 @@ import inspect
 import mimetypes
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 def get_mime_type(source: str) -> str:
@@ -29,6 +30,14 @@ def get_mime_type(source: str) -> str:
 
 def get_fn_name():
     return inspect.currentframe().f_back.f_code.co_name
+
+def get_filename(data_path: str) -> str:
+    if data_path.startswith(("http://", "https://", "ftp://")):
+        parsed_url = urlparse(data_path)
+        filename = os.path.basename(parsed_url.path)    
+    else: # Local file
+        filename = os.path.basename(data_path)    
+    return filename
 
 def get_decorators(node):
     """ Extracts the decorators from an AST node and converts them to string."""

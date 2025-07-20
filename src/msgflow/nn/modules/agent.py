@@ -38,10 +38,9 @@ from msgflow.nn.parameter import Parameter
 from msgflow.utils.chat import (
     adapt_struct_schema_to_json_schema,
     format_examples,
-    get_filename, 
     get_react_tools_prompt_format
 )
-from msgflow.utils.inspect import get_mime_type
+from msgflow.utils.inspect import get_filename, get_mime_type
 from msgflow.utils.msgspec import StructFactory
 from msgflow.utils.tool import ToolFlowControl
 from msgflow.utils.validation import is_subclass_of

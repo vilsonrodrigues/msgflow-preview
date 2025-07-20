@@ -6,7 +6,6 @@ import tempfile
 from uuid import uuid4
 from typing import (
     Any,
-    Callable,
     Dict,
     Literal,
     List,
@@ -16,7 +15,6 @@ from typing import (
     get_origin,
 )
 from jinja2 import Template
-from urllib.parse import urlparse
 from msgflow.logger import logger
 from msgflow.utils.inspect import get_mime_type
 from msgflow.utils.xml import apply_xml_tags
@@ -424,15 +422,6 @@ def get_react_tools_prompt_format(tool_schemas):
     """)    
     react_tools = template.render(tools=tool_schemas)
     return react_tools
-
-def get_filename(data_path: str) -> str:
-    if data_path.startswith(("http://", "https://", "ftp://")):
-        parsed_url = urlparse(data_path)
-        filename = os.path.basename(parsed_url.path)
-    # Local file
-    else:
-        filename = os.path.basename(data_path)    
-    return filename
 
 def download_file(url: str) -> str:
     """ Download a webfile and returns the path """
