@@ -28,15 +28,15 @@ class ChatML:
 
     def add_user_message(self, content: Union[str, Dict[str, Any]]):
         """Adds a message with role `user`."""
-        return self._add_message("user", content)
+        self._add_message("user", content)
 
     def add_assist_message(self, content: Union[str, Dict[str, Any]]):
         """Adds a message with role `assistant`."""
-        return self._add_message("assistant", content)
+        self._add_message("assistant", content)
 
     def add_tool_message(self, content: Union[str, Dict[str, Any]]):
         """Adds a message with role `tool`."""
-        return self._add_message("tool", content)
+        self._add_message("tool", content)
 
     def _add_message(self, role: str, content: Union[str, Dict[str, Any]]):
         """Internal method to add message to history."""
@@ -46,7 +46,7 @@ class ChatML:
             )
         message = {"role": role, "content": content}
         self.history.append(message)
-        return self.messages
+        return
 
     def extend_history(self, messages):
         """Add a list of messages to the history."""
@@ -55,8 +55,8 @@ class ChatML:
     def get_messages(self):
         return self.history
 
-    def clear_history(self):
-        self.messages = []
+    def clear(self):
+        self.history = []
         return
 
 def format_examples(examples: List[Union[Tuple[str, str], Tuple[str, str, str]]]) -> str:
